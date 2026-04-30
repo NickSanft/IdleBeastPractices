@@ -28,10 +28,10 @@ Phase 0 establishes the abstractions every later phase depends on: BigNumber for
 - `test_save_migration.gd` — fixture v0 save migrates to current shape without data loss.
 - `test_save_round_trip.gd` — populated `GameState` survives save → clear → load equality check.
 
-**Pre-push checklist (Phase 0 commit)**
+**Pre-push checklist (Phase 0 + 0a)**
 - ✓ GUT exits 0 (14/14 tests pass)
 - ✓ Windows export builds and launches headlessly without errors
-- ✓ Web export builds (uses the standard non-mono Godot binary; the locally-installed mono build cannot web-export per Godot 4 limitations)
-- ⚠ Android local verification deferred — Godot 4.6.1's headless Android exporter on Windows silently fails with "configuration errors" but no diagnostic string. Local toolchain (SDK, NDK 30, JDK 25, debug keystore, build template at `android/build/`) is fully in place. CI will exercise the Linux Android export path; user will reproduce the error from Godot's GUI to surface the specific config mismatch as a Phase 0a follow-up.
-- (pending) CI green on `main`
-- (pending) Tag `phase-0-complete` — held until Android local export is verified or accepted as CI-only.
+- ✓ Web export builds (uses the standard non-mono Godot binary locally; CI uses non-mono throughout)
+- ✓ Android debug APK builds locally via Godot's GUI export and on CI Linux runners. Phase 0a unblocker was `rendering/textures/vram_compression/import_etc2_astc=true` in `project.godot` — Godot's Android exporter silently rejects projects without ETC2/ASTC import enabled, since GLES doesn't support S3TC/BPTC.
+- ✓ CI green on `main` (run [25192707991](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25192707991))
+- ✓ Tag `phase-0-complete` pushed
