@@ -1,0 +1,236 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GODOT_VERSION: "4.6.1"
+  GODOT_RELEASE: "4.6.1-stable"
+
+jobs:
+  test:
+    name: Headless GUT tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Cache Godot binary
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-${{ env.GODOT_RELEASE }}-linux
+
+      - name: Install Godot ${{ env.GODOT_RELEASE }}
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -euxo pipefail
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+      - name: Import project (populate class_name registry)
+        run: |
+          godot --headless --path . --import 2>&1 | tail -20 || true
+
+      - name: Run GUT
+        run: |
+          godot --headless --path . -s addons/gut/gut_cmdln.gd \
+            -gdir=res://game/tests/ -ginclude_subdirs -gexit
+
+  build-windows:
+    name: Windows export (debug)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-${{ env.GODOT_RELEASE }}-linux
+
+      - name: Cache export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_RELEASE }}
+          key: godot-templates-${{ env.GODOT_RELEASE }}
+
+      - name: Ensure Godot binary
+        run: |
+          set -euxo pipefail
+          if [ ! -x /usr/local/bin/godot ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+            sudo chmod +x /usr/local/bin/godot
+          fi
+
+      - name: Install export templates
+        run: |
+          set -euxo pipefail
+          if [ ! -d "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}" ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+            mkdir -p "$HOME/.local/share/godot/export_templates"
+            unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+            mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          fi
+
+      - name: Import project
+        run: godot --headless --path . --import 2>&1 | tail -10 || true
+
+      - name: Export Windows Desktop (debug)
+        run: |
+          mkdir -p exports/windows
+          godot --headless --path . --export-debug "Windows Desktop" exports/windows/IdleBeastPractices.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-debug
+          path: exports/windows
+
+  build-web:
+    name: Web export (debug)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-${{ env.GODOT_RELEASE }}-linux
+
+      - name: Cache export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_RELEASE }}
+          key: godot-templates-${{ env.GODOT_RELEASE }}
+
+      - name: Ensure Godot binary
+        run: |
+          set -euxo pipefail
+          if [ ! -x /usr/local/bin/godot ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+            sudo chmod +x /usr/local/bin/godot
+          fi
+
+      - name: Install export templates
+        run: |
+          set -euxo pipefail
+          if [ ! -d "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}" ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+            mkdir -p "$HOME/.local/share/godot/export_templates"
+            unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+            mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          fi
+
+      - name: Import project
+        run: godot --headless --path . --import 2>&1 | tail -10 || true
+
+      - name: Export Web (debug)
+        run: |
+          mkdir -p exports/web
+          godot --headless --path . --export-debug "Web" exports/web/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-debug
+          path: exports/web
+
+  build-android-debug:
+    name: Android debug APK
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;23.2.8568313"
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-${{ env.GODOT_RELEASE }}-linux
+
+      - name: Cache export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_RELEASE }}
+          key: godot-templates-${{ env.GODOT_RELEASE }}
+
+      - name: Ensure Godot binary
+        run: |
+          set -euxo pipefail
+          if [ ! -x /usr/local/bin/godot ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+            sudo chmod +x /usr/local/bin/godot
+          fi
+
+      - name: Install export templates
+        run: |
+          set -euxo pipefail
+          if [ ! -d "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}" ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+            mkdir -p "$HOME/.local/share/godot/export_templates"
+            unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+            mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          fi
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -storepass android -keypass android
+
+      - name: Configure Godot Android editor settings
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF
+[gd_resource type="EditorSettings" format=3]
+
+[resource]
+export/android/android_sdk_path = "${ANDROID_HOME}"
+export/android/debug_keystore = "$(pwd)/debug.keystore"
+export/android/debug_keystore_user = "androiddebugkey"
+export/android/debug_keystore_pass = "android"
+EOF
+
+      - name: Import project
+        run: godot --headless --path . --import 2>&1 | tail -10 || true
+
+      - name: Export Android (debug)
+        run: |
+          mkdir -p exports/android
+          godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug
+          path: exports/android

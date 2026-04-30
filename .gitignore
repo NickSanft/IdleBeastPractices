@@ -1,0 +1,38 @@
+# Godot 4
+.godot/
+.import/
+.godot-cache/
+*.translation
+*.translation.godot-cache/
+
+# Mono / .NET (mono build of Godot generates these even for GDScript projects)
+.mono/
+*.csproj.user
+*.sln.DotSettings.user
+
+# Build outputs
+/exports/
+*.aab
+*.apk
+*.x86_64
+*.exe
+*.pck
+
+# Signing material — NEVER commit
+*.keystore
+*.jks
+*.p12
+export_credentials.cfg
+release.keystore
+
+# Editor / OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# User-local Godot data
+log/
+logs/

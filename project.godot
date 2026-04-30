@@ -1,0 +1,40 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="IdleBeastPractices"
+config/description="An idle monster-catching game with three currency layers, a pet auto-battler, a bestiary, monster-part crafting, and a grumpy in-world narrator."
+run/main_scene="res://game/scenes/main.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+Settings="*res://game/autoloads/settings.gd"
+EventBus="*res://game/autoloads/event_bus.gd"
+SaveManager="*res://game/autoloads/save_manager.gd"
+TimeManager="*res://game/autoloads/time_manager.gd"
+GameState="*res://game/autoloads/game_state.gd"
+AudioManager="*res://game/autoloads/audio_manager.gd"
+Narrator="*res://game/autoloads/narrator.gd"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/stretch/mode="canvas_items"
+window/handheld/orientation="portrait"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

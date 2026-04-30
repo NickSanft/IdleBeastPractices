@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  GODOT_VERSION: "4.6.1"
+  GODOT_RELEASE: "4.6.1-stable"
+
+jobs:
+  test:
+    name: Headless GUT tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - name: Install Godot
+        run: |
+          set -euxo pipefail
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+      - run: godot --headless --path . --import 2>&1 | tail -10 || true
+      - run: godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://game/tests/ -ginclude_subdirs -gexit
+
+  build-android-release:
+    name: Android signed AAB
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;23.2.8568313"
+      - name: Install Godot + templates
+        run: |
+          set -euxo pipefail
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+      - name: Decode release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > release.keystore
+      - name: Configure Godot Android editor settings
+        env:
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF
+[gd_resource type="EditorSettings" format=3]
+
+[resource]
+export/android/android_sdk_path = "${ANDROID_HOME}"
+export/android/release_keystore = "$(pwd)/release.keystore"
+export/android/release_keystore_user = "${KEY_ALIAS}"
+export/android/release_keystore_pass = "${KEY_PASS}"
+EOF
+      - run: godot --headless --path . --import 2>&1 | tail -10 || true
+      - name: Export Android release AAB
+        run: |
+          mkdir -p exports/android
+          godot --headless --path . --export-release "Android" exports/android/IdleBeastPractices.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: exports/android
+
+  build-windows:
+    name: Windows release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - name: Install Godot + templates
+        run: |
+          set -euxo pipefail
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+      - run: godot --headless --path . --import 2>&1 | tail -10 || true
+      - name: Export Windows Desktop (release)
+        run: |
+          mkdir -p exports/windows
+          godot --headless --path . --export-release "Windows Desktop" exports/windows/IdleBeastPractices.exe
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-release, path: exports/windows }
+
+  build-web:
+    name: Web release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - name: Install Godot + templates
+        run: |
+          set -euxo pipefail
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+      - run: godot --headless --path . --import 2>&1 | tail -10 || true
+      - name: Export Web (release)
+        run: |
+          mkdir -p exports/web
+          godot --headless --path . --export-release "Web" exports/web/index.html
+      - uses: actions/upload-artifact@v4
+        with: { name: web-release, path: exports/web }
+
+  github-release:
+    name: GitHub Release
+    needs: [build-android-release, build-windows, build-web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Package artifacts
+        run: |
+          set -euxo pipefail
+          mkdir -p release-assets
+          (cd artifacts/windows-release && zip -r ../../release-assets/IdleBeastPractices-windows.zip .)
+          (cd artifacts/web-release && zip -r ../../release-assets/IdleBeastPractices-web.zip .)
+          cp artifacts/android-release/*.aab release-assets/
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "Automated release for ${GITHUB_REF_NAME}." \
+            release-assets/*
