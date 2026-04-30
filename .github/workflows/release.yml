@@ -8,6 +8,7 @@ on:
 env:
   GODOT_VERSION: "4.6.1"
   GODOT_RELEASE: "4.6.1-stable"
+  GODOT_TEMPLATE_DIR: "4.6.1.stable"
 
 jobs:
   test:
@@ -48,7 +49,7 @@ jobs:
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
           mkdir -p "$HOME/.local/share/godot/export_templates"
           unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
-          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
       - name: Decode release keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -101,7 +102,7 @@ jobs:
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
           mkdir -p "$HOME/.local/share/godot/export_templates"
           unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
-          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
       - name: Export Windows Desktop (release)
         run: |
@@ -127,7 +128,7 @@ jobs:
           wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
           mkdir -p "$HOME/.local/share/godot/export_templates"
           unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
-          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_RELEASE}"
+          mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
       - name: Export Web (release)
         run: |
