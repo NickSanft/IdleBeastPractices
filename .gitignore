@@ -14,6 +14,7 @@
 /exports/
 *.aab
 *.apk
+*.apk.idsig
 *.x86_64
 *.exe
 *.pck
