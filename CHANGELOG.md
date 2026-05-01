@@ -26,8 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - ✓ GUT 99/99 passing
 - ✓ Project boots clean headlessly with `--quit-after 60`
 - ✓ Local Windows export builds
-- (pending) CI green on `main`
-- (pending) Tag `phase-4-complete`
+- ✓ CI green on `main` (run [25217297549](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25217297549))
+- ✓ Tag `phase-4-complete` pushed
 
 ### Phase 3 — Prestige + audio
 
