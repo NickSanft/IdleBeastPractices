@@ -29,21 +29,36 @@ func _ready() -> void:
 
 
 func _setup_music() -> void:
-	var stream: AudioStream = load(_MUSIC_PATH)
-	if stream == null:
+	var loaded: AudioStream = load(_MUSIC_PATH)
+	if loaded == null:
 		push_warning("AudioManager: music file not found at %s" % _MUSIC_PATH)
 		return
-	# Force loop in case the .import didn't bake it in.
+	# Duplicate so loop_mode mutation doesn't pollute the shared cached resource
+	# (and so a 0-length loop_end-derived bug in the cached copy is escaped).
+	var stream: AudioStream = loaded.duplicate(true) as AudioStream
 	if stream is AudioStreamWAV:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		var wav: AudioStreamWAV = stream
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		# Explicit loop range covering the whole stream. loop_end<=loop_begin is
+		# the common cause of "playing=true → playing=false in <1s with pos=0".
+		wav.loop_begin = 0
+		var sr: int = max(1, wav.mix_rate)
+		var total_frames: int = int(round(wav.get_length() * float(sr)))
+		wav.loop_end = max(1, total_frames - 1)
+		print("[audio] music wav: mix_rate=%d total_frames=%d loop=%d..%d" % [
+			sr, total_frames, wav.loop_begin, wav.loop_end,
+		])
 	elif stream is AudioStreamOggVorbis:
 		stream.loop = true
+
 	_music_player = AudioStreamPlayer.new()
 	_music_player.name = "Music"
 	_music_player.stream = stream
 	_music_player.bus = "Master"
 	_music_player.volume_db = Settings.music_db
+	_music_player.stream_paused = false
 	add_child(_music_player)
+	_music_player.finished.connect(_on_music_finished)
 	# Defer to next frame so the audio server is fully alive before play().
 	# Some Godot 4.6 editor builds drop early-init play() calls silently.
 	call_deferred("_start_music_deferred")
@@ -77,6 +92,19 @@ func _log_music_state_late() -> void:
 		_music_player.playing,
 		_music_player.get_playback_position(),
 	])
+	# If position is still zero, retry a fresh play() — covers the race where
+	# the deferred play() landed before AudioServer was actually listening.
+	if not _music_player.playing or _music_player.get_playback_position() <= 0.0:
+		_music_player.stop()
+		_music_player.play()
+		print("[audio] music retry play(); playing=%s" % _music_player.playing)
+
+
+func _on_music_finished() -> void:
+	# AudioStreamPlayer's `finished` fires when the stream reaches its end with
+	# no looping (or when it's stopped). With LOOP_FORWARD this should never
+	# fire under normal play. If it does, the stream's loop range is wrong.
+	print("[audio] music finished signal fired (unexpected with looping enabled)")
 
 
 func _setup_sfx_pool() -> void:
