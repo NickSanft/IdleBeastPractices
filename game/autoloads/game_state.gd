@@ -257,19 +257,22 @@ func total_catches() -> int:
 # Pet ownership
 
 func add_pet(pet_id: StringName, is_variant: bool) -> bool:
-	# Returns true if newly added; false if already owned (this variant).
+	# Variants imply the base pet is also owned: pet_variants_owned is a
+	# *subset* of pets_owned representing which pets have unlocked their
+	# variant sprite. Without this, debug_fast_pets (which forces every
+	# variant roll true) would route every drop into the variants list and
+	# leave the battle roster empty. Returns true if any new entry landed.
 	var key: String = String(pet_id)
-	if is_variant:
-		if pet_variants_owned.has(key):
-			return false
+	var newly_added: bool = false
+	if not pets_owned.has(key):
+		pets_owned.append(key)
+		newly_added = true
+	if is_variant and not pet_variants_owned.has(key):
 		pet_variants_owned.append(key)
-		EventBus.pet_acquired.emit(key, true)
-		return true
-	if pets_owned.has(key):
-		return false
-	pets_owned.append(key)
-	EventBus.pet_acquired.emit(key, false)
-	return true
+		newly_added = true
+	if newly_added:
+		EventBus.pet_acquired.emit(key, is_variant)
+	return newly_added
 
 
 func owned_pets() -> Array[PetResource]:

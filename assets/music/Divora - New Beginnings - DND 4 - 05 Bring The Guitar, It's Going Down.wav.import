@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b6sv18u5jrdjr"
+path="res://.godot/imported/Divora - New Beginnings - DND 4 - 05 Bring The Guitar, It's Going Down.wav-e1a686824938508db82fe7e9896a5aa5.sample"
+
+[deps]
+
+source_file="res://assets/music/Divora - New Beginnings - DND 4 - 05 Bring The Guitar, It's Going Down.wav"
+dest_files=["res://.godot/imported/Divora - New Beginnings - DND 4 - 05 Bring The Guitar, It's Going Down.wav-e1a686824938508db82fe7e9896a5aa5.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
