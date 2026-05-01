@@ -29,9 +29,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 **Pre-push checklist (Phase 5a)**
 - ✓ GUT 121/121 passing
 - ✓ Project boots clean headlessly with `--quit-after 60`
-- (pending) Local Windows export builds
-- (pending) CI green on `main`
-- (pending) Tag `phase-5a-complete`
+- ✓ Local Windows export builds
+- ✓ CI green on `main` (run [25234365350](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25234365350))
+- ✓ Tag `phase-5a-complete` pushed
 
 ### Phase 4 — Bestiary, shinies, crafting
 
