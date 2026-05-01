@@ -54,7 +54,8 @@ func _handle_auto_catch(delta: float) -> void:
 	if net == null:
 		_auto_accumulator = 0.0
 		return
-	var result := CatchingSystem.auto_catch_count(_auto_accumulator, delta, net.catches_per_second)
+	var auto_speed_mult: float = GameState.multiplier(&"auto_speed")
+	var result := CatchingSystem.auto_catch_count(_auto_accumulator, delta, net.catches_per_second, auto_speed_mult)
 	_auto_accumulator = result["accumulator"]
 	for i in int(result["count"]):
 		var inst := _pick_random_on_screen_monster()
@@ -122,7 +123,14 @@ func _pick_random_on_screen_monster() -> Node:
 func _on_monster_tapped(inst: Node2D) -> void:
 	GameState.record_tap()
 	var monster: MonsterResource = inst.monster
-	var outcome := CatchingSystem.resolve_tap(monster, inst.tap_progress, _rng)
+	var outcome := CatchingSystem.resolve_tap(
+			monster,
+			inst.tap_progress,
+			_rng,
+			GameState.multiplier(&"tap_speed"),
+			GameState.multiplier(&"drop_amount"),
+			GameState.multiplier(&"gold_mult"),
+			GameState.multiplier(&"shiny_rate"))
 	if not bool(outcome["caught"]):
 		inst.tap_progress = float(outcome["tap_progress"])
 		return
@@ -133,7 +141,12 @@ func _on_monster_tapped(inst: Node2D) -> void:
 
 func _resolve_auto_catch(inst: Node2D) -> void:
 	var monster: MonsterResource = inst.monster
-	var outcome := CatchingSystem.resolve_auto(monster, _rng)
+	var outcome := CatchingSystem.resolve_auto(
+			monster,
+			_rng,
+			GameState.multiplier(&"drop_amount"),
+			GameState.multiplier(&"gold_mult"),
+			GameState.multiplier(&"shiny_rate"))
 	_apply_catch_rewards(monster, outcome, "net")
 	inst.play_catch_and_despawn()
 	EventBus.monster_caught.emit(String(monster.id), inst.instance_id, bool(outcome["is_shiny"]), "net")
@@ -175,6 +188,16 @@ func _check_tier_progression(catch_tier: int) -> void:
 	# Tier complete!
 	GameState.tiers_completed.append(catch_tier)
 	EventBus.tier_completed.emit(catch_tier)
+	# Award pets for every species in the completed tier that has one defined.
+	for sid in tier_species:
+		var monster_res := ContentRegistry.monster(sid)
+		if monster_res == null or monster_res.pet == null:
+			continue
+		# Variant roll: chance is per-pet, independent of shiny.
+		var rng_local := RandomNumberGenerator.new()
+		rng_local.randomize()
+		var is_variant: bool = rng_local.randf() < monster_res.pet.variant_rate
+		GameState.add_pet(monster_res.pet.id, is_variant)
 	if GameState.current_max_tier <= catch_tier:
 		GameState.current_max_tier = catch_tier + 1
 		EventBus.tier_unlocked.emit(GameState.current_max_tier)

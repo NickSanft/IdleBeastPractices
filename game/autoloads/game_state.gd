@@ -253,4 +253,77 @@ func has_caught_species(monster_id: StringName) -> bool:
 func total_catches() -> int:
 	return int(ledger["total_catches"])
 
+
+# Pet ownership
+
+func add_pet(pet_id: StringName, is_variant: bool) -> bool:
+	# Returns true if newly added; false if already owned (this variant).
+	var key: String = String(pet_id)
+	if is_variant:
+		if pet_variants_owned.has(key):
+			return false
+		pet_variants_owned.append(key)
+		EventBus.pet_acquired.emit(key, true)
+		return true
+	if pets_owned.has(key):
+		return false
+	pets_owned.append(key)
+	EventBus.pet_acquired.emit(key, false)
+	return true
+
+
+func owned_pets() -> Array[PetResource]:
+	var out: Array[PetResource] = []
+	for pid in pets_owned:
+		var p := ContentRegistry.pet(StringName(pid))
+		if p != null:
+			out.append(p)
+	return out
+
+
+# Upgrades
+
+func get_upgrade_level(upgrade_id: StringName) -> int:
+	var key: String = String(upgrade_id)
+	for entry in upgrades_purchased:
+		if String(entry.get("id", "")) == key:
+			return int(entry.get("level", 0))
+	return 0
+
+
+func try_purchase_upgrade(upgrade: UpgradeResource) -> Dictionary:
+	# Returns {"success": bool, "new_level": int}.
+	var current_level: int = get_upgrade_level(upgrade.id)
+	if current_level >= upgrade.max_level:
+		return {"success": false, "new_level": current_level, "reason": "max_level"}
+	var cost: BigNumber = UpgradeEffectsSystem.cost_for_next_level(upgrade, current_level)
+	if upgrade.cost_currency == UpgradeResource.Currency.GOLD:
+		if not try_spend_gold(cost):
+			return {"success": false, "new_level": current_level, "reason": "insufficient_gold"}
+	elif upgrade.cost_currency == UpgradeResource.Currency.RANCHER_POINTS:
+		var rp_cost: int = int(cost.to_float())
+		if int(currencies["rancher_points"]) < rp_cost:
+			return {"success": false, "new_level": current_level, "reason": "insufficient_rp"}
+		currencies["rancher_points"] = int(currencies["rancher_points"]) - rp_cost
+		EventBus.currency_changed.emit("rancher_points", currencies["rancher_points"])
+	# Apply level increment.
+	var new_level: int = current_level + 1
+	var found: bool = false
+	for entry in upgrades_purchased:
+		if String(entry.get("id", "")) == String(upgrade.id):
+			entry["level"] = new_level
+			found = true
+			break
+	if not found:
+		upgrades_purchased.append({"id": upgrade.id, "level": new_level})
+	EventBus.upgrade_purchased.emit(String(upgrade.id))
+	return {"success": true, "new_level": new_level}
+
+
+func multiplier(effect_id: StringName) -> float:
+	return UpgradeEffectsSystem.get_multiplier(
+			effect_id,
+			upgrades_purchased,
+			ContentRegistry.upgrade_index())
+
 # endregion

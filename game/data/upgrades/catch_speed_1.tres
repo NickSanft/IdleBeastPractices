@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"catch_speed_1"
+display_name = "Quicker Hands"
+description = "Tap progress builds 20% faster per tap."
+effect_id = &"tap_speed"
+magnitude = 0.2
+cost = {"m": 5.0, "e": 2}
+cost_currency = 0
+cost_growth = 1.5
+max_level = 5
+tier_required = 1
+persists_through_prestige = false

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gold_mult_1"
+display_name = "Sharper Trades"
+description = "All gold drops are 25% larger per level."
+effect_id = &"gold_mult"
+magnitude = 0.25
+cost = {"m": 1.0, "e": 3}
+cost_currency = 0
+cost_growth = 1.7
+max_level = 5
+tier_required = 1
+persists_through_prestige = false

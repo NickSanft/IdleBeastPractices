@@ -9,10 +9,14 @@ extends RefCounted
 const _MONSTERS_DIR := "res://game/data/monsters"
 const _ITEMS_DIR := "res://game/data/items"
 const _NETS_DIR := "res://game/data/nets"
+const _PETS_DIR := "res://game/data/pets"
+const _UPGRADES_DIR := "res://game/data/upgrades"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
 static var _nets_by_id: Dictionary = {}       # StringName -> NetResource
+static var _pets_by_id: Dictionary = {}       # StringName -> PetResource
+static var _upgrades_by_id: Dictionary = {}   # StringName -> UpgradeResource
 static var _initialized: bool = false
 
 
@@ -22,6 +26,8 @@ static func ensure_loaded() -> void:
 	_load_dir(_MONSTERS_DIR, _monsters_by_id)
 	_load_dir(_ITEMS_DIR, _items_by_id)
 	_load_dir(_NETS_DIR, _nets_by_id)
+	_load_dir(_PETS_DIR, _pets_by_id)
+	_load_dir(_UPGRADES_DIR, _upgrades_by_id)
 	_initialized = true
 
 
@@ -92,3 +98,34 @@ static func nets() -> Array[NetResource]:
 static func net(id: StringName) -> NetResource:
 	ensure_loaded()
 	return _nets_by_id.get(id)
+
+
+static func pets() -> Array[PetResource]:
+	ensure_loaded()
+	var out: Array[PetResource] = []
+	for id in _pets_by_id.keys():
+		out.append(_pets_by_id[id])
+	return out
+
+
+static func pet(id: StringName) -> PetResource:
+	ensure_loaded()
+	return _pets_by_id.get(id)
+
+
+static func upgrades() -> Array[UpgradeResource]:
+	ensure_loaded()
+	var out: Array[UpgradeResource] = []
+	for id in _upgrades_by_id.keys():
+		out.append(_upgrades_by_id[id])
+	return out
+
+
+static func upgrade(id: StringName) -> UpgradeResource:
+	ensure_loaded()
+	return _upgrades_by_id.get(id)
+
+
+static func upgrade_index() -> Dictionary:
+	ensure_loaded()
+	return _upgrades_by_id

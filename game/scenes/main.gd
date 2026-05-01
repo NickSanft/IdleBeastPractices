@@ -4,8 +4,10 @@ extends Control
 
 const _CURRENCY_BAR := preload("res://game/scenes/ui/currency_bar.tscn")
 const _CATCHING_VIEW := preload("res://game/scenes/catching/catching_view.tscn")
+const _BATTLE_VIEW := preload("res://game/scenes/battle/battle_view.tscn")
 const _INVENTORY_PANEL := preload("res://game/scenes/ui/inventory_panel.tscn")
 const _NET_SHOP := preload("res://game/scenes/ui/net_shop.tscn")
+const _UPGRADE_TREE := preload("res://game/scenes/ui/upgrade_tree.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -40,6 +42,10 @@ func _build_ui() -> void:
 	catch_tab.name = "Catch"
 	tabs.add_child(catch_tab)
 
+	var battle_tab: Control = _BATTLE_VIEW.instantiate()
+	battle_tab.name = "Battle"
+	tabs.add_child(battle_tab)
+
 	var inventory_tab: Control = _INVENTORY_PANEL.instantiate()
 	inventory_tab.name = "Inventory"
 	tabs.add_child(inventory_tab)
@@ -47,6 +53,10 @@ func _build_ui() -> void:
 	var shop_tab: Control = _NET_SHOP.instantiate()
 	shop_tab.name = "Shop"
 	tabs.add_child(shop_tab)
+
+	var upgrades_tab: Control = _UPGRADE_TREE.instantiate()
+	upgrades_tab.name = "Upgrades"
+	tabs.add_child(upgrades_tab)
 
 
 func _seed_default_net_if_needed() -> void:
@@ -62,7 +72,9 @@ func _apply_offline_progress(loaded: Dictionary) -> void:
 	var last_saved_unix: int = int(loaded.get("last_saved_unix", 0))
 	if last_saved_unix <= 0:
 		return
-	var elapsed: float = TimeManager.compute_offline_elapsed(last_saved_unix, OfflineProgressSystem.DEFAULT_CAP_SECONDS)
+	var offline_cap_mult: float = GameState.multiplier(&"offline_cap")
+	var cap: float = OfflineProgressSystem.DEFAULT_CAP_SECONDS * offline_cap_mult
+	var elapsed: float = TimeManager.compute_offline_elapsed(last_saved_unix, cap)
 	if elapsed <= 60.0:
 		return  # Don't pop the dialog for sub-minute trips.
 	var net_id_str: String = String(GameState.active_net)
@@ -78,7 +90,12 @@ func _apply_offline_progress(loaded: Dictionary) -> void:
 			net,
 			GameState.current_max_tier,
 			elapsed,
-			rng)
+			rng,
+			offline_cap_mult,
+			GameState.multiplier(&"auto_speed"),
+			GameState.multiplier(&"drop_amount"),
+			GameState.multiplier(&"gold_mult"),
+			GameState.multiplier(&"shiny_rate"))
 	EventBus.offline_progress_calculated.emit(summary)
 	_show_welcome_back(summary)
 

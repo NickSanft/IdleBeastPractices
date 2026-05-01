@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"drop_amount_1"
+display_name = "Roomier Pouches"
+description = "Item drops yield 50% more per catch."
+effect_id = &"drop_amount"
+magnitude = 0.5
+cost = {"m": 2.0, "e": 3}
+cost_currency = 0
+cost_growth = 2.0
+max_level = 3
+tier_required = 1
+persists_through_prestige = false

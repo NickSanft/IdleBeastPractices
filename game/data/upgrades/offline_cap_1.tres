@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"offline_cap_1"
+display_name = "Hammock Discipline"
+description = "Offline progress cap doubled per level (1h → 2h → 4h)."
+effect_id = &"offline_cap"
+magnitude = 1.0
+cost = {"m": 1.0, "e": 4}
+cost_currency = 0
+cost_growth = 3.0
+max_level = 2
+tier_required = 1
+persists_through_prestige = false
