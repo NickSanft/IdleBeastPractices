@@ -123,3 +123,69 @@ static func auto_catch_count(
 		"count": catches,
 		"accumulator": acc - float(catches),
 	}
+
+
+## Pure check for tier completion. Returns:
+##   {
+##     is_complete:     bool,
+##     tier:            int,
+##     tier_species:    Array[StringName],   # all monsters in this tier
+##     missing_species: Array[StringName],   # species in tier with zero catches
+##     max_count:       int,                 # highest catches across species in tier
+##   }
+##
+## A tier is considered complete when every species in it has been caught at
+## least once AND any one species has reached `threshold` catches.
+##
+## monsters_caught is the GameState shape: {String -> {"normal": int, "shiny": int}}.
+static func tier_completion_status(
+		monster_pool: Array[MonsterResource],
+		monsters_caught: Dictionary,
+		catch_tier: int,
+		threshold: int) -> Dictionary:
+	var tier_species: Array[StringName] = []
+	for m in monster_pool:
+		if m.tier == catch_tier:
+			tier_species.append(m.id)
+	if tier_species.is_empty():
+		return {
+			"is_complete": false,
+			"tier": catch_tier,
+			"tier_species": [] as Array[StringName],
+			"missing_species": [] as Array[StringName],
+			"max_count": 0,
+		}
+	var missing: Array[StringName] = []
+	var max_count: int = 0
+	for sid in tier_species:
+		var key: String = String(sid)
+		if not monsters_caught.has(key):
+			missing.append(sid)
+			continue
+		var entry: Dictionary = monsters_caught[key]
+		var count: int = int(entry.get("normal", 0)) + int(entry.get("shiny", 0))
+		max_count = max(max_count, count)
+	var is_complete: bool = missing.is_empty() and max_count >= threshold
+	return {
+		"is_complete": is_complete,
+		"tier": catch_tier,
+		"tier_species": tier_species,
+		"missing_species": missing,
+		"max_count": max_count,
+	}
+
+
+## Returns the pet PetResources awarded when `catch_tier` completes — every
+## monster in that tier with a non-null `pet` reference contributes one.
+## Empty array if no monsters in that tier have pets.
+static func pets_to_award_for_tier(
+		monster_pool: Array[MonsterResource],
+		catch_tier: int) -> Array[PetResource]:
+	var out: Array[PetResource] = []
+	for m in monster_pool:
+		if m.tier != catch_tier:
+			continue
+		if m.pet == null:
+			continue
+		out.append(m.pet)
+	return out

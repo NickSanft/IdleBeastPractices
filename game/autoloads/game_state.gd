@@ -284,6 +284,19 @@ func owned_pets() -> Array[PetResource]:
 	return out
 
 
+## Idempotent reconciliation: for every tier in tiers_completed, ensure every
+## pet that tier should have awarded is in pets_owned. Fixes saves where the
+## tier-completion loop missed a pet (e.g. the monster's `pet` ref hadn't yet
+## been wired when the tier first completed). Safe to call any time after
+## ContentRegistry has loaded; add_pet skips already-owned entries.
+func reconcile_pet_awards() -> void:
+	var pool := ContentRegistry.monsters()
+	for tier_value in tiers_completed:
+		var pets := CatchingSystem.pets_to_award_for_tier(pool, int(tier_value))
+		for pet in pets:
+			add_pet(pet.id, false)
+
+
 # Upgrades
 
 func get_upgrade_level(upgrade_id: StringName) -> int:

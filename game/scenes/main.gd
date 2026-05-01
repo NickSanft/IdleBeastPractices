@@ -19,6 +19,7 @@ func _ready() -> void:
 	_build_ui()
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
+	GameState.reconcile_pet_awards()
 	_apply_offline_progress(loaded)
 	_seed_default_net_if_needed()
 
@@ -131,6 +132,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			Settings.debug_fast_pets = not Settings.debug_fast_pets
 			print("[debug] FAST_PETS = %s (lowers tier threshold to 2 + forces variants when on)" % Settings.debug_fast_pets)
 			get_viewport().set_input_as_handled()
+		KEY_F3:
+			_reset_all_progress()
+			get_viewport().set_input_as_handled()
+
+
+## Wipes save state and reloads first-launch defaults. Bound to F3.
+## Useful for testing the catch loop / tier progression / battle flow
+## from scratch without hand-deleting user://save.json.
+func _reset_all_progress() -> void:
+	GameState.from_dict({})
+	SaveManager.save(GameState.to_dict())
+	# Force every reactive UI to refresh.
+	EventBus.game_loaded.emit()
+	EventBus.currency_changed.emit("gold", GameState.current_gold())
+	EventBus.currency_changed.emit("rancher_points", GameState.current_rancher_points())
+	print("[debug] PROGRESS RESET — back to first-launch defaults.")
 
 
 func _on_close_requested() -> void:

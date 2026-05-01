@@ -229,50 +229,40 @@ func _apply_catch_rewards(monster: MonsterResource, outcome: Dictionary, source:
 
 
 func _check_tier_progression(catch_tier: int) -> void:
-	# Tier completion gate: caught all 3 species in this tier AND ≥25 of any.
+	# Only fire on the player's leading edge tier.
 	if catch_tier != GameState.current_max_tier:
 		return
 	if GameState.tiers_completed.has(catch_tier):
 		return
-	var pool := ContentRegistry.monsters()
-	var tier_species: Array[StringName] = []
-	for m in pool:
-		if m.tier == catch_tier:
-			tier_species.append(m.id)
-	if tier_species.is_empty():
-		return
-	var all_seen: bool = true
-	var max_count: int = 0
-	for sid in tier_species:
-		var key: String = String(sid)
-		if not GameState.monsters_caught.has(key):
-			all_seen = false
-			break
-		var entry: Dictionary = GameState.monsters_caught[key]
-		var count: int = int(entry.get("normal", 0)) + int(entry.get("shiny", 0))
-		max_count = max(max_count, count)
 	var threshold: int = _TIER_DEBUG_THRESHOLD if Settings.debug_fast_pets else _TIER_COMPLETE_CATCH_THRESHOLD
-	if not all_seen or max_count < threshold:
+	var status := CatchingSystem.tier_completion_status(
+			ContentRegistry.monsters(),
+			GameState.monsters_caught,
+			catch_tier,
+			threshold)
+	if not bool(status["is_complete"]):
 		return
-	# Tier complete!
-	GameState.tiers_completed.append(catch_tier)
-	EventBus.tier_completed.emit(catch_tier)
+	_award_tier_completion(catch_tier)
+
+
+## Side-effect-only: applies tier_completed to GameState, awards every
+## species' pet in that tier (variant rolls per-pet), advances current_max_tier.
+## Idempotent — add_pet skips already-owned pets.
+func _award_tier_completion(catch_tier: int) -> void:
+	if not GameState.tiers_completed.has(catch_tier):
+		GameState.tiers_completed.append(catch_tier)
+		EventBus.tier_completed.emit(catch_tier)
 	if _DEBUG_LOG:
 		print("[catch] TIER %d COMPLETE — awarding pets" % catch_tier)
-	# Award pets for every species in the completed tier that has one defined.
-	for sid in tier_species:
-		var monster_res := ContentRegistry.monster(sid)
-		if monster_res == null or monster_res.pet == null:
-			continue
-		# Variant roll: chance is per-pet, independent of shiny.
+	for pet in CatchingSystem.pets_to_award_for_tier(ContentRegistry.monsters(), catch_tier):
 		var rng_local := RandomNumberGenerator.new()
 		rng_local.randomize()
-		var roll_ceiling: float = 1.0 if Settings.debug_fast_pets else monster_res.pet.variant_rate
+		var roll_ceiling: float = 1.0 if Settings.debug_fast_pets else pet.variant_rate
 		var is_variant: bool = rng_local.randf() < roll_ceiling
-		var added: bool = GameState.add_pet(monster_res.pet.id, is_variant)
+		var added: bool = GameState.add_pet(pet.id, is_variant)
 		if _DEBUG_LOG:
 			print("[catch]   pet awarded: %s (variant=%s, new=%s)" % [
-				String(monster_res.pet.id), is_variant, added,
+				String(pet.id), is_variant, added,
 			])
 	if GameState.current_max_tier <= catch_tier:
 		GameState.current_max_tier = catch_tier + 1

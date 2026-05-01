@@ -134,3 +134,126 @@ func test_auto_catch_count_zero_dt_no_catch():
 	var result := CatchingSystem.auto_catch_count(0.9, 0.0, 1.0)
 	assert_eq(result["count"], 0)
 	assert_almost_eq(result["accumulator"], 0.9, 1.0e-9)
+
+
+# region — tier_completion_status
+
+func _make_t1_pool() -> Array[MonsterResource]:
+	var a := MonsterResource.new()
+	a.id = &"a"
+	a.tier = 1
+	var b := MonsterResource.new()
+	b.id = &"b"
+	b.tier = 1
+	var c := MonsterResource.new()
+	c.id = &"c"
+	c.tier = 1
+	var pool: Array[MonsterResource] = [a, b, c]
+	return pool
+
+
+func test_tier_status_all_seen_threshold_met():
+	var pool := _make_t1_pool()
+	var caught: Dictionary = {
+		"a": {"normal": 5, "shiny": 0},
+		"b": {"normal": 1, "shiny": 1},
+		"c": {"normal": 1, "shiny": 0},
+	}
+	var status := CatchingSystem.tier_completion_status(pool, caught, 1, 2)
+	assert_true(status["is_complete"], "expected complete")
+	assert_eq(status["max_count"], 5)
+	assert_true(status["missing_species"].is_empty())
+
+
+func test_tier_status_missing_species_blocks():
+	var pool := _make_t1_pool()
+	# Caught a and b but never c.
+	var caught: Dictionary = {
+		"a": {"normal": 100, "shiny": 0},
+		"b": {"normal": 100, "shiny": 0},
+	}
+	var status := CatchingSystem.tier_completion_status(pool, caught, 1, 2)
+	assert_false(status["is_complete"], "should not be complete with missing species")
+	assert_eq(status["missing_species"].size(), 1)
+	assert_eq(status["missing_species"][0], &"c")
+
+
+func test_tier_status_below_threshold_blocks():
+	var pool := _make_t1_pool()
+	var caught: Dictionary = {
+		"a": {"normal": 1, "shiny": 0},
+		"b": {"normal": 1, "shiny": 0},
+		"c": {"normal": 1, "shiny": 0},
+	}
+	# Threshold 2; max_count is 1.
+	var status := CatchingSystem.tier_completion_status(pool, caught, 1, 2)
+	assert_false(status["is_complete"])
+	assert_eq(status["max_count"], 1)
+
+
+func test_tier_status_shiny_counts_toward_threshold():
+	var pool := _make_t1_pool()
+	# Shiny catches should also count toward the threshold.
+	var caught: Dictionary = {
+		"a": {"normal": 0, "shiny": 5},
+		"b": {"normal": 1, "shiny": 0},
+		"c": {"normal": 1, "shiny": 0},
+	}
+	var status := CatchingSystem.tier_completion_status(pool, caught, 1, 2)
+	assert_true(status["is_complete"])
+	assert_eq(status["max_count"], 5)
+
+
+func test_tier_status_empty_pool_for_tier():
+	var pool := _make_t1_pool()
+	# Tier 2 has no monsters in this pool.
+	var status := CatchingSystem.tier_completion_status(pool, {}, 2, 2)
+	assert_false(status["is_complete"])
+	assert_eq(status["tier_species"].size(), 0)
+
+
+# endregion
+
+
+# region — pets_to_award_for_tier
+
+func test_pets_to_award_returns_each_pet_in_tier():
+	var pet_a := PetResource.new()
+	pet_a.id = &"pet_a"
+	var pet_c := PetResource.new()
+	pet_c.id = &"pet_c"
+	var a := MonsterResource.new()
+	a.id = &"a"
+	a.tier = 1
+	a.pet = pet_a
+	var b := MonsterResource.new()
+	b.id = &"b"
+	b.tier = 1
+	# b has no pet
+	var c := MonsterResource.new()
+	c.id = &"c"
+	c.tier = 1
+	c.pet = pet_c
+	var d := MonsterResource.new()
+	d.id = &"d"
+	d.tier = 2
+	# d is wrong tier, ignored
+	var pool: Array[MonsterResource] = [a, b, c, d]
+	var awarded := CatchingSystem.pets_to_award_for_tier(pool, 1)
+	assert_eq(awarded.size(), 2, "expected 2 awarded pets (a + c)")
+	var ids: Array = []
+	for p in awarded:
+		ids.append(p.id)
+	assert_true(ids.has(&"pet_a"))
+	assert_true(ids.has(&"pet_c"))
+
+
+func test_pets_to_award_empty_when_no_tier_match():
+	var a := MonsterResource.new()
+	a.id = &"a"
+	a.tier = 1
+	var pool: Array[MonsterResource] = [a]
+	var awarded := CatchingSystem.pets_to_award_for_tier(pool, 99)
+	assert_eq(awarded.size(), 0)
+
+# endregion
