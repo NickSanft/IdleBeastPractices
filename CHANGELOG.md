@@ -19,9 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 **Pre-push checklist (Phase 5b)**
 - ✓ GUT 124/124 passing
 - ✓ Project boots clean headlessly with `--quit-after 60`
-- (pending) Local Windows export builds
-- (pending) CI green on `main`
-- (pending) Tag `phase-5b-complete`
+- ✓ CI green on `main` (run [25235523153](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25235523153))
+- ✓ Tag `phase-5b-complete` pushed
 
 ### Phase 5a — Peniber + Ledger
 
