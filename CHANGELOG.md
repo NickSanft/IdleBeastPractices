@@ -34,9 +34,9 @@ Phase 1 turns Phase 0's scaffolding into something playable. A first-launch play
 **Pre-push checklist (Phase 1)**
 - ✓ GUT 32/32 passing
 - ✓ Project boots clean headlessly with `--quit-after 60` (no script errors)
-- (pending) Local Windows / Web / Android exports
-- (pending) CI green on `main`
-- (pending) Tag `phase-1-complete`
+- ✓ Local Windows export builds and ships
+- ✓ CI green on `main` (run [25195407762](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25195407762)) — tests + Windows + Web + Android all four jobs
+- ✓ Tag `phase-1-complete` pushed
 
 ### Phase 0 — Foundation
 
