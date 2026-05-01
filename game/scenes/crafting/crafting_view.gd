@@ -66,9 +66,16 @@ func _refresh() -> void:
 func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.clip_contents = true
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", 10)
+	margins.add_theme_constant_override("margin_right", 10)
+	margins.add_theme_constant_override("margin_top", 8)
+	margins.add_theme_constant_override("margin_bottom", 8)
+	card.add_child(margins)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
-	card.add_child(vbox)
+	margins.add_child(vbox)
 
 	var name_label := Label.new()
 	name_label.text = recipe.display_name

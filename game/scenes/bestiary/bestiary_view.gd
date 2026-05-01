@@ -3,7 +3,9 @@
 extends PanelContainer
 
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
-const _SPRITE_DISPLAY_SCALE := 2.0
+const _SPRITE_DISPLAY_SCALE := 3.0
+const _SPRITE_BOX: Vector2 = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
+const _CARD_MARGIN := 10
 
 var _list: VBoxContainer
 
@@ -58,47 +60,31 @@ func _refresh() -> void:
 
 
 func _build_card(monster: MonsterResource) -> Control:
+	# Card frame: PanelContainer + clip_contents so a runaway sprite or label
+	# can't bleed into a sibling card.
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.clip_contents = true
+	# Padding inside the panel — keeps text and sprite off the edge.
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", _CARD_MARGIN)
+	margins.add_theme_constant_override("margin_right", _CARD_MARGIN)
+	margins.add_theme_constant_override("margin_top", _CARD_MARGIN)
+	margins.add_theme_constant_override("margin_bottom", _CARD_MARGIN)
+	card.add_child(margins)
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 12)
-	card.add_child(hbox)
+	margins.add_child(hbox)
 
 	var key: String = String(monster.id)
 	var seen: bool = GameState.monsters_caught.has(key)
 
-	# Sprite (or '?' placeholder).
-	var sprite_root := Control.new()
-	sprite_root.custom_minimum_size = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
-	hbox.add_child(sprite_root)
-	if seen and monster.sprite != null:
-		var sprite := TextureRect.new()
-		sprite.texture = monster.sprite
-		sprite.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		sprite.modulate = monster.tint
-		# Region-clip to first frame.
-		sprite.size = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
-		var atlas := AtlasTexture.new()
-		atlas.atlas = monster.sprite
-		atlas.region = Rect2(Vector2.ZERO, _SPRITE_FRAME_SIZE)
-		sprite.texture = atlas
-		sprite.anchor_right = 1.0
-		sprite.anchor_bottom = 1.0
-		sprite_root.add_child(sprite)
-	else:
-		var qmark := Label.new()
-		qmark.text = "?"
-		qmark.add_theme_font_size_override("font_size", 36)
-		qmark.modulate = Color(0.6, 0.6, 0.6)
-		qmark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		qmark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		qmark.set_anchors_preset(Control.PRESET_FULL_RECT)
-		sprite_root.add_child(qmark)
+	hbox.add_child(_build_sprite_slot(monster, seen))
 
 	# Text column.
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 2)
 	hbox.add_child(col)
 
@@ -109,6 +95,7 @@ func _build_card(monster: MonsterResource) -> Control:
 		name_label.text = "??? — Tier %d" % monster.tier
 		name_label.modulate = Color(0.7, 0.7, 0.7)
 	name_label.add_theme_font_size_override("font_size", 18)
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(name_label)
 
 	# Slot row: normal / shiny / variant.
@@ -121,7 +108,6 @@ func _build_card(monster: MonsterResource) -> Control:
 	var shiny_count: int = int(entry.get("shiny", 0))
 	slots.add_child(_slot_label("Caught", normal_count, normal_count > 0, Color(0.8, 1.0, 0.8)))
 	slots.add_child(_slot_label("Shiny", shiny_count, shiny_count > 0, Color(1.0, 0.95, 0.5)))
-	# Variant tracks the pet flag — pet_variants_owned holds the pet id, not species id.
 	var variant_owned: bool = monster.pet != null and GameState.pet_variants_owned.has(String(monster.pet.id))
 	slots.add_child(_slot_label("Variant", 1 if variant_owned else 0, variant_owned, Color(0.7, 0.85, 1.0)))
 
@@ -137,10 +123,39 @@ func _build_card(monster: MonsterResource) -> Control:
 	return card
 
 
+## Builds the left-hand sprite cell. Fixed width/height (~96 px) so it never
+## stretches to the card's height and clips the textbox alongside it.
+func _build_sprite_slot(monster: MonsterResource, seen: bool) -> Control:
+	if seen and monster.sprite != null:
+		var atlas := AtlasTexture.new()
+		atlas.atlas = monster.sprite
+		atlas.region = Rect2(Vector2.ZERO, _SPRITE_FRAME_SIZE)
+		var tex := TextureRect.new()
+		tex.texture = atlas
+		tex.modulate = monster.tint
+		tex.custom_minimum_size = _SPRITE_BOX
+		tex.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		tex.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		return tex
+	var qmark := Label.new()
+	qmark.text = "?"
+	qmark.add_theme_font_size_override("font_size", 36)
+	qmark.modulate = Color(0.6, 0.6, 0.6)
+	qmark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	qmark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	qmark.custom_minimum_size = _SPRITE_BOX
+	qmark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	qmark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return qmark
+
+
 func _slot_label(title: String, count: int, filled: bool, color_filled: Color) -> Control:
 	var label := Label.new()
 	if filled:
-		label.text = "%s × %d" % [title, count] if count > 1 else "%s ✓" % title
+		label.text = ("%s × %d" % [title, count]) if count > 1 else ("%s ✓" % title)
 		label.modulate = color_filled
 	else:
 		label.text = "%s —" % title
