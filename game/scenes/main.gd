@@ -24,6 +24,7 @@ func _ready() -> void:
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
 	GameState.reconcile_pet_awards()
+	GameState.reconcile_total_gold_earned_this_run()
 	_apply_offline_progress(loaded)
 	_seed_default_net_if_needed()
 

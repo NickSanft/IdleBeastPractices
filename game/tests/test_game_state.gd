@@ -137,3 +137,46 @@ func test_record_catch_shiny_increments_shiny_counter():
 	GameState.record_catch(&"green_wisplet", true, "tap")
 	assert_eq(int(GameState.monsters_caught["green_wisplet"]["shiny"]), 1)
 	assert_eq(int(GameState.ledger["total_shinies"]), 1)
+
+
+# region — total_gold_earned_this_run reconciliation
+
+func test_reconcile_total_gold_snaps_up_when_tracker_low() -> void:
+	# Simulate a stale save: lots of gold but a tiny tracker — impossible
+	# under the live invariant because spending never decrements the tracker.
+	GameState.from_dict({})
+	GameState.currencies["gold"] = {"m": 4.18, "e": 7}            # ~41.8M
+	GameState.total_gold_earned_this_run = {"m": 4.1, "e": 4}     # ~41K
+	GameState.reconcile_total_gold_earned_this_run()
+	var tracked := BigNumber.from_dict(GameState.total_gold_earned_this_run)
+	var current := GameState.current_gold()
+	assert_true(tracked.gte(current),
+			"tracker (%s) should be >= current gold (%s) after reconciliation" % [
+				tracked.format(), current.format(),
+			])
+
+
+func test_reconcile_total_gold_noop_when_already_consistent() -> void:
+	GameState.from_dict({})
+	GameState.currencies["gold"] = {"m": 1.0, "e": 3}             # 1000
+	GameState.total_gold_earned_this_run = {"m": 5.0, "e": 3}     # 5000 (legitimate: spent 4000)
+	GameState.reconcile_total_gold_earned_this_run()
+	assert_almost_eq(
+			BigNumber.from_dict(GameState.total_gold_earned_this_run).to_float(),
+			5000.0,
+			1.0e-6,
+			"reconcile must not lower a legitimately-higher tracker")
+
+
+func test_reconcile_total_gold_unblocks_prestige_for_stale_save() -> void:
+	# 41.8M tracker → projected RP ≈ floor(sqrt(41.8)) = 6.
+	GameState.from_dict({})
+	GameState.currencies["gold"] = {"m": 4.18, "e": 7}
+	GameState.total_gold_earned_this_run = {"m": 4.1, "e": 4}
+	assert_eq(GameState.projected_rp_gain(), 0,
+			"before reconciliation, projected RP should reflect the bogus tracker")
+	GameState.reconcile_total_gold_earned_this_run()
+	assert_eq(GameState.projected_rp_gain(), 6,
+			"after reconciliation, prestige math should kick in based on actual gold")
+
+# endregion

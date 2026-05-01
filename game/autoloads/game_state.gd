@@ -299,6 +299,23 @@ func owned_pets() -> Array[PetResource]:
 	return out
 
 
+## Saves predating the Phase 3 v1→v2 migration (or pinched by an earlier code
+## path that mutated currencies.gold without going through add_gold) can land
+## with `total_gold_earned_this_run < currencies.gold`. That's impossible
+## under the live invariant: gross earnings must always be ≥ current balance
+## because spending decrements only `currencies.gold`, never the tracker.
+## Snap the tracker up to at least the current balance so the prestige RP
+## formula gives a meaningful number for these saves rather than 0.
+func reconcile_total_gold_earned_this_run() -> void:
+	var current: BigNumber = current_gold()
+	var tracked: BigNumber = BigNumber.from_dict(total_gold_earned_this_run)
+	if tracked.lt(current):
+		push_warning("GameState: total_gold_earned_this_run (%s) < currencies.gold (%s); snapping up." % [
+			tracked.format(), current.format(),
+		])
+		total_gold_earned_this_run = current.to_dict()
+
+
 ## Idempotent reconciliation: for every tier in tiers_completed, ensure every
 ## pet that tier should have awarded is in pets_owned. Fixes saves where the
 ## tier-completion loop missed a pet (e.g. the monster's `pet` ref hadn't yet
