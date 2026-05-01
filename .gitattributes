@@ -18,10 +18,9 @@
 *.so filter=lfs diff=lfs merge=lfs -text
 *.dll filter=lfs diff=lfs merge=lfs -text
 
-# Music tracks stay LFS-tracked because they may grow large; the audio
-# pipeline ships OGG so a single track is ~2-5 MB rather than tens.
-*.ogg filter=lfs diff=lfs merge=lfs -text
-*.mp3 filter=lfs diff=lfs merge=lfs -text
+# Audio: kept in plain git too, since OGG/MP3 of a single 2-5 minute track
+# is small enough (a few MB) that LFS overhead — and especially the per-CI
+# bandwidth cost — outweighs the benefit. Revisit when a track tops 20 MB.
 
 # *.png, *.jpg, *.jpeg, *.gif, *.webp, *.wav, *.ttf, *.otf are kept in
 # plain git: spritesheets are small (kilobytes), GUT's vendored TTFs

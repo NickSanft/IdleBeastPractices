@@ -19,6 +19,14 @@
 *.exe
 *.pck
 
+# Godot's Android gradle build template lives in /android/build/. Godot
+# regenerates it on demand via Project → Install Android Build Template
+# (200+ MB of AAR archives). We currently use the prebuilt APK template
+# (gradle_build/use_gradle_build=false), so this directory is unnecessary
+# in version control. If Phase 6 needs gradle (AdMob plugin), each
+# developer re-installs the template locally.
+/android/build/
+
 # Signing material — NEVER commit
 *.keystore
 *.jks
