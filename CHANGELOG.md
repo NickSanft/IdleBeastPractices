@@ -30,11 +30,19 @@ Phase 2 closes the main game loop: tap → catch → tier up → pet → battle 
 - All Phase 0 + 1 tests still green.
 
 **Pre-push checklist (Phase 2)**
-- ✓ GUT 52/52 passing
+- ✓ GUT 72/72 passing (52 from initial Phase 2 + 20 follow-ups: tier_completion_status, pets_to_award_for_tier, GameState.add_pet variants, reconcile_pet_awards, try_purchase_upgrade, record_catch)
 - ✓ Project boots clean headlessly with `--quit-after 60`
 - ✓ Local Windows export builds
-- (pending) CI green on `main`
-- (pending) Tag `phase-2-complete`
+- ✓ CI green on `main` (run [25200097246](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25200097246))
+- ✓ Tag `phase-2-complete` pushed
+
+**Follow-ups landed during the test cycle**
+- `mouse_filter` fix on `CatchingView` so taps reach the catch path under a TabContainer; `_gui_input`-driven hit-testing replaces unreliable Area2D physics picking.
+- `_DEBUG_LOG` console output for tap / catch / tier-complete events, `Settings.debug_fast_pets` runtime toggle (F2), and F3 reset-all-progress for testing.
+- Particle bursts + scale-bump on tap, bigger burst on catch.
+- Variant pet acquisition implies base ownership (`pet_variants_owned ⊆ pets_owned`).
+- `GameState.reconcile_pet_awards` runs on load to heal stale saves where a tier's pet awards missed (e.g. monster `.pet` ext_resources weren't wired when the tier first completed).
+- Tier-completion logic extracted to `CatchingSystem.tier_completion_status` + `pets_to_award_for_tier` pure functions.
 
 ### Phase 1 — MVP catch loop
 
