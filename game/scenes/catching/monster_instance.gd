@@ -132,6 +132,9 @@ func _pick_new_target() -> void:
 
 
 func _on_area_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
+	# Phase 2: kept as a fallback; the primary input path is CatchingView's
+	# _gui_input + _find_monster_at. Area2D physics picking under a
+	# TabContainer is unreliable, so we drive taps from the parent Control.
 	if not _alive:
 		return
 	var consumed: bool = false
@@ -141,12 +144,19 @@ func _on_area_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -
 		consumed = true
 	if not consumed:
 		return
+	play_tap_feedback()
+	tapped.emit(self)
+
+
+## Public API: play the visual feedback for a tap. Used by both Area2D physics
+## picking (when it works) and CatchingView._gui_input forwarding.
+func play_tap_feedback() -> void:
 	if _DEBUG_LOG:
 		var monster_id: String = String(monster.id) if monster != null else "<null>"
 		print("[catch] tap registered: monster=%s instance=%d progress=%.2f" % [monster_id, instance_id, tap_progress])
-	_tap_particles.restart()
+	if _tap_particles != null:
+		_tap_particles.restart()
 	_play_tap_bump()
-	tapped.emit(self)
 
 
 func _play_tap_bump() -> void:

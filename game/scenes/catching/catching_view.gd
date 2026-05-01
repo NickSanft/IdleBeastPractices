@@ -17,10 +17,11 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 func _ready() -> void:
 	ContentRegistry.ensure_loaded()
 	_rng.randomize()
-	# Critical: this Control must NOT intercept mouse events, or the Area2D
-	# children of MonsterInstance never receive input_event. The scene file
-	# also sets this to IGNORE; we re-assert here for safety.
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Hit-test taps via this Control's _gui_input rather than relying on
+	# Area2D physics picking — the latter is unreliable inside a TabContainer
+	# because the Control hierarchy consumes the event before the physics
+	# layer sees it. STOP means we get _gui_input; IGNORE would miss it.
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	_spawn_root = Node2D.new()
 	_spawn_root.name = "SpawnRoot"
 	add_child(_spawn_root)
@@ -40,6 +41,50 @@ func _on_resized() -> void:
 func _process(delta: float) -> void:
 	_handle_spawning(delta)
 	_handle_auto_catch(delta)
+
+
+## Detect taps and hit-test against on-screen monster instances. We use
+## _gui_input rather than Area2D.input_event because Area2D physics picking
+## doesn't reliably fire when the Area2D lives under a TabContainer's content
+## Control — the GUI consumes the click before the picking pass.
+func _gui_input(event: InputEvent) -> void:
+	var is_tap: bool = false
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		is_tap = true
+	elif event is InputEventScreenTouch and event.pressed:
+		is_tap = true
+	if not is_tap:
+		return
+	# event.position is in this Control's local coords. Node2D children of
+	# the Control share the same local space (Node2D.position == screen-relative
+	# offset from the Control's top-left).
+	var click_local: Vector2 = event.position
+	if _DEBUG_LOG:
+		print("[catch] _gui_input click @ %s, %d on-screen monsters" % [
+			click_local, _spawn_root.get_child_count() if _spawn_root != null else 0,
+		])
+	var hit: Node2D = _find_monster_at(click_local)
+	if hit == null:
+		return
+	accept_event()
+	_on_monster_tapped(hit)
+
+
+func _find_monster_at(local_pos: Vector2) -> Node2D:
+	if _spawn_root == null:
+		return null
+	# 32×32 sprite at scale 3 = 96×96 hit box centered on monster.position.
+	var half: Vector2 = Vector2(48, 48)
+	# Iterate in reverse so the topmost-rendered (last child) wins.
+	var children: Array = _spawn_root.get_children()
+	for i in range(children.size() - 1, -1, -1):
+		var inst = children[i]
+		if not inst.has_method("play_catch_and_despawn"):
+			continue
+		var rect: Rect2 = Rect2(inst.position - half, half * 2.0)
+		if rect.has_point(local_pos):
+			return inst
+	return null
 
 
 func _handle_spawning(delta: float) -> void:
@@ -127,6 +172,10 @@ func _pick_random_on_screen_monster() -> Node:
 
 func _on_monster_tapped(inst: Node2D) -> void:
 	GameState.record_tap()
+	# Trigger feedback now so the player sees their click registered even if
+	# this tap doesn't yet cross the catch difficulty.
+	if inst.has_method("play_tap_feedback"):
+		inst.play_tap_feedback()
 	var monster: MonsterResource = inst.monster
 	var outcome := CatchingSystem.resolve_tap(
 			monster,
