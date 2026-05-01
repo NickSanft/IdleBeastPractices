@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/items/pet_collar.tres" id="2_item"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_pet_collar"
+display_name = "Craft Pet Collar"
+description = "Pet equipment. Effect wires in Phase 5."
+inputs = [
+	{"item_id": &"wisplet_ectoplasm", "amount": 25},
+	{"item_id": &"centiphantom_jelly", "amount": 5},
+]
+output_item = ExtResource("2_item")
+output_amount = 1
+gold_cost = {"m": 1.0, "e": 3}
+tier_required = 2

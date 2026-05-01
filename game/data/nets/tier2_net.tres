@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"tier2_net"
+display_name = "Centiphantom Snare"
+description = "A wider weave catches centiphantoms without disturbing wisplets."
+tier_required = 2
+cost = {"m": 5.0, "e": 3}
+catches_per_second = 0.8
+catch_speed_multiplier = 1.0
+spawn_max = 4
+targets_tiers = Array[int]([1, 2])

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"shiny_lure"
+display_name = "Shiny Lure"
+description = "Burned for a brief boost to shiny chance. (Effect wired in Phase 5.)"
+category = 2
+stack_max = 999
+sell_value = {"m": 1.0, "e": 3}
+flavor_text = "Sparkles. Not quite hypnotically. More 'persistently catching the corner of your eye.'"

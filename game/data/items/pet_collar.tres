@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"pet_collar"
+display_name = "Pet Collar"
+description = "Trains a pet to hit harder. (Effect wired in Phase 5.)"
+category = 1
+stack_max = 99
+sell_value = {"m": 5.0, "e": 2}
+flavor_text = "Engraved with the wearer's name. Or what Peniber assumes is the wearer's name."

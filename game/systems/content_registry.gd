@@ -11,12 +11,14 @@ const _ITEMS_DIR := "res://game/data/items"
 const _NETS_DIR := "res://game/data/nets"
 const _PETS_DIR := "res://game/data/pets"
 const _UPGRADES_DIR := "res://game/data/upgrades"
+const _RECIPES_DIR := "res://game/data/recipes"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
 static var _nets_by_id: Dictionary = {}       # StringName -> NetResource
 static var _pets_by_id: Dictionary = {}       # StringName -> PetResource
 static var _upgrades_by_id: Dictionary = {}   # StringName -> UpgradeResource
+static var _recipes_by_id: Dictionary = {}    # StringName -> CraftingRecipeResource
 static var _initialized: bool = false
 
 
@@ -28,6 +30,7 @@ static func ensure_loaded() -> void:
 	_load_dir(_NETS_DIR, _nets_by_id)
 	_load_dir(_PETS_DIR, _pets_by_id)
 	_load_dir(_UPGRADES_DIR, _upgrades_by_id)
+	_load_dir(_RECIPES_DIR, _recipes_by_id)
 	_initialized = true
 
 
@@ -129,3 +132,16 @@ static func upgrade(id: StringName) -> UpgradeResource:
 static func upgrade_index() -> Dictionary:
 	ensure_loaded()
 	return _upgrades_by_id
+
+
+static func recipes() -> Array[CraftingRecipeResource]:
+	ensure_loaded()
+	var out: Array[CraftingRecipeResource] = []
+	for id in _recipes_by_id.keys():
+		out.append(_recipes_by_id[id])
+	return out
+
+
+static func recipe(id: StringName) -> CraftingRecipeResource:
+	ensure_loaded()
+	return _recipes_by_id.get(id)

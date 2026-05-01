@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/nets/tier2_net.tres" id="2_net"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_tier2_net"
+display_name = "Craft Centiphantom Snare"
+description = "Heavier mesh, more reach. Reaches into tier 2 hunting grounds."
+inputs = [{"item_id": &"wisplet_ectoplasm", "amount": 50}]
+output_net = ExtResource("2_net")
+output_amount = 1
+gold_cost = {"m": 5.0, "e": 3}
+tier_required = 1

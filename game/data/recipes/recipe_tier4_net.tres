@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_tier4_net"
+display_name = "Craft Tier 4 Net"
+description = "(Locked. Tier 4 species not yet documented.)"
+inputs = []
+output_amount = 1
+gold_cost = {"m": 0.0, "e": 0}
+prereq_recipe_ids = Array[StringName]([&"recipe_tier3_net"])
+tier_required = 4

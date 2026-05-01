@@ -9,6 +9,8 @@ const _INVENTORY_PANEL := preload("res://game/scenes/ui/inventory_panel.tscn")
 const _NET_SHOP := preload("res://game/scenes/ui/net_shop.tscn")
 const _UPGRADE_TREE := preload("res://game/scenes/ui/upgrade_tree.tscn")
 const _PRESTIGE_VIEW := preload("res://game/scenes/prestige/prestige_view.tscn")
+const _BESTIARY_VIEW := preload("res://game/scenes/bestiary/bestiary_view.tscn")
+const _CRAFTING_VIEW := preload("res://game/scenes/crafting/crafting_view.tscn")
 const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
@@ -52,6 +54,14 @@ func _build_ui() -> void:
 	var inventory_tab: Control = _INVENTORY_PANEL.instantiate()
 	inventory_tab.name = "Inventory"
 	tabs.add_child(inventory_tab)
+
+	var bestiary_tab: Control = _BESTIARY_VIEW.instantiate()
+	bestiary_tab.name = "Bestiary"
+	tabs.add_child(bestiary_tab)
+
+	var crafting_tab: Control = _CRAFTING_VIEW.instantiate()
+	crafting_tab.name = "Crafting"
+	tabs.add_child(crafting_tab)
 
 	var shop_tab: Control = _NET_SHOP.instantiate()
 	shop_tab.name = "Shop"

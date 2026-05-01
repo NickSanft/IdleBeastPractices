@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"tier3_net"
+display_name = "Hush Trap"
+description = "A near-silent net the Hush species barely register until it's too late."
+tier_required = 3
+cost = {"m": 5.0, "e": 4}
+catches_per_second = 1.2
+catch_speed_multiplier = 1.0
+spawn_max = 5
+targets_tiers = Array[int]([2, 3])

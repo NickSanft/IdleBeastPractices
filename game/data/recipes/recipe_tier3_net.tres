@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/nets/tier3_net.tres" id="2_net"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_tier3_net"
+display_name = "Craft Hush Trap"
+description = "Quiets the weave so even Hush species rarely notice the snap."
+inputs = [{"item_id": &"centiphantom_jelly", "amount": 200}]
+output_net = ExtResource("2_net")
+output_amount = 1
+gold_cost = {"m": 5.0, "e": 4}
+prereq_recipe_ids = Array[StringName]([&"recipe_tier2_net"])
+tier_required = 2

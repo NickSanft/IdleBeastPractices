@@ -257,3 +257,31 @@ func test_pets_to_award_empty_when_no_tier_match():
 	assert_eq(awarded.size(), 0)
 
 # endregion
+
+
+# region — statistical shiny-rate sanity
+
+func test_shiny_rate_falls_within_95_pct_ci_at_5_pct():
+	# Bernoulli(p=0.05) over 10000 trials: 500 ± 1.96·sqrt(10000·0.05·0.95) ≈
+	# 500 ± 42.7 ⇒ [457, 543]. With a fixed seed this is deterministic, but the
+	# test asserts the loose CI so a code change that drifts the rate trips it.
+	var monster := MonsterResource.new()
+	monster.id = &"stat_monster"
+	monster.tier = 1
+	monster.drop_item = item
+	monster.drop_amount_min = 1
+	monster.drop_amount_max = 1
+	monster.gold_base = 1
+	monster.shiny_rate = 0.05
+	monster.base_catch_difficulty = 0.0  # always catches on first tap
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC0FFEE
+	var shinies: int = 0
+	for i in 10000:
+		var outcome := CatchingSystem.resolve_tap(monster, 0.0, rng)
+		if bool(outcome.get("is_shiny", false)):
+			shinies += 1
+	assert_true(shinies >= 457 and shinies <= 543,
+			"shiny count %d outside 95%% CI [457, 543] for p=0.05 n=10000" % shinies)
+
+# endregion

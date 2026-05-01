@@ -26,6 +26,7 @@ var current_max_tier: int = 1
 var tiers_completed: Array[int] = []
 var current_battle: Variant = null              # Dictionary or null
 var prestige_count: int = 0
+var recipes_crafted: Array[String] = []          # ids of recipes ever crafted (additive across prestiges)
 
 var ledger: Dictionary = {
 	"total_catches": 0,
@@ -67,6 +68,7 @@ func to_dict() -> Dictionary:
 		"tiers_completed": tiers_completed.duplicate(),
 		"current_battle": current_battle,
 		"prestige_count": prestige_count,
+		"recipes_crafted": recipes_crafted.duplicate(),
 		"ledger": ledger.duplicate(true),
 		"narrator_state": narrator_state.duplicate(true),
 	}
@@ -92,6 +94,7 @@ func from_dict(data: Dictionary) -> void:
 	tiers_completed = _to_int_array(data.get("tiers_completed", []))
 	current_battle = data.get("current_battle", null)
 	prestige_count = int(data.get("prestige_count", 0))
+	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
 	ledger = data.get("ledger", ledger).duplicate(true)
 	narrator_state = data.get("narrator_state", narrator_state).duplicate(true)
 
@@ -117,6 +120,7 @@ func _reset_to_defaults() -> void:
 	tiers_completed = []
 	current_battle = null
 	prestige_count = 0
+	recipes_crafted = []
 	ledger = {
 		"total_catches": 0,
 		"total_taps": 0,
@@ -354,6 +358,53 @@ func multiplier(effect_id: StringName) -> float:
 			ContentRegistry.upgrade_index())
 
 
+# Crafting
+
+func try_craft(recipe: CraftingRecipeResource) -> Dictionary:
+	# Returns {success: bool, reason: String}.
+	var check := CraftingSystem.can_craft(
+			recipe,
+			inventory,
+			current_gold(),
+			current_max_tier,
+			recipes_crafted)
+	if not bool(check["can"]):
+		return {"success": false, "reason": String(check["reason"])}
+	var deltas := CraftingSystem.compute_deltas(recipe)
+	# Spend gold cost first (if any).
+	var cost: BigNumber = deltas["gold_to_spend"]
+	if not cost.is_zero():
+		if not try_spend_gold(cost):
+			return {"success": false, "reason": "insufficient_gold"}
+	# Consume inputs.
+	for entry in deltas["items_to_consume"]:
+		var key: String = String(entry["item_id"])
+		var amount: int = int(entry["amount"])
+		var have: int = int(inventory.get(key, 0))
+		var remaining: int = have - amount
+		if remaining <= 0:
+			inventory.erase(key)
+		else:
+			inventory[key] = remaining
+		EventBus.item_spent.emit(key, amount)
+	# Produce outputs.
+	var output_amount: int = max(1, int(deltas["output_amount"]))
+	if String(deltas["output_item_id"]) != "":
+		add_item(StringName(deltas["output_item_id"]), output_amount)
+		EventBus.item_crafted.emit(String(recipe.id), String(deltas["output_item_id"]))
+	if String(deltas["output_net_id"]) != "":
+		var net_id: String = String(deltas["output_net_id"])
+		if not nets_owned.has(net_id):
+			nets_owned.append(net_id)
+			EventBus.recipe_unlocked.emit(net_id)
+		EventBus.item_crafted.emit(String(recipe.id), net_id)
+	# Mark recipe as crafted-at-least-once for prereq chains.
+	var recipe_id_str: String = String(recipe.id)
+	if not recipes_crafted.has(recipe_id_str):
+		recipes_crafted.append(recipe_id_str)
+	return {"success": true, "reason": "ok"}
+
+
 # Prestige
 
 func projected_rp_gain() -> int:
@@ -369,6 +420,7 @@ func perform_prestige() -> int:
 	var keep_pets_owned := pets_owned.duplicate()
 	var keep_pet_variants := pet_variants_owned.duplicate()
 	var keep_monsters_caught := monsters_caught.duplicate(true)
+	var keep_recipes_crafted := recipes_crafted.duplicate()
 	var keep_ledger := ledger.duplicate(true)
 	var keep_narrator_state := narrator_state.duplicate(true)
 	var keep_rp: int = int(currencies.get("rancher_points", 0))
@@ -382,6 +434,7 @@ func perform_prestige() -> int:
 	pets_owned = _to_string_array(keep_pets_owned)
 	pet_variants_owned = _to_string_array(keep_pet_variants)
 	monsters_caught = keep_monsters_caught
+	recipes_crafted = _to_string_array(keep_recipes_crafted)
 	ledger = keep_ledger
 	narrator_state = keep_narrator_state
 	upgrades_purchased = keep_persistent_upgrades
