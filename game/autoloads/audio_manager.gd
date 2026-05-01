@@ -8,7 +8,7 @@
 ## whenever Settings.audio_settings_changed fires (driven by the Settings UI).
 extends Node
 
-const _MUSIC_PATH := "res://assets/music/Divora - New Beginnings - DND 4 - 05 Bring The Guitar, It's Going Down.wav"
+const _MUSIC_PATH := "res://assets/music/Divora - Bring The Guitar.ogg"
 const _TAP_SFX_PATH := "res://assets/sounds/tap.wav"
 const _SFX_POOL_SIZE := 4
 

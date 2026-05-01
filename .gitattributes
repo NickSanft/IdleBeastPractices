@@ -8,19 +8,21 @@
 *.godot text eol=lf
 *.cfg text eol=lf
 
-# Git LFS for binary art / audio assets
-*.png filter=lfs diff=lfs merge=lfs -text
-*.jpg filter=lfs diff=lfs merge=lfs -text
-*.jpeg filter=lfs diff=lfs merge=lfs -text
-*.gif filter=lfs diff=lfs merge=lfs -text
-*.webp filter=lfs diff=lfs merge=lfs -text
-*.wav filter=lfs diff=lfs merge=lfs -text
-*.ogg filter=lfs diff=lfs merge=lfs -text
-*.mp3 filter=lfs diff=lfs merge=lfs -text
-*.ttf filter=lfs diff=lfs merge=lfs -text
-*.otf filter=lfs diff=lfs merge=lfs -text
-
-# Vendored binaries (e.g. AdMob plugin AAR/SO files in Phase 6)
+# We previously routed every binary through Git LFS. The free LFS
+# bandwidth budget (1 GB/month on github.com) drained quickly because
+# every CI run pulls every job's LFS objects, and a single 30 MB music
+# WAV multiplied that out. We now keep small/static art and fonts in
+# plain git and reserve LFS for genuinely large binaries (AdMob AAR
+# files in Phase 6, large compressed audio in OGG, etc.).
 *.aar filter=lfs diff=lfs merge=lfs -text
 *.so filter=lfs diff=lfs merge=lfs -text
 *.dll filter=lfs diff=lfs merge=lfs -text
+
+# Music tracks stay LFS-tracked because they may grow large; the audio
+# pipeline ships OGG so a single track is ~2-5 MB rather than tens.
+*.ogg filter=lfs diff=lfs merge=lfs -text
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+
+# *.png, *.jpg, *.jpeg, *.gif, *.webp, *.wav, *.ttf, *.otf are kept in
+# plain git: spritesheets are small (kilobytes), GUT's vendored TTFs
+# don't change, and tap-style SFX are well under 2 MB each.
