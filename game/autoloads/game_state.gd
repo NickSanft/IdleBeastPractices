@@ -151,3 +151,106 @@ func _to_dict_array(v: Variant) -> Array[Dictionary]:
 			if item is Dictionary:
 				out.append((item as Dictionary).duplicate(true))
 	return out
+
+
+# region — gameplay mutators
+# Helpers used by Phase 1+ gameplay scenes. They mutate state and emit
+# EventBus signals; tests bypass by calling the underlying fields directly.
+
+func current_gold() -> BigNumber:
+	return BigNumber.from_dict(currencies["gold"])
+
+
+func current_rancher_points() -> int:
+	return int(currencies["rancher_points"])
+
+
+func add_gold(amount: BigNumber) -> void:
+	if amount == null or amount.is_zero():
+		return
+	var current: BigNumber = current_gold()
+	var new_total: BigNumber = current.add(amount)
+	currencies["gold"] = new_total.to_dict()
+	EventBus.currency_changed.emit("gold", new_total)
+
+
+func try_spend_gold(amount: BigNumber) -> bool:
+	if amount == null or amount.is_zero():
+		return true
+	var current: BigNumber = current_gold()
+	if current.lt(amount):
+		return false
+	var new_total: BigNumber = current.subtract(amount)
+	currencies["gold"] = new_total.to_dict()
+	EventBus.currency_changed.emit("gold", new_total)
+	return true
+
+
+func add_rancher_points(amount: int, source: String = "") -> void:
+	if amount <= 0:
+		return
+	currencies["rancher_points"] = int(currencies["rancher_points"]) + amount
+	EventBus.currency_changed.emit("rancher_points", currencies["rancher_points"])
+	EventBus.rancher_points_earned.emit(amount, source)
+
+
+func add_item(item_id: StringName, amount: int) -> void:
+	if amount <= 0:
+		return
+	var key: String = String(item_id)
+	var existing: int = int(inventory.get(key, 0))
+	inventory[key] = existing + amount
+	EventBus.item_gained.emit(key, amount)
+
+
+func record_tap() -> void:
+	ledger["total_taps"] = int(ledger["total_taps"]) + 1
+
+
+func record_catch(monster_id: StringName, is_shiny: bool, _source: String) -> void:
+	# `_source` reserved for per-source counters (tap vs net) post-Phase-1.
+	var key: String = String(monster_id)
+	var seen_before: bool = monsters_caught.has(key)
+	if not seen_before:
+		monsters_caught[key] = {"normal": 0, "shiny": 0}
+		EventBus.first_catch_of_species.emit(key)
+	if is_shiny:
+		var prior_shinies: int = int(monsters_caught[key].get("shiny", 0))
+		monsters_caught[key]["shiny"] = prior_shinies + 1
+		ledger["total_shinies"] = int(ledger["total_shinies"]) + 1
+		if int(ledger["total_shinies"]) == 1:
+			EventBus.first_shiny_caught.emit(key)
+	else:
+		var prior_normals: int = int(monsters_caught[key].get("normal", 0))
+		monsters_caught[key]["normal"] = prior_normals + 1
+	ledger["total_catches"] = int(ledger["total_catches"]) + 1
+
+
+func purchase_net(net: NetResource) -> bool:
+	if net == null:
+		return false
+	var net_id: String = String(net.id)
+	if nets_owned.has(net_id):
+		# Already owned; just equip.
+		active_net = net_id
+		return true
+	var cost: BigNumber = BigNumber.from_dict(net.cost)
+	if not try_spend_gold(cost):
+		return false
+	nets_owned.append(net_id)
+	active_net = net_id
+	return true
+
+
+func get_active_net_id() -> String:
+	return active_net
+
+
+func has_caught_species(monster_id: StringName) -> bool:
+	return monsters_caught.has(String(monster_id))
+
+
+func total_catches() -> int:
+	return int(ledger["total_catches"])
+
+# endregion

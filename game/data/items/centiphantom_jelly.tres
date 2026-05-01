@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"centiphantom_jelly"
+display_name = "Centiphantom Jelly"
+description = "A quivering aspic of almost-segmented translucence."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 12.0, "e": 0}
+flavor_text = "Wobbles when you say its name."

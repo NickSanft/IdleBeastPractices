@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"hush_pollen"
+display_name = "Hush Pollen"
+description = "A pinch of dust that smells like a half-remembered name."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 80.0, "e": 0}
+flavor_text = "Sneeze and you'll forget where you put it."
