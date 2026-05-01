@@ -16,6 +16,10 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 func _ready() -> void:
 	ContentRegistry.ensure_loaded()
 	_rng.randomize()
+	# Critical: this Control must NOT intercept mouse events, or the Area2D
+	# children of MonsterInstance never receive input_event. The scene file
+	# also sets this to IGNORE; we re-assert here for safety.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_spawn_root = Node2D.new()
 	_spawn_root.name = "SpawnRoot"
 	add_child(_spawn_root)
