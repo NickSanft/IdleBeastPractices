@@ -41,15 +41,41 @@ func _setup_music() -> void:
 	_music_player = AudioStreamPlayer.new()
 	_music_player.name = "Music"
 	_music_player.stream = stream
+	_music_player.bus = "Master"
 	_music_player.volume_db = Settings.music_db
 	add_child(_music_player)
-	# Don't rely on autoplay — Godot autoloads can race the audio system on init.
-	# Explicit play() after add_child is reliable.
+	# Defer to next frame so the audio server is fully alive before play().
+	# Some Godot 4.6 editor builds drop early-init play() calls silently.
+	call_deferred("_start_music_deferred")
+
+
+func _start_music_deferred() -> void:
+	if _music_player == null:
+		return
 	_music_player.play()
-	print("[audio] music started: stream=%s len=%.1fs db=%.1f" % [
+	var master_idx: int = AudioServer.get_bus_index("Master")
+	var master_db: float = AudioServer.get_bus_volume_db(master_idx) if master_idx >= 0 else -INF
+	var master_muted: bool = AudioServer.is_bus_mute(master_idx) if master_idx >= 0 else true
+	print("[audio] music started: stream=%s len=%.1fs player_db=%.1f bus=%s master_db=%.1f master_muted=%s playing=%s" % [
 		_music_player.stream.get_class(),
 		_music_player.stream.get_length(),
 		_music_player.volume_db,
+		_music_player.bus,
+		master_db,
+		master_muted,
+		_music_player.playing,
+	])
+	# Re-check 0.5s later in case the engine claimed playing=true at frame 0
+	# but never actually fed the bus.
+	get_tree().create_timer(0.5).timeout.connect(_log_music_state_late)
+
+
+func _log_music_state_late() -> void:
+	if _music_player == null:
+		return
+	print("[audio] music after 0.5s: playing=%s pos=%.2fs" % [
+		_music_player.playing,
+		_music_player.get_playback_position(),
 	])
 
 
