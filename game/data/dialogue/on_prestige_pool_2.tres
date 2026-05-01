@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"prestige_pool_2"
+trigger_id = &"on_prestige"
+text = "Prestige claimed; ledger reset. You go again. I, of necessity, accompany you."
+mood = &"weary"
+weight = 1.0
+max_uses = 0

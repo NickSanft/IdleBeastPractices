@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 5a — Peniber + Ledger
+
+**Added**
+- `Narrator` autoload full implementation: trigger map, weighted-random selection, sliding-window-of-5 anti-clustering, `min_total_catches` / `min_prestige_count` / `max_uses` filters, `narrator_state.lines_seen` persistence (survives prestige), idle detection (5-min trigger, 90 s cooldown).
+- 42 `DialogueLineResource` `.tres` covering the trigger taxonomy from parent plan §8: `on_first_launch` (full Peniber title), `on_first_catch_ever`, `on_first_catch_<species>` × 9, `on_milestone_10/100/1000/10000`, `on_first_shiny` + 3 pool, `on_first_pet_acquired` + 2 pool, `on_first_battle_win` + 2 pool, `on_battle_loss` × 3, `on_tier_complete_1/2/3`, `on_first_prestige` + 2 pool, `on_idle_too_long` × 3, `on_offline_return_short/long` × 2 each, `on_first_craft`, `on_ledger_opened` × 3.
+- `NarratorOverlay` scene at the main scene's top level (above the TabContainer): floating bottom-of-screen text bubble that fades in on `narrator_line_chosen`, holds for 8 s or until tapped, then fades out. `mouse_filter = IGNORE` on the wrapper so background taps still reach the catching view; only the bubble itself catches the dismiss tap. Mood-tinted bubble (`smug` / `begrudging` / `reverent` / `weary` / `exasperated`).
+- `LedgerView` scene + Ledger tab: 15 stat rows with Peniber-editorialized labels ("Specimens captured (in their entirety)", "Iridescent oddities encountered", "Quotes Peniber has indulged you with", etc.). Live refresh on `monster_caught` / `first_shiny` / `prestige_triggered` / `item_crafted` / `game_loaded` / `game_saved`. Fires `on_ledger_opened` on visibility change.
+- `docs/peniber-voice.md`: tone levers, mood field semantics, trigger taxonomy table, selection rules, and the "Victorian under-secretary" smell test for new lines. Phase 5b backlog noted.
+- `ContentRegistry` extended to index dialogue lines.
+
+**Tests (121 passing, +8)**
+- `test_narrator.gd`:
+  - `on_first_launch` fires once; second call returns null (max_uses).
+  - Unknown trigger returns null.
+  - Pool trigger picks distinct lines via the recent-window.
+  - All 3 pool entries exhausted ⇒ next call returns null until `reset_recent_window()`.
+  - `lines_seen` persists across `to_dict` / `from_dict` round-trip; max_uses re-applies.
+  - Per-species and milestone trigger lookups all resolve.
+  - Speaking increments `ledger.peniber_quotes_seen`.
+
+**Pre-push checklist (Phase 5a)**
+- ✓ GUT 121/121 passing
+- ✓ Project boots clean headlessly with `--quit-after 60`
+- (pending) Local Windows export builds
+- (pending) CI green on `main`
+- (pending) Tag `phase-5a-complete`
+
 ### Phase 4 — Bestiary, shinies, crafting
 
 **Added**

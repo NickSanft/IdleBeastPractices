@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_pet_acquired"
+trigger_id = &"on_first_pet_acquired"
+text = "Your first companion. Try not to confuse it for a friend; the Synod's lawyers were very specific on this point."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 1

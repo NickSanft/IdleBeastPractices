@@ -12,6 +12,7 @@ const _NETS_DIR := "res://game/data/nets"
 const _PETS_DIR := "res://game/data/pets"
 const _UPGRADES_DIR := "res://game/data/upgrades"
 const _RECIPES_DIR := "res://game/data/recipes"
+const _DIALOGUE_DIR := "res://game/data/dialogue"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
@@ -19,6 +20,7 @@ static var _nets_by_id: Dictionary = {}       # StringName -> NetResource
 static var _pets_by_id: Dictionary = {}       # StringName -> PetResource
 static var _upgrades_by_id: Dictionary = {}   # StringName -> UpgradeResource
 static var _recipes_by_id: Dictionary = {}    # StringName -> CraftingRecipeResource
+static var _dialogue_by_id: Dictionary = {}   # StringName -> DialogueLineResource
 static var _initialized: bool = false
 
 
@@ -31,6 +33,7 @@ static func ensure_loaded() -> void:
 	_load_dir(_PETS_DIR, _pets_by_id)
 	_load_dir(_UPGRADES_DIR, _upgrades_by_id)
 	_load_dir(_RECIPES_DIR, _recipes_by_id)
+	_load_dir(_DIALOGUE_DIR, _dialogue_by_id)
 	_initialized = true
 
 
@@ -145,3 +148,16 @@ static func recipes() -> Array[CraftingRecipeResource]:
 static func recipe(id: StringName) -> CraftingRecipeResource:
 	ensure_loaded()
 	return _recipes_by_id.get(id)
+
+
+static func dialogue_lines() -> Array[DialogueLineResource]:
+	ensure_loaded()
+	var out: Array[DialogueLineResource] = []
+	for id in _dialogue_by_id.keys():
+		out.append(_dialogue_by_id[id])
+	return out
+
+
+static func dialogue_line(id: StringName) -> DialogueLineResource:
+	ensure_loaded()
+	return _dialogue_by_id.get(id)

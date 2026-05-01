@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_catch_green_wisplet"
+trigger_id = &"on_first_catch_green_wisplet"
+text = "A green wisplet. The training-wheel of the field. If even this proved difficult, please consult the index for the chapter titled 'Reconsider.'"
+mood = &"smug"
+weight = 1.0
+max_uses = 1

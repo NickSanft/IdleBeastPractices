@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"milestone_10"
+trigger_id = &"on_milestone_10"
+text = "Ten. A round number. Round numbers reassure novices that they are progressing — which is, as a class, a useful illusion."
+mood = &"smug"
+weight = 1.0
+max_uses = 1

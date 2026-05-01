@@ -11,7 +11,9 @@ const _UPGRADE_TREE := preload("res://game/scenes/ui/upgrade_tree.tscn")
 const _PRESTIGE_VIEW := preload("res://game/scenes/prestige/prestige_view.tscn")
 const _BESTIARY_VIEW := preload("res://game/scenes/bestiary/bestiary_view.tscn")
 const _CRAFTING_VIEW := preload("res://game/scenes/crafting/crafting_view.tscn")
+const _LEDGER_VIEW := preload("res://game/scenes/ledger/ledger_view.tscn")
 const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
+const _NARRATOR_OVERLAY := preload("res://game/scenes/ui/narrator_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -64,6 +66,10 @@ func _build_ui() -> void:
 	crafting_tab.name = "Crafting"
 	tabs.add_child(crafting_tab)
 
+	var ledger_tab: Control = _LEDGER_VIEW.instantiate()
+	ledger_tab.name = "Ledger"
+	tabs.add_child(ledger_tab)
+
 	var shop_tab: Control = _NET_SHOP.instantiate()
 	shop_tab.name = "Shop"
 	tabs.add_child(shop_tab)
@@ -79,6 +85,12 @@ func _build_ui() -> void:
 	var settings_tab: Control = _SETTINGS_VIEW.instantiate()
 	settings_tab.name = "Settings"
 	tabs.add_child(settings_tab)
+
+	# NarratorOverlay sits ABOVE the tab container so it can float over any
+	# tab. Mouse_filter is IGNORE on the overlay so background taps still
+	# reach the catching view; only the speech bubble itself catches taps.
+	var overlay: Control = _NARRATOR_OVERLAY.instantiate()
+	add_child(overlay)
 
 
 func _seed_default_net_if_needed() -> void:

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_craft"
+trigger_id = &"on_first_craft"
+text = "Your first artisanal effort. I will not say it is good. I will not say it is bad, either. Such judgements are above my station, which is a lie I tell because I am tired of saying so."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 1

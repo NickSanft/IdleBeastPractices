@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_catch_ever"
+trigger_id = &"on_first_catch_ever"
+text = "Your first catch. Recorded for posterity, against my better judgement."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 1
