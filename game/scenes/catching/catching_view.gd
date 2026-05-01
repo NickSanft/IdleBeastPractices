@@ -5,11 +5,9 @@ const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_ins
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
 const _DEBUG_LOG := true
-## Dev shortcut: when true, tier completion fires after just _TIER_DEBUG_THRESHOLD
-## catches per species (default 2) instead of 25, and every pet variant roll
-## auto-succeeds. Lets you reach the Battle tab in ~30 seconds for testing.
-## FLIP TO FALSE BEFORE SHIPPING PHASE 2.
-const _DEBUG_FAST_PETS := true
+## Live runtime toggle (F2 in main.gd flips Settings.debug_fast_pets). When on:
+## tier completion fires after just _TIER_DEBUG_THRESHOLD catches per species
+## (default 2) instead of 25, and every pet variant roll auto-succeeds.
 const _TIER_DEBUG_THRESHOLD := 2
 
 var _spawn_root: Node2D
@@ -253,7 +251,7 @@ func _check_tier_progression(catch_tier: int) -> void:
 		var entry: Dictionary = GameState.monsters_caught[key]
 		var count: int = int(entry.get("normal", 0)) + int(entry.get("shiny", 0))
 		max_count = max(max_count, count)
-	var threshold: int = _TIER_DEBUG_THRESHOLD if _DEBUG_FAST_PETS else _TIER_COMPLETE_CATCH_THRESHOLD
+	var threshold: int = _TIER_DEBUG_THRESHOLD if Settings.debug_fast_pets else _TIER_COMPLETE_CATCH_THRESHOLD
 	if not all_seen or max_count < threshold:
 		return
 	# Tier complete!
@@ -269,7 +267,7 @@ func _check_tier_progression(catch_tier: int) -> void:
 		# Variant roll: chance is per-pet, independent of shiny.
 		var rng_local := RandomNumberGenerator.new()
 		rng_local.randomize()
-		var roll_ceiling: float = 1.0 if _DEBUG_FAST_PETS else monster_res.pet.variant_rate
+		var roll_ceiling: float = 1.0 if Settings.debug_fast_pets else monster_res.pet.variant_rate
 		var is_variant: bool = rng_local.randf() < roll_ceiling
 		var added: bool = GameState.add_pet(monster_res.pet.id, is_variant)
 		if _DEBUG_LOG:

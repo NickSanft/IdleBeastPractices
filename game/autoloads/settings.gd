@@ -9,6 +9,9 @@ var music_db: float = -6.0
 var reduce_motion: bool = false
 var font_scale: float = 1.0
 
+# Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
+var debug_fast_pets: bool = true   # F2: lower tier-complete threshold + force variant rolls
+
 
 func _ready() -> void:
 	load_from_disk()

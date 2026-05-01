@@ -123,6 +123,16 @@ func _on_welcome_back_claimed(summary: Dictionary) -> void:
 	GameState.ledger["total_offline_seconds_credited"] = int(GameState.ledger["total_offline_seconds_credited"]) + int(summary.get("seconds", 0))
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	match event.keycode:
+		KEY_F2:
+			Settings.debug_fast_pets = not Settings.debug_fast_pets
+			print("[debug] FAST_PETS = %s (lowers tier threshold to 2 + forces variants when on)" % Settings.debug_fast_pets)
+			get_viewport().set_input_as_handled()
+
+
 func _on_close_requested() -> void:
 	SaveManager.save(GameState.to_dict())
 	get_tree().quit()
