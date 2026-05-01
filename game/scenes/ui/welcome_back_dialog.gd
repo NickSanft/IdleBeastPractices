@@ -52,8 +52,8 @@ func _format_summary(summary: Dictionary) -> String:
 		for item_id_str in items_gained.keys():
 			var count: int = int(items_gained[item_id_str])
 			var item_res := ContentRegistry.item(StringName(item_id_str))
-			var name: String = item_res.display_name if item_res != null else String(item_id_str)
-			lines.append("  • %s × %d" % [name, count])
+			var item_name: String = item_res.display_name if item_res != null else String(item_id_str)
+			lines.append("  • %s × %d" % [item_name, count])
 	return "\n".join(lines)
 
 

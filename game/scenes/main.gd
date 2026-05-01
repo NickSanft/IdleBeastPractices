@@ -9,6 +9,7 @@ const _INVENTORY_PANEL := preload("res://game/scenes/ui/inventory_panel.tscn")
 const _NET_SHOP := preload("res://game/scenes/ui/net_shop.tscn")
 const _UPGRADE_TREE := preload("res://game/scenes/ui/upgrade_tree.tscn")
 const _PRESTIGE_VIEW := preload("res://game/scenes/prestige/prestige_view.tscn")
+const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -63,6 +64,10 @@ func _build_ui() -> void:
 	var prestige_tab: Control = _PRESTIGE_VIEW.instantiate()
 	prestige_tab.name = "Prestige"
 	tabs.add_child(prestige_tab)
+
+	var settings_tab: Control = _SETTINGS_VIEW.instantiate()
+	settings_tab.name = "Settings"
+	tabs.add_child(settings_tab)
 
 
 func _seed_default_net_if_needed() -> void:

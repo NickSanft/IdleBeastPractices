@@ -1,7 +1,13 @@
 ## User preferences (audio, accessibility). Loads first among autoloads.
 extends Node
 
+signal audio_settings_changed
+
 const SETTINGS_PATH := "user://settings.cfg"
+
+# Volume range for the UI sliders. Below MIN_DB the corresponding bus is muted.
+const MIN_DB := -40.0
+const MAX_DB := 0.0
 
 var audio_master_db: float = 0.0
 var sfx_db: float = 0.0
@@ -11,6 +17,18 @@ var font_scale: float = 1.0
 
 # Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
 var debug_fast_pets: bool = true   # F2: lower tier-complete threshold + force variant rolls
+
+
+func set_music_db(db: float) -> void:
+	music_db = clampf(db, MIN_DB, MAX_DB)
+	audio_settings_changed.emit()
+	save_to_disk()
+
+
+func set_sfx_db(db: float) -> void:
+	sfx_db = clampf(db, MIN_DB, MAX_DB)
+	audio_settings_changed.emit()
+	save_to_disk()
 
 
 func _ready() -> void:

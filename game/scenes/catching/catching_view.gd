@@ -30,16 +30,16 @@ func _ready() -> void:
 	_spawn_root.name = "SpawnRoot"
 	add_child(_spawn_root)
 	# Configure spawn bounds based on current viewport (square area below currency bar).
-	var size: Vector2 = get_viewport().get_visible_rect().size
-	_spawn_bounds = Rect2(20, 80, size.x - 40, size.y - 200)
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	_spawn_bounds = Rect2(20, 80, viewport_size.x - 40, viewport_size.y - 200)
 	resized.connect(_on_resized)
 	# Seed: if there's no active net, the catch screen still works (taps only).
 	set_process(true)
 
 
 func _on_resized() -> void:
-	var size: Vector2 = get_viewport().get_visible_rect().size
-	_spawn_bounds = Rect2(20, 80, max(40.0, size.x - 40), max(120.0, size.y - 200))
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	_spawn_bounds = Rect2(20, 80, max(40.0, viewport_size.x - 40), max(120.0, viewport_size.y - 200))
 
 
 func _process(delta: float) -> void:

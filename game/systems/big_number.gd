@@ -204,6 +204,7 @@ func format() -> String:
 			return sign_str + str(int(round(v)))
 		return sign_str + ("%.2f" % v)
 	# Group by thousands.
+	@warning_ignore("integer_division")
 	var group: int = e / 3
 	var remainder: int = e - group * 3
 	var display: float = abs_mantissa * pow(10.0, remainder)
@@ -254,6 +255,7 @@ func _suffix_for_group(group: int) -> String:
 	# Letter-pair suffixes: aa, ab, ..., az, ba, ..., zz.
 	# group 12 -> "aa", group 13 -> "ab", etc.
 	var idx: int = group - _NAMED_SUFFIXES.size()
+	@warning_ignore("integer_division")
 	var first: int = idx / 26
 	var second: int = idx % 26
 	if first < 26:
