@@ -2,6 +2,7 @@
 extends Control
 
 const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_instance.tscn")
+const _FLOATING_NUMBER_SCENE := preload("res://game/scenes/ui/floating_number.tscn")
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
 const _DEBUG_LOG := true
@@ -29,6 +30,8 @@ func _ready() -> void:
 	_spawn_root = Node2D.new()
 	_spawn_root.name = "SpawnRoot"
 	add_child(_spawn_root)
+	EventBus.tier_completed.connect(_on_tier_completed_shake)
+	EventBus.first_shiny_caught.connect(_on_first_shiny_shake)
 	# Configure spawn bounds based on current viewport (square area below currency bar).
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	_spawn_bounds = Rect2(20, 80, viewport_size.x - 40, viewport_size.y - 200)
@@ -195,6 +198,7 @@ func _on_monster_tapped(inst: Node2D) -> void:
 		inst.tap_progress = float(outcome["tap_progress"])
 		return
 	_apply_catch_rewards(monster, outcome, "tap")
+	_spawn_floating_gold(inst.position, outcome["gold"], bool(outcome["is_shiny"]))
 	inst.play_catch_and_despawn()
 	EventBus.monster_caught.emit(String(monster.id), inst.instance_id, bool(outcome["is_shiny"]), "tap")
 
@@ -208,8 +212,49 @@ func _resolve_auto_catch(inst: Node2D) -> void:
 			GameState.multiplier(&"gold_mult"),
 			GameState.multiplier(&"shiny_rate"))
 	_apply_catch_rewards(monster, outcome, "net")
+	_spawn_floating_gold(inst.position, outcome["gold"], bool(outcome["is_shiny"]))
 	inst.play_catch_and_despawn()
 	EventBus.monster_caught.emit(String(monster.id), inst.instance_id, bool(outcome["is_shiny"]), "net")
+
+
+func _spawn_floating_gold(at_position: Vector2, gold: BigNumber, is_shiny: bool) -> void:
+	var label: Label = _FLOATING_NUMBER_SCENE.instantiate()
+	# Position above the monster sprite. Random 12px x-jitter so stacked
+	# catches don't perfectly overlap.
+	label.position = at_position + Vector2(randf_range(-12.0, 12.0), -48.0)
+	label.size = Vector2(120, 28)
+	add_child(label)
+	# `Label` exposes configure() at runtime via the floating_number script.
+	if label.has_method("configure"):
+		label.call("configure", gold.format(), is_shiny)
+
+
+func _on_tier_completed_shake(_tier: int) -> void:
+	_shake_spawn_root(8.0, 0.45)
+
+
+func _on_first_shiny_shake(_monster_id: String) -> void:
+	_shake_spawn_root(4.0, 0.25)
+
+
+## Brief positional jitter on the spawn root — gives a tactile feel to
+## tier-ups and first-shiny moments without disturbing the UI layout
+## (Control children sit on the catching_view, not on _spawn_root).
+func _shake_spawn_root(intensity: float, duration: float) -> void:
+	if _spawn_root == null:
+		return
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	var original := _spawn_root.position
+	var step_count: int = max(2, int(duration * 30.0))   # ~30 jitters/sec
+	for i in step_count:
+		var t: float = float(i) / float(step_count)
+		var falloff: float = 1.0 - t
+		var offset := Vector2(
+				randf_range(-intensity, intensity) * falloff,
+				randf_range(-intensity, intensity) * falloff)
+		tween.tween_property(_spawn_root, "position", original + offset, duration / float(step_count))
+	tween.tween_property(_spawn_root, "position", original, 0.05)
 
 
 func _apply_catch_rewards(monster: MonsterResource, outcome: Dictionary, source: String) -> void:

@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 5b — Visual & audio polish
+
+**Added**
+- `FloatingNumber` scene (`game/scenes/ui/floating_number.tscn`): a self-freeing `Label` that drifts up 56 px and fades over 1 s on every successful catch. Color-tinted gold (`#ffdd66`) for normal catches, larger and brighter for shinies (`+5 g` becomes `✨ +5 g`). Spawned from `catching_view._spawn_floating_gold` with x-jitter so stacked catches don't perfectly overlap.
+- Screen shake on `tier_completed` (intensity 8 px / 0.45 s) and `first_shiny_caught` (4 px / 0.25 s). `catching_view._shake_spawn_root` tweens the `_spawn_root` Node2D's position with a falloff envelope, so the wandering monsters jitter without disturbing the Control-based UI layout.
+- Audio variety in `AudioManager`: dedicated `_shiny_player` (`pitch_scale = 1.6`, +4 dB) and `_tier_up_player` (`pitch_scale = 0.7`, +6 dB). Same `tap.wav` source — pitch differentiates the moments without shipping new audio. Subscribes to `monster_caught` (with `is_shiny=true`) and `tier_completed` to fire automatically. Volumes track `Settings.sfx_db` on slider drag.
+
+**Tests (124 passing, +3)**
+- `test_floating_number.gd`: instantiates and configures, shiny variant prepends sparkle and bumps font size, drift tween starts on `_ready` without error.
+
+**Pre-push checklist (Phase 5b)**
+- ✓ GUT 124/124 passing
+- ✓ Project boots clean headlessly with `--quit-after 60`
+- (pending) Local Windows export builds
+- (pending) CI green on `main`
+- (pending) Tag `phase-5b-complete`
+
 ### Phase 5a — Peniber + Ledger
 
 **Added**

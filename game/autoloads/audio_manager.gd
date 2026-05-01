@@ -15,6 +15,8 @@ const _SFX_POOL_SIZE := 4
 var _music_player: AudioStreamPlayer
 var _sfx_pool: Array[AudioStreamPlayer] = []
 var _sfx_pool_cursor: int = 0
+var _shiny_player: AudioStreamPlayer
+var _tier_up_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -119,6 +121,20 @@ func _setup_sfx_pool() -> void:
 		p.volume_db = Settings.sfx_db
 		add_child(p)
 		_sfx_pool.append(p)
+	# Shiny + tier-up stings: same WAV, different pitch_scale. Crude but it
+	# differentiates the moment without shipping new audio assets.
+	_shiny_player = AudioStreamPlayer.new()
+	_shiny_player.name = "ShinyPlayer"
+	_shiny_player.stream = stream
+	_shiny_player.volume_db = Settings.sfx_db + 4.0
+	_shiny_player.pitch_scale = 1.6
+	add_child(_shiny_player)
+	_tier_up_player = AudioStreamPlayer.new()
+	_tier_up_player.name = "TierUpPlayer"
+	_tier_up_player.stream = stream
+	_tier_up_player.volume_db = Settings.sfx_db + 6.0
+	_tier_up_player.pitch_scale = 0.7
+	add_child(_tier_up_player)
 
 
 func play_tap_sfx() -> void:
@@ -141,6 +157,22 @@ func _apply_volumes() -> void:
 		_music_player.volume_db = Settings.music_db
 	for p in _sfx_pool:
 		p.volume_db = Settings.sfx_db
+	if _shiny_player != null:
+		_shiny_player.volume_db = Settings.sfx_db + 4.0
+	if _tier_up_player != null:
+		_tier_up_player.volume_db = Settings.sfx_db + 6.0
+
+
+func play_shiny_sting() -> void:
+	if _shiny_player != null:
+		_shiny_player.stop()
+		_shiny_player.play()
+
+
+func play_tier_up_sting() -> void:
+	if _tier_up_player != null:
+		_tier_up_player.stop()
+		_tier_up_player.play()
 
 
 # region — EventBus handlers
@@ -149,16 +181,19 @@ func _on_monster_tapped(_monster_id: String, _instance_id: int) -> void:
 	play_tap_sfx()
 
 
-func _on_monster_caught(_monster_id: String, _instance_id: int, _is_shiny: bool, _source: String) -> void:
-	pass
+func _on_monster_caught(_monster_id: String, _instance_id: int, is_shiny: bool, _source: String) -> void:
+	if is_shiny:
+		play_shiny_sting()
 
 
 func _on_first_shiny_caught(_monster_id: String) -> void:
+	# First shiny is also covered by monster_caught above; keep the hook here
+	# for future Phase 5 polish (e.g. chord stack on the very first one).
 	pass
 
 
 func _on_tier_completed(_tier: int) -> void:
-	pass
+	play_tier_up_sting()
 
 
 func _on_upgrade_purchased(_upgrade_id: String) -> void:
