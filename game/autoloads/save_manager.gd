@@ -5,7 +5,7 @@
 ## a matching migration must be registered in save_migrations.gd.
 extends Node
 
-const CURRENT_VERSION := 1
+const CURRENT_VERSION := 2
 
 var backend: SaveBackend = LocalFileBackend.new()
 

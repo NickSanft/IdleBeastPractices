@@ -5,6 +5,7 @@ extends Node
 
 # region — Catching
 signal monster_spawned(monster_id: String, instance_id: int)
+signal monster_tapped(monster_id: String, instance_id: int)
 signal monster_caught(monster_id: String, instance_id: int, is_shiny: bool, source: String)
 signal monster_despawned(monster_id: String, instance_id: int)
 signal first_catch_of_species(monster_id: String)

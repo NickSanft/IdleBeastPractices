@@ -15,6 +15,7 @@ extends RefCounted
 static func migrations() -> Array[Dictionary]:
 	return [
 		{"from": 0, "fn": Callable(SaveMigrations, "_migrate_v0_to_v1")},
+		{"from": 1, "fn": Callable(SaveMigrations, "_migrate_v1_to_v2")},
 	]
 
 
@@ -55,6 +56,22 @@ static func _migrate_v0_to_v1(data: Dictionary) -> Dictionary:
 			"last_line_unix": 0,
 		},
 	}, false)  # `false` = do not overwrite existing keys
+	return out
+
+
+## v1 → v2: Phase 3 introduces the per-run gold tracker that PrestigeSystem
+## hashes into RP. Existing v1 saves don't have it; seed with current gold so
+## players who already had a stockpile can prestige immediately rather than
+## starting from zero.
+static func _migrate_v1_to_v2(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	out["version"] = 2
+	if not out.has("total_gold_earned_this_run"):
+		var gold_dict: Dictionary = {"m": 0.0, "e": 0}
+		var currencies: Variant = out.get("currencies")
+		if currencies is Dictionary and currencies.has("gold"):
+			gold_dict = (currencies["gold"] as Dictionary).duplicate(true)
+		out["total_gold_earned_this_run"] = gold_dict
 	return out
 
 

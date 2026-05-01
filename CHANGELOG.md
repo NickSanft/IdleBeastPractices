@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 3 — Prestige + audio
+
+**Added**
+- `PrestigeSystem` (`game/systems/prestige_system.gd`): pure helpers. `compute_rp_gain(gold_earned_dict, rp_mult)` returns `floor(sqrt(earned / 1e6) × rp_mult)` (1M gold → 1 RP; 4M → 2; 100M → 10; 10B → 100). `filter_persistent_upgrades` returns the entries from `upgrades_purchased` whose `UpgradeResource.persists_through_prestige=true` survive a reset.
+- `GameState.perform_prestige()`: snapshots persisted state (pets, bestiary, ledger totals, persistent upgrades, RP balance, first_launch_unix), wipes the rest via `_reset_to_defaults`, then re-applies. Adds RP additively to the balance, increments `prestige_count` on root + ledger, emits `currency_changed` + `rancher_points_earned` + `prestige_triggered`. Honours the Headstart upgrade by re-equipping `basic_net` post-reset.
+- `GameState.total_gold_earned_this_run`: BigNumber-dict counter that accumulates on every `add_gold` call and resets on prestige; PrestigeSystem reads it.
+- `GameState.projected_rp_gain()`: convenience for the UI.
+- 4 prestige `UpgradeResource` `.tres`, all RP-cost and `persists_through_prestige=true`:
+  - `prestige_gold_mult` — Rancher's Knack: ×1.5/level (effect_id `gold_mult`), max 10.
+  - `prestige_starting_net` — Headstart: equips Basic Net at run start, max 1.
+  - `prestige_offline_cap` — Long Watches: +50% offline cap per level (multiplicative), max 5.
+  - `prestige_rp_mult` — Reputation: +25% RP per level (effect_id `rp_mult`), max 5.
+- `PrestigeView` scene as a new tab: shows projected RP, current run summary, what persists vs what wipes, double-confirm dialog.
+- `AudioManager` autoload: looping music player streams `assets/music/Divora - New Beginnings - DND 4 - 05 Bring The Guitar, It's Going Down.wav`; SFX pool of 4 `AudioStreamPlayer`s plays `assets/sounds/tap.wav` on every monster tap. Volumes read from `Settings.music_db` / `Settings.sfx_db`.
+- `EventBus.monster_tapped(monster_id, instance_id)` signal emitted from `catching_view._on_monster_tapped`. AudioManager subscribes; future analytics or VFX can hook the same signal without modifying the catch view.
+
+**Save format**
+- Bumped `CURRENT_VERSION` 1 → 2.
+- New v1 → v2 migration in `save_migrations.gd`: seeds `total_gold_earned_this_run` from the existing `currencies.gold` value so existing saves can prestige without grinding from zero.
+- Existing v0 → v1 → v2 chain still works.
+
+**Tests (87 passing, +15)**
+- `test_prestige_system.gd` (new file):
+  - `compute_rp_gain`: zero below 1M threshold, 1 RP at 1M, sqrt-shaped scaling at 4M / 100M / 10B, multiplier applied, zero on zero gold.
+  - `filter_persistent_upgrades`: keeps only `persists_through_prestige=true`, ignores unknown ids, returns empty when none qualify.
+  - `GameState.perform_prestige` integration: zeros gold + inventory + tier; preserves pets + bestiary; increments `prestige_count` on root + ledger; awards RP additively; resets even when below RP threshold.
+  - v1 → v2 migration: seeds `total_gold_earned_this_run` from gold; v0 → v2 chain handles full path with default 0.
+- All Phase 0 / 1 / 2 tests still green.
+
+**Pre-push checklist (Phase 3)**
+- ✓ GUT 87/87 passing
+- ✓ Project boots clean headlessly with `--quit-after 60`
+- ✓ Local Windows export builds (PCK grew from 1.5 MB → 7.7 MB with audio bundled)
+- (pending) CI green on `main`
+- (pending) Tag `phase-3-complete`
+
 ### Phase 2 — Pets and battles
 
 **Added**

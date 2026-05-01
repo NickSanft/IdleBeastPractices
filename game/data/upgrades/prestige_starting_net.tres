@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"prestige_starting_net"
+display_name = "Headstart"
+description = "Begin every prestige run with the Basic Net already equipped."
+effect_id = &"starting_net"
+magnitude = 1.0
+cost = {"m": 5.0, "e": 0}
+cost_currency = 1
+cost_growth = 1.0
+max_level = 1
+tier_required = 1
+persists_through_prestige = true

@@ -180,6 +180,8 @@ func _on_monster_tapped(inst: Node2D) -> void:
 	# this tap doesn't yet cross the catch difficulty.
 	if inst.has_method("play_tap_feedback"):
 		inst.play_tap_feedback()
+	if inst.monster != null:
+		EventBus.monster_tapped.emit(String(inst.monster.id), inst.instance_id)
 	var monster: MonsterResource = inst.monster
 	var outcome := CatchingSystem.resolve_tap(
 			monster,

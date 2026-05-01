@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UpgradeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/upgrade_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"prestige_rp_mult"
+display_name = "Reputation"
+description = "Future prestiges award 25% more Rancher Points per level."
+effect_id = &"rp_mult"
+magnitude = 0.25
+cost = {"m": 1.0, "e": 1}
+cost_currency = 1
+cost_growth = 2.0
+max_level = 5
+tier_required = 1
+persists_through_prestige = true

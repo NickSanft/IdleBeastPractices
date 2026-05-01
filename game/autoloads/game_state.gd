@@ -10,6 +10,11 @@ var currencies: Dictionary = {
 	"rancher_points": 0,
 }
 
+# Phase 3 prestige bookkeeping. Resets on prestige; PrestigeSystem reads it
+# to compute RP gain. BigNumber dict shape so very-late-game runs don't
+# overflow.
+var total_gold_earned_this_run: Dictionary = {"m": 0.0, "e": 0}
+
 var inventory: Dictionary = {}                  # {item_id (String): count (int)}
 var monsters_caught: Dictionary = {}            # {monster_id: {"normal": int, "shiny": int}}
 var pets_owned: Array[String] = []
@@ -50,6 +55,7 @@ func to_dict() -> Dictionary:
 		"last_saved_unix": last_saved_unix,
 		"session_id": session_id,
 		"currencies": currencies.duplicate(true),
+		"total_gold_earned_this_run": total_gold_earned_this_run.duplicate(true),
 		"inventory": inventory.duplicate(true),
 		"monsters_caught": monsters_caught.duplicate(true),
 		"pets_owned": pets_owned.duplicate(),
@@ -74,6 +80,7 @@ func from_dict(data: Dictionary) -> void:
 	last_saved_unix = int(data.get("last_saved_unix", 0))
 	session_id = String(data.get("session_id", ""))
 	currencies = data.get("currencies", currencies).duplicate(true)
+	total_gold_earned_this_run = (data.get("total_gold_earned_this_run", {"m": 0.0, "e": 0}) as Dictionary).duplicate(true)
 	inventory = data.get("inventory", {}).duplicate(true)
 	monsters_caught = data.get("monsters_caught", {}).duplicate(true)
 	pets_owned = _to_string_array(data.get("pets_owned", []))
@@ -98,6 +105,7 @@ func _reset_to_defaults() -> void:
 		"gold": {"m": 0.0, "e": 0},
 		"rancher_points": 0,
 	}
+	total_gold_earned_this_run = {"m": 0.0, "e": 0}
 	inventory = {}
 	monsters_caught = {}
 	pets_owned = []
@@ -171,6 +179,9 @@ func add_gold(amount: BigNumber) -> void:
 	var current: BigNumber = current_gold()
 	var new_total: BigNumber = current.add(amount)
 	currencies["gold"] = new_total.to_dict()
+	# Track per-run earnings for prestige RP. Doesn't decrement on spend.
+	var earned_this_run: BigNumber = BigNumber.from_dict(total_gold_earned_this_run).add(amount)
+	total_gold_earned_this_run = earned_this_run.to_dict()
 	EventBus.currency_changed.emit("gold", new_total)
 
 
@@ -341,5 +352,57 @@ func multiplier(effect_id: StringName) -> float:
 			effect_id,
 			upgrades_purchased,
 			ContentRegistry.upgrade_index())
+
+
+# Prestige
+
+func projected_rp_gain() -> int:
+	return PrestigeSystem.compute_rp_gain(total_gold_earned_this_run, multiplier(&"rp_mult"))
+
+
+## Reset progression for Rancher Points. Preserves upgrades flagged
+## persists_through_prestige, pets, bestiary entries, ledger totals, and the
+## RP balance (additive across prestiges). Returns the RP awarded.
+func perform_prestige() -> int:
+	var rp_gain: int = projected_rp_gain()
+	# Snapshots of fields we want to keep.
+	var keep_pets_owned := pets_owned.duplicate()
+	var keep_pet_variants := pet_variants_owned.duplicate()
+	var keep_monsters_caught := monsters_caught.duplicate(true)
+	var keep_ledger := ledger.duplicate(true)
+	var keep_narrator_state := narrator_state.duplicate(true)
+	var keep_rp: int = int(currencies.get("rancher_points", 0))
+	var keep_persistent_upgrades := PrestigeSystem.filter_persistent_upgrades(
+			upgrades_purchased,
+			ContentRegistry.upgrade_index())
+	var keep_first_launch: int = int(keep_ledger.get("first_launch_unix", 0))
+
+	# Full reset, then re-apply keepers.
+	_reset_to_defaults()
+	pets_owned = _to_string_array(keep_pets_owned)
+	pet_variants_owned = _to_string_array(keep_pet_variants)
+	monsters_caught = keep_monsters_caught
+	ledger = keep_ledger
+	narrator_state = keep_narrator_state
+	upgrades_purchased = keep_persistent_upgrades
+	# Carry over RP and add the freshly-earned ones.
+	currencies["rancher_points"] = keep_rp + rp_gain
+	# Increment prestige counters.
+	prestige_count += 1
+	ledger["prestige_count"] = int(ledger.get("prestige_count", 0)) + 1
+	ledger["first_launch_unix"] = keep_first_launch
+	# Post-prestige bonus: Headstart upgrade equips the basic net.
+	if get_upgrade_level(&"prestige_starting_net") >= 1:
+		var basic := ContentRegistry.net(&"basic_net")
+		if basic != null:
+			var basic_id: String = String(basic.id)
+			if not nets_owned.has(basic_id):
+				nets_owned.append(basic_id)
+			active_net = basic_id
+	if rp_gain > 0:
+		EventBus.currency_changed.emit("rancher_points", currencies["rancher_points"])
+		EventBus.rancher_points_earned.emit(rp_gain, "prestige")
+	EventBus.prestige_triggered.emit(rp_gain, prestige_count)
+	return rp_gain
 
 # endregion
