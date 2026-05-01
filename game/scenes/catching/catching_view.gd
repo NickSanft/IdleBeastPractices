@@ -4,6 +4,7 @@ extends Control
 const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_instance.tscn")
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
+const _DEBUG_LOG := true
 
 var _spawn_root: Node2D
 var _spawn_bounds: Rect2 = Rect2(40, 200, 640, 900)
@@ -161,6 +162,16 @@ func _apply_catch_rewards(monster: MonsterResource, outcome: Dictionary, source:
 	if outcome.has("drop_item_id") and outcome["drop_item_id"] != &"":
 		GameState.add_item(outcome["drop_item_id"], int(outcome["drop_amount"]))
 	GameState.add_gold(outcome["gold"])
+	if _DEBUG_LOG:
+		var gold: BigNumber = outcome["gold"]
+		print("[catch] resolved: %s caught via %s, +%s gold, +%d %s%s" % [
+			String(monster.id),
+			source,
+			gold.format(),
+			int(outcome.get("drop_amount", 0)),
+			String(outcome.get("drop_item_id", "")),
+			"  ✨SHINY" if bool(outcome.get("is_shiny", false)) else "",
+		])
 	_check_tier_progression(monster.tier)
 
 
