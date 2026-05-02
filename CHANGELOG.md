@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+- **Android portrait orientation** — `project.godot` had `window/handheld/orientation="portrait"` (string), but Godot 4.x stores this as an integer enum. The string parsed as `0` (landscape default), so the AAB shipped with `android:screenOrientation="0"`, which displayed the game rotated 90° on portrait-locked devices. Changed to `window/handheld/orientation=1`. Also dropped the now-dead `sed`-patch in CI workflows: Godot regenerates the AndroidManifest.xml from project settings during export, overwriting any pre-export edits to `android/build/src/main/AndroidManifest.xml`. Verified post-fix: `bundletool dump manifest` shows `android:screenOrientation="1"`.
+
 ### Phase 5c — Tier 4–20 content + dialogue corpus expansion
 
 **Added**
