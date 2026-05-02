@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"whisper_sigil"
+display_name = "Whisper Sigil"
+description = "Drops from tier-18 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 1.72, "e": 14}
+flavor_text = "An incised symbol. Reading it costs five seconds you do not get back."

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"knot_strand"
+display_name = "Knot Strand"
+description = "Drops from tier-14 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 9.63, "e": 10}
+flavor_text = "A length of thread that ties itself into knots while you watch. Unhelpful."

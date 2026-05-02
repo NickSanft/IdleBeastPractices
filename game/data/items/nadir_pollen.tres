@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"nadir_pollen"
+display_name = "Nadir Pollen"
+description = "Drops from tier-20 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 7.26, "e": 15}
+flavor_text = "Pollen from no plant. The Synod's botanists are on extended sabbatical."

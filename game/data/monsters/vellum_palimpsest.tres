@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/palimpsest_leaf.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"vellum_palimpsest"
+display_name = "Vellum Palimpsest"
+tier = 17
+sprite = ExtResource("2_sprite")
+tint = Color(0.69, 0.07, 1.47, 1)
+spawn_weight = 1.0
+base_catch_difficulty = 25488276.8
+drop_item = ExtResource("3_drop")
+drop_amount_min = 1
+drop_amount_max = 2
+gold_base = 26435022120784
+shiny_rate = 0.0160
+flavor_text = "A tier-17 vellum-palimpsest. Slow. Recommend gloves."

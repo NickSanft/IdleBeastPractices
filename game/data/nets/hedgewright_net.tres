@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"hedgewright_net"
+display_name = "Hedgewright Net"
+description = "Bramble-tempered weave; works through tier 9."
+tier_required = 7
+cost = {"m": 8.30, "e": 6}
+catches_per_second = 2.0
+catch_speed_multiplier = 1.0
+spawn_max = 6
+targets_tiers = Array[int]([4, 5, 6, 7, 8, 9])

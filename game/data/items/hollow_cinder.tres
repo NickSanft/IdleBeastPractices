@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"hollow_cinder"
+display_name = "Hollow Cinder"
+description = "Drops from tier-19 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 1.12, "e": 15}
+flavor_text = "Coal that does not weigh anything. The scales refuse to comment."

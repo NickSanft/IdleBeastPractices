@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tier_complete_14"
+trigger_id = &"on_tier_complete_14"
+text = "All three knot species. The strands tied themselves while you watched, with what one can only call malice. We know the feeling."
+mood = &"weary"
+weight = 1.0
+max_uses = 1

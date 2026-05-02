@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/knot_strand.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gossamer_knot"
+display_name = "Gossamer Knot"
+tier = 14
+sprite = ExtResource("2_sprite")
+tint = Color(0.17, 0.67, 1.82, 1)
+spawn_weight = 0.7
+base_catch_difficulty = 1741637.0
+drop_item = ExtResource("3_drop")
+drop_amount_min = 1
+drop_amount_max = 3
+gold_base = 182891368337
+shiny_rate = 0.0190
+flavor_text = "A tier-14 gossamer-knot. Wary. Recommend gloves."

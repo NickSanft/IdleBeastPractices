@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"vigil_net"
+display_name = "Vigil Net"
+description = "Long, patient sweeps for late-tier specimens."
+tier_required = 16
+cost = {"m": 1.72, "e": 14}
+catches_per_second = 4.4
+catch_speed_multiplier = 1.0
+spawn_max = 9
+targets_tiers = Array[int]([13, 14, 15, 16, 17, 18])

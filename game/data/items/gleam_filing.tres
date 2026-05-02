@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"gleam_filing"
+display_name = "Gleam Filing"
+description = "Drops from tier-9 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 8.30, "e": 6}
+flavor_text = "Metallic shavings. Allegedly precious, though no two assayers agree on which kind."

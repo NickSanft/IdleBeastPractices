@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/vigil_tallow.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"wick_vigil"
+display_name = "Wick Vigil"
+tier = 15
+sprite = ExtResource("2_sprite")
+tint = Color(0.13, 0.33, 1.88, 1)
+spawn_weight = 0.7
+base_catch_difficulty = 4876583.6
+drop_item = ExtResource("3_drop")
+drop_amount_min = 1
+drop_amount_max = 3
+gold_base = 1188793894189
+shiny_rate = 0.0180
+flavor_text = "A tier-15 wick-vigil. Wary. Recommend gloves."

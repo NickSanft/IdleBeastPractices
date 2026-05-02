@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"wraith_net"
+display_name = "Wraith Net"
+description = "Pulls cinder-class targets too — useful through tier 6."
+tier_required = 4
+cost = {"m": 3.02, "e": 4}
+catches_per_second = 1.6
+catch_speed_multiplier = 1.0
+spawn_max = 5
+targets_tiers = Array[int]([4, 5, 6])

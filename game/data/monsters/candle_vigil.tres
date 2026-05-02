@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/vigil_tallow.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"candle_vigil"
+display_name = "Candle Vigil"
+tier = 15
+sprite = ExtResource("2_sprite")
+tint = Color(0.15, 0.39, 1.39, 1)
+spawn_weight = 1.0
+base_catch_difficulty = 3251055.7
+drop_item = ExtResource("3_drop")
+drop_amount_min = 1
+drop_amount_max = 2
+gold_base = 625680996942
+shiny_rate = 0.0180
+flavor_text = "A tier-15 candle-vigil. Slow. Recommend gloves."

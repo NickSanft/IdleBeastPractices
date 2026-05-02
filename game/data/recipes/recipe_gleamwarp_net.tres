@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/nets/gleamwarp_net.tres" id="2_net"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_gleamwarp_net"
+display_name = "Craft Gleamwarp Net"
+description = "Late-tier net, accessible after qualifying drops accumulate."
+inputs = [{"item_id": &"drift_crystal", "amount": 200}]
+output_net = ExtResource("2_net")
+output_amount = 1
+gold_cost = {"m": 3.51, "e": 8}
+tier_required = 10
+prereq_recipe_ids = Array[StringName]([&"recipe_hedgewright_net"])

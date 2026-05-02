@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"battle_loss_pool_4"
+trigger_id = &"on_battle_loss"
+text = "Lost. The Synod's medical staff have been put on alert. Not for your team. They are here, principally, for me."
+mood = &"exasperated"
+weight = 1.0
+max_uses = 0

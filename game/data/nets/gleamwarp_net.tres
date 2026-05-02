@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gleamwarp_net"
+display_name = "Gleamwarp Net"
+description = "Fine-mesh harvest gear for the fragile mid tiers."
+tier_required = 10
+cost = {"m": 2.28, "e": 9}
+catches_per_second = 2.6
+catch_speed_multiplier = 1.0
+spawn_max = 7
+targets_tiers = Array[int]([7, 8, 9, 10, 11, 12])

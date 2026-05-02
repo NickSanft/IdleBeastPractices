@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="NetResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/net_resource.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"refrain_net"
+display_name = "Refrain Net"
+description = "Damps acoustic-class species. Strong through tier 15."
+tier_required = 13
+cost = {"m": 6.26, "e": 11}
+catches_per_second = 3.4
+catch_speed_multiplier = 1.0
+spawn_max = 8
+targets_tiers = Array[int]([10, 11, 12, 13, 14, 15])

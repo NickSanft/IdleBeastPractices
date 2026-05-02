@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/glimmer_husk.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"swarm_glimmer"
+display_name = "Swarm Glimmer"
+tier = 7
+sprite = ExtResource("2_sprite")
+tint = Color(1.23, 0.91, 0.39, 1)
+spawn_weight = 0.85
+base_catch_difficulty = 1032.6
+drop_item = ExtResource("3_drop")
+drop_amount_min = 2
+drop_amount_max = 3
+gold_base = 274900
+shiny_rate = 0.0260
+flavor_text = "A tier-7 swarm-glimmer. Volatile. Recommend gloves."

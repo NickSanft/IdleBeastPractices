@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tier_complete_16"
+trigger_id = &"on_tier_complete_16"
+text = "The refract species, fully indexed. Their splinters catch light from rooms they have never been in. I find this less remarkable than you do; the Synod is much the same."
+mood = &"smug"
+weight = 1.0
+max_uses = 1

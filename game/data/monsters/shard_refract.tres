@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MonsterResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://game/resources/monster_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+[ext_resource type="Resource" path="res://game/data/items/refract_splinter.tres" id="3_drop"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"shard_refract"
+display_name = "Shard Refract"
+tier = 16
+sprite = ExtResource("2_sprite")
+tint = Color(0.23, 0.09, 1.93, 1)
+spawn_weight = 0.7
+base_catch_difficulty = 13654434.0
+drop_item = ExtResource("3_drop")
+drop_amount_min = 1
+drop_amount_max = 3
+gold_base = 7727160312229
+shiny_rate = 0.0170
+flavor_text = "A tier-16 shard-refract. Wary. Recommend gloves."

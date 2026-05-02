@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"battle_win_pool_3"
+trigger_id = &"on_battle_win"
+text = "Triumph. The Rancher Points have been issued, and the Synod has — astonishingly, but accurately — kept its word about the increment."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 0

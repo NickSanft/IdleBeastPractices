@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/item_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"refract_splinter"
+display_name = "Refract Splinter"
+description = "Drops from tier-16 catches."
+category = 0
+stack_max = 9999999
+sell_value = {"m": 4.07, "e": 12}
+flavor_text = "A splinter that catches light from rooms it has never been in."
