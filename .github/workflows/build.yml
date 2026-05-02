@@ -223,23 +223,16 @@ jobs:
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
           echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
 
-      - name: Configure Godot Android editor settings
-        run: |
-          mkdir -p ~/.config/godot
-          {
-            echo '[gd_resource type="EditorSettings" format=3]'
-            echo ''
-            echo '[resource]'
-            echo "export/android/android_sdk_path = \"${ANDROID_HOME}\""
-            echo "export/android/debug_keystore = \"$(pwd)/debug.keystore\""
-            echo 'export/android/debug_keystore_user = "androiddebugkey"'
-            echo 'export/android/debug_keystore_pass = "android"'
-          } > ~/.config/godot/editor_settings-4.6.tres
-
       - name: Import project
         run: godot --headless --path . --import 2>&1 | tail -10 || true
 
       - name: Export Android (debug)
+        # Godot 4.6 reads keystore env vars directly; no editor_settings.tres
+        # write needed.
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           mkdir -p exports/android
           godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.aab

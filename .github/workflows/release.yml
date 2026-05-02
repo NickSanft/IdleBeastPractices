@@ -70,28 +70,21 @@ jobs:
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
           echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
-      - name: Configure Godot Android editor settings
-        env:
-          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          mkdir -p ~/.config/godot
-          {
-            echo '[gd_resource type="EditorSettings" format=3]'
-            echo ''
-            echo '[resource]'
-            echo "export/android/android_sdk_path = \"${ANDROID_HOME}\""
-            echo "export/android/debug_keystore = \"$(pwd)/release.keystore\""
-            echo "export/android/debug_keystore_user = \"${KEY_ALIAS}\""
-            echo "export/android/debug_keystore_pass = \"${KEY_PASS}\""
-            echo "export/android/release_keystore = \"$(pwd)/release.keystore\""
-            echo "export/android/release_keystore_user = \"${KEY_ALIAS}\""
-            echo "export/android/release_keystore_pass = \"${KEY_PASS}\""
-          } > ~/.config/godot/editor_settings-4.6.tres
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
       - name: Export Android release AAB
+        # Godot 4.6 reads keystore paths/passwords/alias from env vars
+        # when present, bypassing editor_settings entirely. Cleaner than
+        # writing a synthetic .tres on the runner. android_sdk_path is
+        # picked up from ANDROID_HOME automatically.
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          ls -lh release.keystore
           mkdir -p exports/android
           godot --headless --path . --export-release "Android" exports/android/IdleBeastPractices.aab
       - uses: actions/upload-artifact@v4
