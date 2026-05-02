@@ -68,6 +68,17 @@ func test_show_rewarded_routes_to_backend() -> void:
 	assert_eq(_fake.requests[1], "battle_instant_finish")
 
 
+func test_show_rewarded_emits_requested_signal() -> void:
+	# v0.7.1: lets diagnostic overlays distinguish "tap registered, ad in
+	# flight" from "ad never asked for" when a load silently fails.
+	watch_signals(AdsManager)
+	AdsManager.show_rewarded(AdsManager.REWARD_DROPS_2X_NEXT_10)
+	assert_signal_emitted_with_parameters(
+			AdsManager,
+			"requested",
+			["drops_2x_next_10"])
+
+
 func test_backend_completed_forwards_to_rewarded_completed() -> void:
 	watch_signals(AdsManager)
 	_fake.completed.emit(AdsManager.REWARD_DROPS_2X_NEXT_10, true)

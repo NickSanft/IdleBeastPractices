@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.7.1 — Ad lifecycle diagnostic overlay
+
+**Added**
+- **`AdsManager.requested(reward_id: String)`** signal — fires synchronously inside `show_rewarded()` before the request goes to the backend. Lets diagnostic UI distinguish "tap registered, ad load in flight" from "tap never reached AdsManager".
+- **`AdDiagnosticOverlay`** ([game/scenes/ui/ad_diagnostic_overlay.gd](game/scenes/ui/ad_diagnostic_overlay.gd) + `.tscn`) — top-of-screen banner that shows ad lifecycle events:
+  - blue `[ad] requested: <id> …` on tap
+  - green `[ad] <id> — reward granted` on success
+  - red `[ad] <id> — failed: <reason>` on failure (e.g. `load_failed:no fill`, `not_initialized`, `user_canceled`)
+  
+  Holds for 6 s, then fades. Mouse-filter `IGNORE` so background taps still reach the gameplay underneath. Wired into [main.gd](game/scenes/main.gd) at the same level as `NarratorOverlay`.
+
+**Why ship this:** A real AdMob ad attempt on the foldable failed silently in v0.7.0. The skip button just re-enabled itself with no UI feedback because `AdMobAdsBackend` emits `failed(reason)` but no caller surfaced the reason. With the overlay, the actual error string from the AdMob SDK (or "not_initialized" if the SDK init callback hasn't fired yet) is visible in-game without needing `adb logcat`. Once we've stabilized the production ad flow, this overlay can be gated behind a debug flag or removed.
+
+**Tests (134 passing, +1)**
+- `test_show_rewarded_emits_requested_signal`: confirms `AdsManager.requested` fires when `show_rewarded(id)` is called, with the matching reward ID.
+
 ### Phase 6b — Real AdMob integration (replaces stub on Android)
 
 **Added**

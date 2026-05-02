@@ -14,6 +14,7 @@ const _CRAFTING_VIEW := preload("res://game/scenes/crafting/crafting_view.tscn")
 const _LEDGER_VIEW := preload("res://game/scenes/ledger/ledger_view.tscn")
 const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _NARRATOR_OVERLAY := preload("res://game/scenes/ui/narrator_overlay.tscn")
+const _AD_DIAGNOSTIC_OVERLAY := preload("res://game/scenes/ui/ad_diagnostic_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -91,6 +92,11 @@ func _build_ui() -> void:
 	# reach the catching view; only the speech bubble itself catches taps.
 	var overlay: Control = _NARRATOR_OVERLAY.instantiate()
 	add_child(overlay)
+
+	# Top-of-screen banner that surfaces ad lifecycle events for debugging.
+	# Subscribes to AdsManager.requested / rewarded_completed / rewarded_failed.
+	var ad_diag: Control = _AD_DIAGNOSTIC_OVERLAY.instantiate()
+	add_child(ad_diag)
 
 
 func _seed_default_net_if_needed() -> void:

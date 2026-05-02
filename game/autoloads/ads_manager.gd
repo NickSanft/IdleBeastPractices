@@ -16,6 +16,11 @@ extends Node
 
 signal rewarded_completed(reward_id: String, granted: bool)
 signal rewarded_failed(reward_id: String, reason: String)
+## Fires synchronously inside `show_rewarded(...)` before the request goes
+## to the backend. Lets diagnostic UI surface "ad requested" between the
+## tap and the load-result, so a silent ad-load failure looks different
+## from a tap that never registered.
+signal requested(reward_id: String)
 
 const REWARD_OFFLINE_2X := "offline_2x"
 const REWARD_BATTLE_INSTANT_FINISH := "battle_instant_finish"
@@ -48,6 +53,7 @@ func is_available() -> bool:
 ## `rewarded_completed` to apply the reward, or `rewarded_failed` to
 ## handle a no-fill / user-cancel case.
 func show_rewarded(reward_id: String) -> void:
+	requested.emit(reward_id)
 	if backend == null:
 		rewarded_failed.emit(reward_id, "no_backend")
 		return
