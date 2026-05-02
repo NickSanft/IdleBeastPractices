@@ -142,8 +142,11 @@ func test_admob_backend_resolves_test_unit_when_setting_empty() -> void:
 	# project.godot ships `admob/rewarded_unit_id=""`; the backend should
 	# fall back to Google's documented test rewarded unit when empty so dev
 	# builds (without the ADMOB_REWARDED_UNIT_ID secret) still serve test
-	# ads end-to-end.
-	var prior: Variant = ProjectSettings.get_setting("admob/rewarded_unit_id", "")
+	# ads end-to-end. The use_test_ad_units flag must be off for this test
+	# (it would short-circuit before the empty-fallback check).
+	var prior_unit: Variant = ProjectSettings.get_setting("admob/rewarded_unit_id", "")
+	var prior_flag: Variant = ProjectSettings.get_setting("admob/use_test_ad_units", false)
+	ProjectSettings.set_setting("admob/use_test_ad_units", false)
 	ProjectSettings.set_setting("admob/rewarded_unit_id", "")
 	var backend := AdMobAdsBackend.new()
 	add_child_autofree(backend)
@@ -151,4 +154,21 @@ func test_admob_backend_resolves_test_unit_when_setting_empty() -> void:
 	# Configured override path.
 	ProjectSettings.set_setting("admob/rewarded_unit_id", "ca-app-pub-1234567890123456/0987654321")
 	assert_eq(backend._resolve_ad_unit_id(), "ca-app-pub-1234567890123456/0987654321")
-	ProjectSettings.set_setting("admob/rewarded_unit_id", prior)
+	ProjectSettings.set_setting("admob/rewarded_unit_id", prior_unit)
+	ProjectSettings.set_setting("admob/use_test_ad_units", prior_flag)
+
+
+func test_admob_backend_use_test_ad_units_flag_overrides_configured_value() -> void:
+	# v0.7.4 escape hatch for "AdMob account in review" — even when
+	# admob/rewarded_unit_id is set to a real value, the flag forces test
+	# IDs so the rewarded-video flow is verifiable end-to-end pre-approval.
+	var prior_unit: Variant = ProjectSettings.get_setting("admob/rewarded_unit_id", "")
+	var prior_flag: Variant = ProjectSettings.get_setting("admob/use_test_ad_units", false)
+	ProjectSettings.set_setting("admob/rewarded_unit_id", "ca-app-pub-9999999999999999/8888888888")
+	ProjectSettings.set_setting("admob/use_test_ad_units", true)
+	var backend := AdMobAdsBackend.new()
+	add_child_autofree(backend)
+	assert_eq(backend._resolve_ad_unit_id(), AdMobAdsBackend._TEST_REWARDED_UNIT,
+			"flag should short-circuit before the configured-value check")
+	ProjectSettings.set_setting("admob/rewarded_unit_id", prior_unit)
+	ProjectSettings.set_setting("admob/use_test_ad_units", prior_flag)

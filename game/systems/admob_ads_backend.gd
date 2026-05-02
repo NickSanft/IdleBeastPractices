@@ -92,6 +92,12 @@ func show_rewarded(reward_id: String) -> void:
 
 
 func _resolve_ad_unit_id() -> String:
+	# `admob/use_test_ad_units=true` short-circuits the configured value and
+	# forces Google's universal test ad unit. Used while the production
+	# AdMob account is "in review" and real units return "Publisher Data
+	# not found". Defaults to false so production builds use the real unit.
+	if bool(ProjectSettings.get_setting("admob/use_test_ad_units", false)):
+		return _TEST_REWARDED_UNIT
 	var configured: String = String(ProjectSettings.get_setting("admob/rewarded_unit_id", ""))
 	if configured.is_empty():
 		return _TEST_REWARDED_UNIT

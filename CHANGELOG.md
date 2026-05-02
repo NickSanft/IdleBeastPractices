@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.7.4 — Force test ad units while AdMob account is "in review"
+
+**Changed**
+- Added `[admob] use_test_ad_units=true` to [project.godot](project.godot). When this flag is true, [`AdMobAdsBackend._resolve_ad_unit_id()`](game/systems/admob_ads_backend.gd) short-circuits the configured `admob/rewarded_unit_id` value and returns Google's documented test rewarded unit (`ca-app-pub-3940256099942544/5224354917`). Used during the AdMob account review window where real units fail with `load_failed: Publisher Data not found` (AdMob serving error code 9). Flip the flag to `false` (or delete the line — defaults to false) once Google approves the account and real ads start serving.
+- The `ADMOB_APP_ID` injection still happens — Google's test ad units serve regardless of which app ID is in the manifest meta-data, so we keep the user's real app ID. Production wiring is fully exercised; only the rewarded unit is overridden.
+
+**Tests (135 passing, +1)**
+- `test_admob_backend_use_test_ad_units_flag_overrides_configured_value`: confirms the flag short-circuits before the configured-value check; existing `test_admob_backend_resolves_test_unit_when_setting_empty` updated to explicitly disable the flag (otherwise it'd short-circuit before reaching the empty-fallback branch).
+
+### v0.7.3 — Un-LFS the AdMob AAR files (124 KB total)
+
+**Fixed**
+- v0.7.2's release build failed at `git checkout` because four AdMob bridge AARs (`poing-godot-admob-{ads,core}-{debug,release}.aar`, 4–58 KB each, ~124 KB total) had been routed through Git LFS via `*.aar filter=lfs` in `.gitattributes`. Multi-job CI fanout × LFS bandwidth = 1 GB/month free quota exhausted in one push, blocking checkout: `batch response: This repository exceeded its LFS budget`.
+- Removed the `*.aar` LFS rule. Re-added the AARs as plain git blobs (LFS pointers → real binaries). `.so` and `.dll` LFS rules stay (those genuinely can be large); `.aar` joins `.png`/`.wav`/`.ttf` etc. in plain git per the saved bandwidth-budget memory.
+
+### v0.7.2 — Commit AdMob AARs the plugin's `.gitignore` had excluded
+
+**Fixed**
+- The Poing Studios plugin ships with `addons/admob/android/.gitignore` containing `/bin`, which silently excluded the four bridge AARs and the `poing_godot_admob_ads.gd` Android export plugin from being committed in v0.7.0/v0.7.1 — the local files existed (extracted from `poing-godot-admob-android-v4.6.1.zip`) but git skipped them. v0.7.0 happened to slip through because the plugin's editor-side download service auto-fetches missing AARs at export time (`AdMob Android plugin not found. Installing...` in CI logs). v0.7.1 surfaced the gap with `AAPT: error: 'res://addons/admob/android/bin/ads/poing_godot_admob_ads.gd doesn't exists' is incompatible with attribute enabled (attr) boolean` (the plugin's `_get_android_manifest_application_element_contents()` deliberately emits broken XML when a configured library's .gd is missing).
+- Removed `addons/admob/android/.gitignore`. Tracked the four AARs (then mistakenly via LFS — see v0.7.3 for the correction) and the export plugin script.
+
 ### v0.7.1 — Ad lifecycle diagnostic overlay
 
 **Added**
