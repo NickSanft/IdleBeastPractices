@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
 
+# GITHUB_TOKEN defaults to read-only on new repos; the github-release job
+# needs contents: write to call POST /releases.
+permissions:
+  contents: write
+
 env:
   GODOT_VERSION: "4.6.1"
   GODOT_RELEASE: "4.6.1-stable"
