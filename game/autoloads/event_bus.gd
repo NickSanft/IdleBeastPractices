@@ -57,3 +57,7 @@ extends Node
 # region — Narrator
 @warning_ignore("unused_signal") signal narrator_line_chosen(line_id: String, text: String, mood: String)
 # endregion
+
+# region — Ads
+@warning_ignore("unused_signal") signal rewarded_video_completed(reward_id: String, granted: bool)
+# endregion

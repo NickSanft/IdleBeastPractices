@@ -31,6 +31,7 @@ var _enemy_max_hp: Array[float] = []
 var _player_bars: Array[ProgressBar] = []
 var _enemy_bars: Array[ProgressBar] = []
 var _action_log_label: Label
+var _skip_button: Button   # rewarded-video instant-finish; visible during BATTLING only
 
 
 func _ready() -> void:
@@ -50,13 +51,26 @@ func _ready() -> void:
 	_content_box = VBoxContainer.new()
 	_content_panel.add_child(_content_box)
 
+	var button_row := HBoxContainer.new()
+	button_row.add_theme_constant_override("separation", 8)
+	button_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_root_vbox.add_child(button_row)
+
 	_action_button = Button.new()
 	_action_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action_button.pressed.connect(_on_action_pressed)
-	_root_vbox.add_child(_action_button)
+	button_row.add_child(_action_button)
+
+	_skip_button = Button.new()
+	_skip_button.text = "Skip (ad)"
+	_skip_button.visible = false
+	_skip_button.pressed.connect(_on_skip_pressed)
+	button_row.add_child(_skip_button)
 
 	EventBus.pet_acquired.connect(_on_pet_acquired)
 	EventBus.game_loaded.connect(_render_idle)
+	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
+	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
 	set_process(false)
 	_render_idle()
 
@@ -69,6 +83,9 @@ func _on_pet_acquired(_pet_id: String, _is_variant: bool) -> void:
 func _render_idle() -> void:
 	_state = _State.IDLE
 	set_process(false)
+	if _skip_button != null:
+		_skip_button.visible = false
+		_skip_button.disabled = false
 	_clear_content()
 	var pets: Array[PetResource] = GameState.owned_pets()
 	if pets.is_empty():
@@ -143,6 +160,9 @@ func _start_battle() -> void:
 	_replay_accumulator = 0.0
 	_render_battle()
 	_update_action_button_text()
+	if _skip_button != null:
+		_skip_button.visible = true
+		_skip_button.disabled = not AdsManager.is_available()
 	set_process(true)
 
 
@@ -282,6 +302,8 @@ func _apply_replay_frame(frame: Dictionary) -> void:
 func _finish_replay() -> void:
 	_state = _State.POST
 	set_process(false)
+	if _skip_button != null:
+		_skip_button.visible = false
 	var winner: String = String(_battle_log.get("winner", "draw"))
 	var ticks: int = int(_battle_log.get("ticks", 0))
 	if winner == "player":
@@ -296,6 +318,45 @@ func _finish_replay() -> void:
 		_status_label.text = "Drawn at the tick cap (%d)" % ticks
 	EventBus.battle_ended.emit(str(_battle_log.get("seed", 0)), winner == "player", _battle_log.get("rewards", {}))
 	_action_button.text = "Continue"
+
+
+func _on_skip_pressed() -> void:
+	if _state != _State.BATTLING:
+		return
+	if _skip_button != null:
+		_skip_button.disabled = true
+	AdsManager.show_rewarded(AdsManager.REWARD_BATTLE_INSTANT_FINISH)
+
+
+func _on_rewarded_completed(reward_id: String, granted: bool) -> void:
+	if reward_id != AdsManager.REWARD_BATTLE_INSTANT_FINISH:
+		return
+	if _state != _State.BATTLING:
+		return
+	EventBus.rewarded_video_completed.emit(reward_id, granted)
+	if granted:
+		_fast_forward_replay()
+	else:
+		# User canceled — keep battling at current speed.
+		if _skip_button != null:
+			_skip_button.disabled = false
+
+
+func _on_rewarded_failed(reward_id: String, _reason: String) -> void:
+	if reward_id != AdsManager.REWARD_BATTLE_INSTANT_FINISH:
+		return
+	if _state == _State.BATTLING and _skip_button != null:
+		_skip_button.disabled = false
+
+
+func _fast_forward_replay() -> void:
+	# Apply every remaining frame in one pass so the bars + log land on the
+	# final state, then transition to POST via _finish_replay().
+	var frames: Array = _battle_log.get("frames", [])
+	while _replay_frame_index < frames.size():
+		_apply_replay_frame(frames[_replay_frame_index])
+		_replay_frame_index += 1
+	_finish_replay()
 
 
 func _clear_content() -> void:

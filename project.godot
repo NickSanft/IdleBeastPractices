@@ -25,6 +25,7 @@ TimeManager="*res://game/autoloads/time_manager.gd"
 GameState="*res://game/autoloads/game_state.gd"
 AudioManager="*res://game/autoloads/audio_manager.gd"
 Narrator="*res://game/autoloads/narrator.gd"
+AdsManager="*res://game/autoloads/ads_manager.gd"
 
 [display]
 

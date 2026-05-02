@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 6a — Rewarded-video scaffolding (stub backend)
+
+**Added**
+- **`AdsManager` autoload** ([game/autoloads/ads_manager.gd](game/autoloads/ads_manager.gd)) — single entry point for the three rewarded-video placements. Holds a swappable `backend: AdsBackend`; Phase 6a ships `StubAdsBackend` which pops a confirmation dialog standing in for a real ad. Emits `rewarded_completed(reward_id, granted)` on grant and `rewarded_failed(reward_id, reason)` on cancel/error. Stable reward IDs:
+  - `REWARD_OFFLINE_2X` (`"offline_2x"`) — double offline-progress reward on welcome-back.
+  - `REWARD_BATTLE_INSTANT_FINISH` (`"battle_instant_finish"`) — fast-forward to the end of the current battle replay.
+  - `REWARD_DROPS_2X_NEXT_10` (`"drops_2x_next_10"`) — double item drops on the next 10 catches (`DROPS_2X_CATCH_COUNT`).
+- **`AdsBackend` abstract** ([game/systems/ads_backend.gd](game/systems/ads_backend.gd)) and **`StubAdsBackend`** ([game/systems/stub_ads_backend.gd](game/systems/stub_ads_backend.gd)). Phase 6b will land an `AdMobBackend` wrapping the Poing Studios plugin; everything calling `AdsManager.show_rewarded(reward_id)` stays untouched.
+- **Three rewarded-video placements wired:**
+  - `WelcomeBackDialog` — adds a `Claim 2× (watch ad)` button alongside the standard `Claim`. On grant, doubles `gold_gained`, every entry in `items_gained`, and every `catches_by_species` entry's `normal`/`shiny` count, then emits the doubled summary.
+  - `BattleView` — adds a `Skip (ad)` button that becomes visible on battle start. On grant, fast-forwards through every remaining replay frame and transitions straight to POST. On cancel, the battle continues at the current speed.
+  - `CatchingView` — bottom-right `Watch ad: 2× drops × 10` button. On grant, sets `GameState.transient_drops_2x_remaining = 10`; while > 0 the next item-drop in `_apply_catch_rewards` doubles in size and decrements the counter. Button label updates live (`2× drops: N left`) and disables when ads aren't available.
+- **`EventBus.rewarded_video_completed(reward_id, granted)`** — fired by every grant site, reserved for future telemetry / tutorial hooks.
+- **`GameState.transient_drops_2x_remaining: int`** — transient (not persisted) counter, reset by `_reset_to_defaults`.
+
+**Tests (131 passing, +6)**
+- `test_ads_manager.gd`:
+  - Reward ID constants are stable strings (`offline_2x`, `battle_instant_finish`, `drops_2x_next_10`); `DROPS_2X_CATCH_COUNT == 10`.
+  - `is_available()` delegates to the backend.
+  - `show_rewarded(id)` routes the request to the backend.
+  - Backend `completed`/`failed` signals forward through to `AdsManager.rewarded_completed`/`rewarded_failed` 1:1.
+  - Calling `show_rewarded` with a null backend fail-softs to `rewarded_failed(id, "no_backend")` rather than crashing.
+  - Production default backend is `StubAdsBackend` (Phase 6b will swap this).
+
+**Notes**
+- No real network calls or ad SDK integration in this phase. The stub's confirmation dialog is the only user-visible UI; it ships with the production build until Phase 6b lands the AdMob plugin.
+
 ### Fixed
 - **Android portrait orientation** — `project.godot` had `window/handheld/orientation="portrait"` (string), but Godot 4.x stores this as an integer enum. The string parsed as `0` (landscape default), so the AAB shipped with `android:screenOrientation="0"`, which displayed the game rotated 90° on portrait-locked devices. Changed to `window/handheld/orientation=1`. Also dropped the now-dead `sed`-patch in CI workflows: Godot regenerates the AndroidManifest.xml from project settings during export, overwriting any pre-export edits to `android/build/src/main/AndroidManifest.xml`. Verified post-fix: `bundletool dump manifest` shows `android:screenOrientation="1"`.
 

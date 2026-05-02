@@ -28,6 +28,11 @@ var current_battle: Variant = null              # Dictionary or null
 var prestige_count: int = 0
 var recipes_crafted: Array[String] = []          # ids of recipes ever crafted (additive across prestiges)
 
+# Transient (NOT persisted): rewarded-video bonus that doubles drop_amount on
+# the next N catches. Set by AdsManager → REWARD_DROPS_2X_NEXT_10. Decrements
+# in catching_view._apply_catch_rewards.
+var transient_drops_2x_remaining: int = 0
+
 var ledger: Dictionary = {
 	"total_catches": 0,
 	"total_taps": 0,
@@ -121,6 +126,7 @@ func _reset_to_defaults() -> void:
 	current_battle = null
 	prestige_count = 0
 	recipes_crafted = []
+	transient_drops_2x_remaining = 0
 	ledger = {
 		"total_catches": 0,
 		"total_taps": 0,

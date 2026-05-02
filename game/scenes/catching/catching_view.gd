@@ -17,6 +17,7 @@ var _spawn_timer: float = 0.0
 var _auto_accumulator: float = 0.0
 var _instance_counter: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _drops_2x_button: Button   # rewarded-video bonus toggle
 
 
 func _ready() -> void:
@@ -36,6 +37,9 @@ func _ready() -> void:
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	_spawn_bounds = Rect2(20, 80, viewport_size.x - 40, viewport_size.y - 200)
 	resized.connect(_on_resized)
+	_build_drops_2x_button()
+	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
+	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
 	# Seed: if there's no active net, the catch screen still works (taps only).
 	set_process(true)
 
@@ -260,7 +264,14 @@ func _shake_spawn_root(intensity: float, duration: float) -> void:
 func _apply_catch_rewards(monster: MonsterResource, outcome: Dictionary, source: String) -> void:
 	GameState.record_catch(monster.id, bool(outcome["is_shiny"]), source)
 	if outcome.has("drop_item_id") and outcome["drop_item_id"] != &"":
-		GameState.add_item(outcome["drop_item_id"], int(outcome["drop_amount"]))
+		var amount: int = int(outcome["drop_amount"])
+		# Rewarded-video bonus: doubles drop_amount for the next N catches
+		# after a REWARD_DROPS_2X_NEXT_10 ad.
+		if GameState.transient_drops_2x_remaining > 0:
+			amount *= 2
+			GameState.transient_drops_2x_remaining -= 1
+			_update_drops_2x_button()
+		GameState.add_item(outcome["drop_item_id"], amount)
 	GameState.add_gold(outcome["gold"])
 	if _DEBUG_LOG:
 		var gold: BigNumber = outcome["gold"]
@@ -314,3 +325,60 @@ func _award_tier_completion(catch_tier: int) -> void:
 	if GameState.current_max_tier <= catch_tier:
 		GameState.current_max_tier = catch_tier + 1
 		EventBus.tier_unlocked.emit(GameState.current_max_tier)
+
+
+func _build_drops_2x_button() -> void:
+	# Anchored bottom-right of the catching view. Explicit anchor+offsets
+	# (set_anchors_preset + manual position is fragile with Control siblings).
+	# Mouse-filter STOP so taps on the button do not fall through to
+	# _gui_input as a monster click.
+	_drops_2x_button = Button.new()
+	_drops_2x_button.anchor_left = 1.0
+	_drops_2x_button.anchor_top = 1.0
+	_drops_2x_button.anchor_right = 1.0
+	_drops_2x_button.anchor_bottom = 1.0
+	_drops_2x_button.offset_left = -220
+	_drops_2x_button.offset_top = -64
+	_drops_2x_button.offset_right = -20
+	_drops_2x_button.offset_bottom = -20
+	_drops_2x_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_drops_2x_button.pressed.connect(_on_drops_2x_pressed)
+	add_child(_drops_2x_button)
+	_update_drops_2x_button()
+
+
+func _update_drops_2x_button() -> void:
+	if _drops_2x_button == null:
+		return
+	var remaining: int = GameState.transient_drops_2x_remaining
+	if remaining > 0:
+		_drops_2x_button.text = "2× drops: %d left" % remaining
+		_drops_2x_button.disabled = true
+		_drops_2x_button.visible = true
+	elif AdsManager.is_available():
+		_drops_2x_button.text = "Watch ad: 2× drops × %d" % AdsManager.DROPS_2X_CATCH_COUNT
+		_drops_2x_button.disabled = false
+		_drops_2x_button.visible = true
+	else:
+		_drops_2x_button.visible = false
+
+
+func _on_drops_2x_pressed() -> void:
+	if _drops_2x_button != null:
+		_drops_2x_button.disabled = true
+	AdsManager.show_rewarded(AdsManager.REWARD_DROPS_2X_NEXT_10)
+
+
+func _on_rewarded_completed(reward_id: String, granted: bool) -> void:
+	if reward_id != AdsManager.REWARD_DROPS_2X_NEXT_10:
+		return
+	EventBus.rewarded_video_completed.emit(reward_id, granted)
+	if granted:
+		GameState.transient_drops_2x_remaining += AdsManager.DROPS_2X_CATCH_COUNT
+	_update_drops_2x_button()
+
+
+func _on_rewarded_failed(reward_id: String, _reason: String) -> void:
+	if reward_id != AdsManager.REWARD_DROPS_2X_NEXT_10:
+		return
+	_update_drops_2x_button()
