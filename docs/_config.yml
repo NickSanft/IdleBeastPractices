@@ -1,0 +1,8 @@
+title: IdleBeastPractices
+description: An idle monster-catching game with a grumpy in-world narrator.
+theme: jekyll-theme-minimal
+
+# Pretty URLs (e.g. /privacy-policy/ instead of /privacy-policy.html).
+# This is the GitHub Pages default but pinning it explicitly so the
+# permalink in privacy-policy.md is stable across Jekyll version bumps.
+permalink: pretty
