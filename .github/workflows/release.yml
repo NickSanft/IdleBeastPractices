@@ -64,6 +64,22 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
+      - name: Bump Android version code + name from tag
+        # Play Console requires version/code to strictly increase between
+        # uploads. Use the commit count on HEAD as the code (always
+        # monotonic) and the tag name as the human-readable version.
+        # Local cfg edits stay untouched — this only patches the file
+        # that lands in the CI build.
+        run: |
+          set -euxo pipefail
+          # Need full history for rev-list. actions/checkout defaults to depth=1.
+          git fetch --unshallow || true
+          VERSION_CODE=$(git rev-list --count HEAD)
+          VERSION_NAME=${GITHUB_REF_NAME#v}
+          sed -i "s|^version/code=.*|version/code=${VERSION_CODE}|" export_presets.cfg
+          sed -i "s|^version/name=.*|version/name=\"${VERSION_NAME}\"|" export_presets.cfg
+          echo "Patched: version/code=${VERSION_CODE}, version/name=${VERSION_NAME}"
+
       - name: Install Android gradle build template
         # Godot's gradle export needs android_source.zip extracted into
         # android/build/ AND an android/.build_version marker (the GUI's
