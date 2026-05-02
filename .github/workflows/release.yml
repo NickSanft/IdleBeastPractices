@@ -59,6 +59,13 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
+      - name: Install Android gradle build template
+        # The export preset uses gradle_build=true so the prebuilt APK
+        # template can't be used; Godot needs android_source.zip extracted
+        # into the project's android/build/ directory.
+        run: |
+          mkdir -p android/build
+          unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
       - name: Configure Godot Android editor settings
         env:
           KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -71,10 +78,13 @@ jobs:
             echo ''
             echo '[resource]'
             echo "export/android/android_sdk_path = \"${ANDROID_HOME}\""
+            echo "export/android/debug_keystore = \"$(pwd)/release.keystore\""
+            echo "export/android/debug_keystore_user = \"${KEY_ALIAS}\""
+            echo "export/android/debug_keystore_pass = \"${KEY_PASS}\""
             echo "export/android/release_keystore = \"$(pwd)/release.keystore\""
             echo "export/android/release_keystore_user = \"${KEY_ALIAS}\""
             echo "export/android/release_keystore_pass = \"${KEY_PASS}\""
-          } > ~/.config/godot/editor_settings-4.tres
+          } > ~/.config/godot/editor_settings-4.6.tres
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
       - name: Export Android release AAB
         run: |

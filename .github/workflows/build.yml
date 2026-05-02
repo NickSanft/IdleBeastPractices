@@ -212,6 +212,13 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US" \
             -storepass android -keypass android
 
+      - name: Install Android gradle build template
+        # export_presets.cfg has gradle_build=true so Godot needs the
+        # android_source.zip extracted into the project's android/build/.
+        run: |
+          mkdir -p android/build
+          unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
+
       - name: Configure Godot Android editor settings
         run: |
           mkdir -p ~/.config/godot
@@ -223,7 +230,7 @@ jobs:
             echo "export/android/debug_keystore = \"$(pwd)/debug.keystore\""
             echo 'export/android/debug_keystore_user = "androiddebugkey"'
             echo 'export/android/debug_keystore_pass = "android"'
-          } > ~/.config/godot/editor_settings-4.tres
+          } > ~/.config/godot/editor_settings-4.6.tres
 
       - name: Import project
         run: godot --headless --path . --import 2>&1 | tail -10 || true
@@ -231,7 +238,7 @@ jobs:
       - name: Export Android (debug)
         run: |
           mkdir -p exports/android
-          godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.apk
+          godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.aab
 
       - uses: actions/upload-artifact@v4
         with:
