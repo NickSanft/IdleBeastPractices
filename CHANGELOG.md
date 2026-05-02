@@ -26,8 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 **Pre-push checklist (Phase 5c)**
 - ✓ GUT 124/124 passing
 - ✓ Project boots clean headlessly with `--quit-after 60`
-- (pending) CI green on `main`
-- (pending) Tag `phase-5c-complete`
+- ✓ CI green on `main` (run [25255692384](https://github.com/NickSanft/IdleBeastPractices/actions/runs/25255692384))
+- ✓ Tag `phase-5c-complete` pushed
 
 **Difficulty curve QA** is deferred to a follow-up: the curve is mathematically continuous (`× 6.5` gold, `× 2.8` difficulty), but a manual playthrough log to tier 5+ should confirm pacing-feels-right before tagging. Captured here as the pending checklist item; Phase 6 can consume the QA notes.
 
