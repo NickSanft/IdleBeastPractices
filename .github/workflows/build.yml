@@ -217,11 +217,15 @@ jobs:
         # android_source.zip extracted into the project's android/build/
         # AND an android/.build_version marker (the GUI's Install Android
         # Build Template writes this; without it, export fails with "no
-        # version info for it exists").
+        # version info for it exists"). Also patch the bundled manifest
+        # back to portrait — the template hardcodes landscape and ignores
+        # display/window/handheld/orientation.
         run: |
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
           echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
+          sed -i 's|android:screenOrientation="landscape"|android:screenOrientation="portrait"|' \
+              android/build/src/main/AndroidManifest.xml
 
       - name: Import project
         run: godot --headless --path . --import 2>&1 | tail -10 || true

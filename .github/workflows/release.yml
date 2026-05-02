@@ -65,16 +65,18 @@ jobs:
           fi
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
       - name: Install Android gradle build template
-        # The export preset uses gradle_build=true so the prebuilt APK
-        # template can't be used; Godot needs android_source.zip extracted
-        # into the project's android/build/ directory plus an .build_version
-        # marker that Godot's GUI "Install Android Build Template" writes
-        # silently. Without the marker, export fails with: "Trying to build
-        # from a gradle built template, but no version info for it exists."
+        # Godot's gradle export needs android_source.zip extracted into
+        # android/build/ AND an android/.build_version marker (the GUI's
+        # "Install Android Build Template" writes the marker silently).
+        # The bundled template's AndroidManifest.xml hardcodes
+        # screenOrientation="landscape", overriding our project's
+        # display/window/handheld/orientation=portrait. Patch it back.
         run: |
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
           echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
+          sed -i 's|android:screenOrientation="landscape"|android:screenOrientation="portrait"|' \
+              android/build/src/main/AndroidManifest.xml
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
       - name: Export Android release AAB
         # Godot 4.6 reads keystore paths/passwords/alias from env vars
