@@ -219,32 +219,30 @@ jobs:
         # Build Template writes this; without it, export fails with "no
         # version info for it exists").
         #
-        # Also drop a release-variant manifest overlay to force
-        # resizeableActivity=false. Godot's exporter regenerates
-        # src/main/AndroidManifest.xml each export and hardcodes
-        # resizeableActivity="true" on the GodotApp activity. On Android
-        # 12+ large screens (sw600dp+, including the Galaxy Z Fold7 inner
-        # display) the OS ignores screenOrientation when
-        # resizeableActivity=true, so the portrait lock falls through and
-        # the game renders rotated. The release/ overlay applies via the
-        # Android manifest merger AFTER Godot's regeneration but BEFORE
-        # gradle compiles, restoring the lock.
+        # Also append a gradle hook to patch the merged manifest's
+        # resizeableActivity attribute to "false". See release.yml's
+        # equivalent step for the full rationale (foldable orientation
+        # lock); short version: Godot hardcodes resizeableActivity=true
+        # which makes Android 12+ large screens ignore screenOrientation.
         run: |
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
           echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
-          mkdir -p android/build/src/release
-          cat > android/build/src/release/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:tools="http://schemas.android.com/tools">
-              <application>
-                  <activity
-                      android:name="com.godot.game.GodotApp"
-                      tools:replace="android:resizeableActivity"
-                      android:resizeableActivity="false" />
-              </application>
-          </manifest>
+          cat >> android/build/build.gradle <<'EOF'
+
+          afterEvaluate {
+              tasks.matching { it.name ==~ /process.*Manifest.*/ }.all { Task t ->
+                  t.doLast {
+                      project.fileTree(dir: project.buildDir, include: '**/AndroidManifest.xml').each { File f ->
+                          String text = f.text
+                          if (text.contains('android:resizeableActivity="true"')) {
+                              f.text = text.replace('android:resizeableActivity="true"', 'android:resizeableActivity="false"')
+                              println "[patch] resizeableActivity=false in ${f.canonicalPath}"
+                          }
+                      }
+                  }
+              }
+          }
           EOF
 
       - name: Import project
