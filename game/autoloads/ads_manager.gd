@@ -26,9 +26,12 @@ var backend: AdsBackend
 
 
 func _ready() -> void:
-	# Phase 6a: stub. Phase 6b detects the AdMob plugin and swaps in the
-	# real backend if loaded.
-	backend = StubAdsBackend.new()
+	# Phase 6b: real AdMob backend on Android (when the Poing Studios plugin
+	# singleton is loaded), stub everywhere else (editor, Windows, Web).
+	if AdMobAdsBackend.is_plugin_loaded():
+		backend = AdMobAdsBackend.new()
+	else:
+		backend = StubAdsBackend.new()
 	add_child(backend)
 	backend.completed.connect(_on_backend_completed)
 	backend.failed.connect(_on_backend_failed)

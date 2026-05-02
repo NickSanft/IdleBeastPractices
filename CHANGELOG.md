@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 6b — Real AdMob integration (replaces stub on Android)
+
+**Added**
+- **Vendored Poing Studios godot-admob-plugin v4.3.1** at [`addons/admob/`](addons/admob/) (MIT-licensed, ~560 KB plain git, no LFS). Pruned to runtime-only — sample assets/fonts/music/csharp/sample-scenes dropped. The plugin's GDScript API surface (`MobileAds`, `RewardedAdLoader`, `RewardedAd`, `OnUserEarnedRewardListener`, `FullScreenContentCallback`, etc.) is `class_name`-registered so it's accessible without preloads.
+- **Android `.aar` libraries** at [`addons/admob/android/bin/ads/libs/`](addons/admob/android/bin/ads/libs/) — `poing-godot-admob-ads-{debug,release}.aar` and `poing-godot-admob-core-{debug,release}.aar` (from `poing-godot-admob-android-v4.6.1.zip` matching Godot 4.6.1). The plugin's `EditorExportPlugin._get_android_libraries()` injects these into the AAB at export time.
+- **[`AdMobAdsBackend`](game/systems/admob_ads_backend.gd)** — concrete `AdsBackend` impl wrapping the plugin's API. Lifecycle: `show_rewarded` → `RewardedAdLoader.new().load(unit_id, AdRequest, callback)` → `_on_ad_loaded` shows the ad → `_on_user_earned_reward` records the grant flag → `_on_ad_dismissed` emits `completed`/`failed` and destroys the ad. Reward signals are emitted on dismiss (not earn) so UI transitions happen on a clean screen, not over the ad surface.
+- **[`AdsManager._ready`](game/autoloads/ads_manager.gd) backend selection** — picks `AdMobAdsBackend` when `Engine.has_singleton("PoingGodotAdMob")` is true (Android device with the plugin loaded), `StubAdsBackend` everywhere else (editor, Windows, Web, headless CI). Means dev/CI builds keep exercising the rewarded-video plumbing end-to-end without any AdMob account.
+- **`admob/rewarded_unit_id` project setting** in `project.godot`. Defaults to `""` — `AdMobAdsBackend._resolve_ad_unit_id()` falls back to Google's documented test rewarded unit `ca-app-pub-3940256099942544/5224354917` when empty. Production override is patched in by CI.
+- **Release-time secret injection** in [`.github/workflows/release.yml`](.github/workflows/release.yml). Two GitHub secrets:
+  - `ADMOB_APP_ID` → `sed`-patched into `addons/admob/android/config.gd`'s `APPLICATION_ID` constant. The plugin's `_get_android_manifest_application_element_contents()` injects this as a `<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" .../>` tag inside `<application>`.
+  - `ADMOB_REWARDED_UNIT_ID` → `sed`-patched into `project.godot`'s `[admob] rewarded_unit_id` value, read by `AdMobAdsBackend` at runtime.
+  
+  If either secret is unset, CI emits a `::warning::` and the AAB ships with Google's test IDs (which still display real test ads on a real device — useful for verifying plumbing before cutting over to production).
+- **[`docs/admob-setup.md`](docs/admob-setup.md)** — backend-selection mechanics, test-ID defaults, AdMob console setup, secret-wiring instructions, troubleshooting.
+
+**Tests (133 passing, +2)**
+- `test_ads_manager.gd`:
+  - Renamed `test_stub_backend_is_default` → `test_stub_backend_when_admob_plugin_absent`. Asserts `AdMobAdsBackend.is_plugin_loaded()` returns false in headless tests, and that `AdsManager` falls back to `StubAdsBackend` accordingly.
+  - `test_admob_backend_fail_softs_without_plugin`: instantiating `AdMobAdsBackend` without the plugin singleton doesn't crash; `is_available` returns false; `show_rewarded` emits `failed("no_plugin")` instead of touching the uninitialized `RewardedAdLoader`.
+  - `test_admob_backend_resolves_test_unit_when_setting_empty`: `_resolve_ad_unit_id()` returns the test unit when `admob/rewarded_unit_id` is empty, and the configured value when set.
+
+**Notes**
+- The plugin runs as a `@tool` `EditorPlugin` and registers its export plugins via `_enter_tree`. It's enabled in `project.godot`'s new `[editor_plugins]` section. Headless `--export-release` still loads the plugin (Godot's headless editor still fires `EditorPlugin._enter_tree`), so the `.aar` libraries get packaged.
+- The Poing Studios plugin is **not** distributed via Maven Central despite earlier research — it's GitHub Releases only, with platform-specific zips per Godot version. Vendoring directly is the cleanest integration; the AAR files are <100 KB each so plain git is fine (no LFS bandwidth concerns per the saved feedback memory).
+
 ### Fixed (v0.6.8)
 - **Android orientation lock not honored on foldables / large-screen devices** — even after the v0.6.7 int-enum fix shipped `android:screenOrientation="1"` (portrait), the Galaxy Z Fold7 (Android 16) still rendered the game rotated 90° on the inner display. Root cause: Godot 4.6's Android exporter hardcodes `android:resizeableActivity="true"` on the GodotApp activity, and on Android 12+ large screens (sw600dp+) the OS *ignores* `screenOrientation` when an activity is resizeable. The first attempted fix — a `src/release/AndroidManifest.xml` overlay with `tools:replace="android:resizeableActivity"` — was ignored by AGP (Godot's gradle wiring may skip non-main source dirs at merge time). The shipped fix appends a gradle hook to `android/build/build.gradle` from CI: `afterEvaluate { tasks.matching { it.name ==~ /process.*Manifest.*/ }.doLast { ... } }` rewrites the merged manifest's `resizeableActivity="true"` to `"false"` after Godot's regeneration and AGP's manifest merger run, but before the AAB packager reads it. Verified post-fix via `bundletool dump manifest`: AAB now shows `resizeableActivity="false"` and `screenOrientation="1"`.
 - **`StubAdsBackend` exception when claiming offline 2× reward** — clicking "Claim 2× (watch ad)" inside `WelcomeBackDialog` triggered `Attempting to make child window exclusive, but the parent window already has another exclusive child` because `WelcomeBackDialog` (an `AcceptDialog`) was already exclusive of `/root` and the stub's `ConfirmationDialog` defaults to exclusive too. Set `_dialog.exclusive = false` on the stub dialog so it can layer on top of an existing modal without conflict; input still routes to the topmost popup.

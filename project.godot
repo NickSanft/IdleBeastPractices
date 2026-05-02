@@ -38,6 +38,14 @@ window/handheld/orientation=1
 
 project/assembly_name="IdleBeastPractices"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/admob/plugin.cfg")
+
+[admob]
+
+rewarded_unit_id=""
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0

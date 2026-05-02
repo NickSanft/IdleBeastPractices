@@ -64,6 +64,31 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
+      - name: Inject AdMob secrets into config.gd + project.godot
+        # Production AdMob IDs ship via GitHub Secrets, never committed to
+        # the repo. Defaults in source are Google's documented test IDs
+        # (`ca-app-pub-3940256099942544/...`) which always serve test ads —
+        # so dev/CI builds without secrets still exercise the rewarded-video
+        # plumbing end-to-end. If a secret is unset, the patch is a no-op
+        # and the test ID stays put.
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_REWARDED_UNIT_ID: ${{ secrets.ADMOB_REWARDED_UNIT_ID }}
+        run: |
+          set -euxo pipefail
+          if [ -n "${ADMOB_APP_ID:-}" ]; then
+            sed -i "s|^const APPLICATION_ID := .*|const APPLICATION_ID := \"${ADMOB_APP_ID}\"|" addons/admob/android/config.gd
+            grep '^const APPLICATION_ID' addons/admob/android/config.gd
+          else
+            echo "::warning::ADMOB_APP_ID secret not set; AAB will ship with Google's test app ID."
+          fi
+          if [ -n "${ADMOB_REWARDED_UNIT_ID:-}" ]; then
+            sed -i "s|^rewarded_unit_id=.*|rewarded_unit_id=\"${ADMOB_REWARDED_UNIT_ID}\"|" project.godot
+            grep '^rewarded_unit_id' project.godot
+          else
+            echo "::warning::ADMOB_REWARDED_UNIT_ID secret not set; AAB will ship with Google's test rewarded unit ID."
+          fi
+
       - name: Bump Android version code + name from tag
         # Play Console requires version/code to strictly increase between
         # uploads. Use the commit count on HEAD as the code (always

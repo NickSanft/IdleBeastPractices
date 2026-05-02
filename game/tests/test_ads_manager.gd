@@ -100,10 +100,44 @@ func test_show_rewarded_with_no_backend_fires_failed() -> void:
 	AdsManager.backend = _fake
 
 
-func test_stub_backend_is_default() -> void:
-	# After-each restores the original backend; verify it really was a stub
-	# (the production default for Phase 6a, swapped only in Phase 6b).
-	# We test this by inspecting the saved backend reference, not the live
-	# AdsManager.backend (which is the fake mid-test).
+func test_stub_backend_when_admob_plugin_absent() -> void:
+	# Phase 6b: AdsManager picks AdMobAdsBackend when the Poing Studios
+	# plugin singleton "PoingGodotAdMob" is registered (Android device with
+	# the plugin loaded), and StubAdsBackend everywhere else. Headless test
+	# runs don't register the singleton, so the stub should win here.
+	assert_false(AdMobAdsBackend.is_plugin_loaded(),
+			"PoingGodotAdMob should not be loaded in headless tests")
 	assert_true(_saved_backend is StubAdsBackend,
-			"AdsManager should default to StubAdsBackend in Phase 6a")
+			"Without the AdMob plugin, AdsManager defaults to StubAdsBackend")
+
+
+func test_admob_backend_fail_softs_without_plugin() -> void:
+	# AdMobAdsBackend should NOT crash when instantiated without the plugin
+	# singleton — `_ready` short-circuits, `is_available` returns false,
+	# and `show_rewarded` emits failed("no_plugin") instead of touching the
+	# (uninitialized) RewardedAdLoader.
+	var backend := AdMobAdsBackend.new()
+	add_child_autofree(backend)
+	assert_false(backend.is_available())
+	watch_signals(backend)
+	backend.show_rewarded("offline_2x")
+	assert_signal_emitted_with_parameters(
+			backend,
+			"failed",
+			["offline_2x", "no_plugin"])
+
+
+func test_admob_backend_resolves_test_unit_when_setting_empty() -> void:
+	# project.godot ships `admob/rewarded_unit_id=""`; the backend should
+	# fall back to Google's documented test rewarded unit when empty so dev
+	# builds (without the ADMOB_REWARDED_UNIT_ID secret) still serve test
+	# ads end-to-end.
+	var prior: Variant = ProjectSettings.get_setting("admob/rewarded_unit_id", "")
+	ProjectSettings.set_setting("admob/rewarded_unit_id", "")
+	var backend := AdMobAdsBackend.new()
+	add_child_autofree(backend)
+	assert_eq(backend._resolve_ad_unit_id(), AdMobAdsBackend._TEST_REWARDED_UNIT)
+	# Configured override path.
+	ProjectSettings.set_setting("admob/rewarded_unit_id", "ca-app-pub-1234567890123456/0987654321")
+	assert_eq(backend._resolve_ad_unit_id(), "ca-app-pub-1234567890123456/0987654321")
+	ProjectSettings.set_setting("admob/rewarded_unit_id", prior)
