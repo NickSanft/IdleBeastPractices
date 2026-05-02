@@ -17,6 +17,15 @@ var _pending_reward_id: String = ""
 
 func _ready() -> void:
 	_dialog = ConfirmationDialog.new()
+	# AcceptDialog defaults to exclusive=true. The offline reward path pops
+	# this stub dialog from inside WelcomeBackDialog (itself an AcceptDialog
+	# already exclusive of /root). Two exclusive children on the same parent
+	# is illegal and Godot logs:
+	#   "Attempting to make child window exclusive, but the parent window
+	#    already has another exclusive child."
+	# Non-exclusive is fine for a confirm-style stub — input still goes to
+	# the topmost popup.
+	_dialog.exclusive = false
 	_dialog.title = "Rewarded Video (stub)"
 	_dialog.get_ok_button().text = "Watch"
 	_dialog.confirmed.connect(_on_confirmed)

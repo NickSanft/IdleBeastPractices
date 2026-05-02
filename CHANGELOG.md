@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed (v0.6.8)
+- **Android orientation lock not honored on foldables / large-screen devices** — even after the v0.6.7 int-enum fix shipped `android:screenOrientation="1"` (portrait), the Galaxy Z Fold7 (Android 16) still rendered the game rotated 90° on the inner display. Root cause: Godot 4.6's Android exporter hardcodes `android:resizeableActivity="true"` on the GodotApp activity, and on Android 12+ large screens (sw600dp+) the OS *ignores* `screenOrientation` when an activity is resizeable. Added a release-variant manifest overlay at `android/build/src/release/AndroidManifest.xml` (written by CI after `android_source.zip` is extracted, since `/android/build/` is gitignored) that uses `tools:replace="android:resizeableActivity"` to override Godot's value to `false`. The Android manifest merger applies this AFTER Godot's regeneration but BEFORE gradle compiles. Verified post-fix via `bundletool dump manifest`: AAB now shows `resizeableActivity="false"` and `screenOrientation="1"`.
+- **`StubAdsBackend` exception when claiming offline 2× reward** — clicking "Claim 2× (watch ad)" inside `WelcomeBackDialog` triggered `Attempting to make child window exclusive, but the parent window already has another exclusive child` because `WelcomeBackDialog` (an `AcceptDialog`) was already exclusive of `/root` and the stub's `ConfirmationDialog` defaults to exclusive too. Set `_dialog.exclusive = false` on the stub dialog so it can layer on top of an existing modal without conflict; input still routes to the topmost popup.
+
 ### Phase 6a — Rewarded-video scaffolding (stub backend)
 
 **Added**
