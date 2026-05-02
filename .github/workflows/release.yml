@@ -62,10 +62,14 @@ jobs:
       - name: Install Android gradle build template
         # The export preset uses gradle_build=true so the prebuilt APK
         # template can't be used; Godot needs android_source.zip extracted
-        # into the project's android/build/ directory.
+        # into the project's android/build/ directory plus an .build_version
+        # marker that Godot's GUI "Install Android Build Template" writes
+        # silently. Without the marker, export fails with: "Trying to build
+        # from a gradle built template, but no version info for it exists."
         run: |
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
+          echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
       - name: Configure Godot Android editor settings
         env:
           KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
