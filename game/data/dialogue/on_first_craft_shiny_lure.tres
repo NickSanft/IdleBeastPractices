@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_craft_shiny_lure"
+trigger_id = &"on_first_craft_recipe_shiny_lure"
+text = "A shiny-lure. The Synod once banned these on aesthetic grounds; the ban was lifted on the grounds that aesthetics had, in the meantime, expired."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 1

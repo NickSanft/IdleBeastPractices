@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"offline_return_long_5"
+trigger_id = &"on_offline_return_long"
+text = "Welcome back. The wisplets have lost interest in being caught and have begun, instead, to compose ballads. The ballads are unflattering."
+mood = &"weary"
+weight = 1.0
+max_uses = 0

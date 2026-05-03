@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"first_catch_briar_hedge"
+trigger_id = &"on_first_catch_briar_hedge"
+text = "A briar-hedge. The thorns are decorative; the hedge is not. I once spent a fortnight in one. The Synod considered it a sabbatical."
+mood = &"weary"
+weight = 1.0
+max_uses = 1

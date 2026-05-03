@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DialogueLineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/dialogue_line_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"battle_win_pool_7"
+trigger_id = &"on_battle_win"
+text = "A win. The Synod's accountant has, against all custom, smiled. The smile is on the smaller side, but I am cataloguing it."
+mood = &"begrudging"
+weight = 1.0
+max_uses = 0

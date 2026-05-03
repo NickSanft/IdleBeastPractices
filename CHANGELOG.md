@@ -6,6 +6,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.9.2 — Dialogue corpus expansion 71 → 150 lines
+
+**Added**
+
+Phase 5c follow-up. Brings the Peniber dialogue corpus from 71 to **150 lines**, hitting the parent plan's §8 target. Voice held to the Victorian-under-secretary register documented in [`docs/peniber-voice.md`](docs/peniber-voice.md): verbose, condescending, archaic, begrudging, secretly invested.
+
+Distribution of the 76 new lines:
+
+| Category | New | After | Notes |
+|---|---|---|---|
+| Tier 4–20 first-catch | +20 | 29 / 60 species | Tier 4 lead species (`dross_wraith`, `agate_golem`, `ripple_surge`, …, `aether_nadir`) get a one-shot line each; three tiers get a second species line where the lead drew an especially strong response (`scoria_wraith`, `geode_golem`, `eon_nadir`). |
+| `on_battle_loss` pool | +8 | 13 | More variety on the trigger that fires most after a real losing streak. |
+| `on_battle_win` pool | +5 | 8 | |
+| `on_idle_too_long` pool | +8 | 13 | Idle-nag is the second-most-fired pool after a long session. |
+| `on_ledger_opened` pool | +5 | 10 | |
+| `on_offline_return_short` pool | +4 | 7 | |
+| `on_offline_return_long` pool | +4 | 7 | |
+| `on_pet_acquired` pool | +5 | 8 | |
+| `on_prestige` pool | +5 | 8 | |
+| `on_shiny` pool | +4 | 8 | |
+| Late-game milestones | +2 | 6 | New: `on_milestone_100000`, `on_milestone_1000000`. |
+| Prestige milestones | +3 | 3 | New: `on_5_prestiges`, `on_10_prestiges`, `on_25_prestiges`. |
+| Per-recipe first-craft | +3 | 4 | New: `on_first_craft_recipe_tier2_net`, `..._pet_collar`, `..._shiny_lure`. |
+
+**Generator**
+
+Lines added via [`scripts/generate_dialogue_v092.sh`](scripts/generate_dialogue_v092.sh) — idempotent bash wrapper around a `write_line` shell function that templates the same `[gd_resource]` shape Phase 5a used. Re-running the script overwrites cleanly so iterations on text don't require manual file editing.
+
+**Tests (181 passing, no count change)**
+
+- `test_narrator.test_recent_window_suppresses_repeats_for_pool` already counts pool sizes dynamically, so the wider pools (e.g. `on_battle_loss` going from 5 → 13) flow through without test changes.
+- The new triggers (`on_milestone_100000`, `on_5_prestiges`, etc.) need code-side wiring in `Narrator.maybe_speak()` callsites before they actually fire — that's a follow-up item, not a v0.9.2 ask. The lines are now in the corpus and will start playing as soon as the corresponding events emit.
+
 ### v0.9.1 — Nav polish: button icons + custom More sheet
 
 **Added**
