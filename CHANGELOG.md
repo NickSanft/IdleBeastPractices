@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.6 — TouchDebugOverlay actually shows now, plus button hit-rect outlines
+
+**Fixed**
+- **`TouchDebugOverlay` was invisible on Android** — v0.8.5's overlay subscribed via `_unhandled_input(event)`, which only fires AFTER `_gui_input` handlers have consumed the event. Every tap that landed on a Button (or anything with a `_gui_input`) was eaten before the overlay saw it, leaving the overlay silent on real device tests. v0.8.6 switches to `_input(event)`, which fires BEFORE GUI dispatching, so the overlay records every touch.
+
+**Added**
+- **Button hit-rect outlines** — overlay now walks the scene tree every frame and draws each visible Button's `get_global_rect()` as a faint green rectangle. The crosshair (red, fired on tap) lands at the touch position; the green outline shows where Godot considers the Button tappable. Direct visual evidence of any hit-test/visual mismatch: a tap inside the green outline that doesn't trigger the button is the mismatch.
+- **Viewport/window/scale info label** at the top-left of the overlay: `viewport=720x1280  window=2160x1856  scale=3.00` (or whatever the actual values are on your device). Lets us read off the active stretch behavior from a screenshot.
+- **Crosshair lifetime extended** from 0.8 s → 1.5 s so it's visible long enough to take a screenshot during testing.
+
+**What this gets us**
+A v0.8.6 build on the Fold7 should let you screenshot a tap and have, in the same frame:
+1. The visible Button surface (rendered)
+2. Godot's hit-test rect for that Button (green outline)
+3. The actual touch position Godot saw (red crosshair)
+4. The viewport/window scale (top-left text)
+
+If the green outline is smaller than the visible button, that's the v0.8.5 stylebox-extending-past-rect bug (we'll know what direction). If the crosshair lands outside the button you tapped on, that's the canvas_items input transform bug (#118153) and the offset tells us the exact compensation needed.
+
 ### v0.8.5 — Targeted Android input fixes (named-bug mitigations + diagnostics)
 
 **Investigation note**
