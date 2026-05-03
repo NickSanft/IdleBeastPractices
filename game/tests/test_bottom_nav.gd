@@ -48,7 +48,12 @@ func test_each_primary_nav_destination_has_a_button() -> void:
 
 func test_more_button_exists_alongside_primaries() -> void:
 	assert_not_null(_main._more_button)
-	assert_eq(_main._more_button.text, "More")
+	# v0.9.1: button label is now "<icon>  More" (emoji + double space).
+	# Don't assert the exact glyph (depends on system font); just that
+	# the destination name is present.
+	assert_true(
+			_main._more_button.text.contains("More"),
+			"More button label should contain the word 'More'; was: %s" % _main._more_button.text)
 
 
 func test_navigate_switches_tab_container_current_tab() -> void:

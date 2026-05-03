@@ -42,11 +42,39 @@ const _PRIMARY_NAV: Array[String] = ["Catch", "Battle", "Inventory", "Upgrades"]
 const _SECONDARY_NAV: Array[String] = ["Shop", "Crafting", "Bestiary", "Prestige", "Ledger", "Settings"]
 const _NAV_BUTTON_HEIGHT_DP := 64.0   # comfortably above Material's 48 dp floor
 
+## v0.9.1 icons. Emoji glyphs because they need zero asset pipeline
+## work and render reliably across Android system fonts. Each icon
+## is prepended to the button text with a non-breaking space so the
+## glyph reads as part of the label rather than floating loose.
+const _NAV_ICONS: Dictionary = {
+	"Catch": "🐾",
+	"Battle": "⚔",
+	"Inventory": "📦",
+	"Upgrades": "⬆",
+	"More": "☰",
+	"Shop": "🛒",
+	"Crafting": "🛠",
+	"Bestiary": "📖",
+	"Prestige": "✨",
+	"Ledger": "📊",
+	"Settings": "⚙",
+}
+
+
+static func _label_with_icon(tab_name: String) -> String:
+	var icon: String = _NAV_ICONS.get(tab_name, "")
+	if icon == "":
+		return tab_name
+	return "%s  %s" % [icon, tab_name]
+
 ## Bottom-nav button widgets, keyed by the destination tab name. Used
 ## to flip `button_pressed` so the active primary tab gets visual
 ## emphasis via the v0.8.3 mobile theme's pressed stylebox.
 var _nav_buttons: Dictionary = {}
 var _more_button: Button
+## v0.9.1 custom More sheet — built lazily on first open, reused
+## thereafter. Replaces the v0.9.0 system PopupMenu.
+var _more_popup: PopupPanel
 
 
 func _ready() -> void:
@@ -328,7 +356,7 @@ func _build_bottom_nav(root_vbox: VBoxContainer) -> void:
 
 	for tab_name in _PRIMARY_NAV:
 		var btn := Button.new()
-		btn.text = tab_name
+		btn.text = _label_with_icon(tab_name)
 		btn.toggle_mode = true
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
@@ -337,7 +365,7 @@ func _build_bottom_nav(root_vbox: VBoxContainer) -> void:
 		bottom_nav.add_child(btn)
 
 	_more_button = Button.new()
-	_more_button.text = "More"
+	_more_button.text = _label_with_icon("More")
 	_more_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_more_button.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
 	_more_button.pressed.connect(_on_more_pressed)
@@ -381,29 +409,64 @@ func _set_active_nav(tab_name: String) -> void:
 		_nav_buttons[name].button_pressed = (name == tab_name)
 
 
-## More-button handler: open a PopupMenu containing the secondary
-## destinations. Selecting any item navigates to the corresponding
-## tab and dismisses the popup.
+## More-button handler: opens a custom-styled PopupPanel that reads as
+## a bottom sheet — full-width, anchored to the bottom of the screen,
+## one 64-dp button per secondary destination. Replaces the v0.9.0
+## system PopupMenu, whose default small-text styling clashed with
+## the surrounding 18 sp / 64 dp Material-style bottom nav.
+##
+## Built once and cached on `_more_popup` (declared at class scope
+## above) so subsequent opens reuse the same control without
+## rebuilding the sub-tree.
 func _on_more_pressed() -> void:
-	var menu := PopupMenu.new()
-	for tab_name in _SECONDARY_NAV:
-		menu.add_item(tab_name)
-	menu.id_pressed.connect(_on_more_item_pressed)
-	menu.close_requested.connect(menu.queue_free)
-	add_child(menu)
-	# Anchor the popup just above the More button so it reads as a
-	# bottom-sheet. position is in screen coords on the popup.
+	if _more_popup == null:
+		_build_more_popup()
+	# Size the popup to the device width with a small lateral inset.
+	var viewport_w: float = get_viewport().get_visible_rect().size.x
+	_more_popup.size = Vector2i(int(viewport_w - 16), 0)   # height fits children
+	# Anchor as a bottom sheet: y just above the nav bar.
 	var more_rect: Rect2 = _more_button.get_global_rect()
-	menu.position = Vector2i(
-			int(more_rect.position.x + more_rect.size.x / 2.0),
-			int(more_rect.position.y))
-	menu.popup()
+	_more_popup.position = Vector2i(
+			8,
+			int(more_rect.position.y - _more_popup.size.y - 8))
+	_more_popup.popup()
 
 
-func _on_more_item_pressed(item_id: int) -> void:
-	if item_id < 0 or item_id >= _SECONDARY_NAV.size():
-		return
-	_navigate_to_tab(_SECONDARY_NAV[item_id])
+func _build_more_popup() -> void:
+	_more_popup = PopupPanel.new()
+	add_child(_more_popup)
+
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", 12)
+	margins.add_theme_constant_override("margin_right", 12)
+	margins.add_theme_constant_override("margin_top", 12)
+	margins.add_theme_constant_override("margin_bottom", 12)
+	_more_popup.add_child(margins)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	margins.add_child(vbox)
+
+	var heading := Label.new()
+	heading.text = "More"
+	heading.add_theme_font_size_override("font_size", 18)
+	heading.modulate = Color(0.85, 0.85, 0.85)
+	vbox.add_child(heading)
+
+	for tab_name in _SECONDARY_NAV:
+		var btn := Button.new()
+		btn.text = _label_with_icon(tab_name)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.pressed.connect(_on_more_item_selected.bind(tab_name))
+		vbox.add_child(btn)
+
+
+func _on_more_item_selected(tab_name: String) -> void:
+	if _more_popup != null:
+		_more_popup.hide()
+	_navigate_to_tab(tab_name)
 
 
 func _seed_default_net_if_needed() -> void:

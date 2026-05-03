@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.9.1 — Nav polish: button icons + custom More sheet
+
+**Added**
+- **Emoji icons on every nav destination.** Bottom-nav primary buttons now read `🐾 Catch`, `⚔ Battle`, `📦 Inventory`, `⬆ Upgrades`, `☰ More`. Secondary destinations in the More sheet get matching glyphs (`🛒 Shop`, `🛠 Crafting`, `📖 Bestiary`, `✨ Prestige`, `📊 Ledger`, `⚙ Settings`). Emoji rather than vector/raster icons because they need zero asset-pipeline work and render reliably across Android system fonts. The icon mapping lives in [`main.gd`](game/scenes/main.gd) `_NAV_ICONS` and is shared between the bottom nav and the More popup so they stay in sync.
+
+**Changed**
+- **Custom More sheet replaces system PopupMenu.** The v0.9.0 default `PopupMenu` used Godot's small-text styling — a visual mismatch with the 18 sp / 64 dp Material-style bottom nav. v0.9.1 builds a `PopupPanel` with a margin-padded `VBoxContainer` of `Button`s, each 64 dp tall and styled identically to the bottom-nav primaries (left-aligned, the same icon + text pattern). The popup positions itself as a bottom sheet — anchored just above the More button, full-width minus a small lateral inset. Built lazily on first open and cached for subsequent opens.
+
+**Tests (181 passing, no change)**
+- `test_more_button_exists_alongside_primaries` updated to assert the label *contains* "More" rather than equaling it exactly (label now reads `☰  More` with the icon prepended).
+
 ### Phase 9 — Bottom navigation restructure (v0.9.0)
 
 **Why**
