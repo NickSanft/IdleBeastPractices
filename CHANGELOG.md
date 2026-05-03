@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.2 — Sprite animation polish + save robustness
+
+**Added (animation polish — Catch screen)**
+- **Walk-cycle animation** on `monster_instance` ([game/scenes/catching/monster_instance.gd](game/scenes/catching/monster_instance.gd)). The monster spritesheets (`assets/sprites/wisplet.png`, `centiphantom.png`) are 256×32 — 8 frames of 32×32 — but only frame 0 was rendered. v0.8.2 cycles through all 8 frames at 8 fps during the WANDER state, holds frame 0 during PAUSE.
+- **Idle bob** during PAUSE — a subtle 2-px sine-wave Y offset at 1.6 Hz so paused monsters look like they're breathing rather than frozen. Bob residual is zeroed when transitioning back to WANDER so the next walk cycle starts at sprite-y=0.
+- **Smoothed direction flip** — replaced the instant `flip_h = true/false` swap with a 0.18 s `scale.x` tween through 0, so a wisplet changing direction reads as a quick turnaround animation instead of a snap. The direction-flip tween, the existing tap-bump squash, and the catch-despawn scale-up all share a single `_scale_tween` member with `kill()` on each new tween so they don't fight for the same property.
+- **`_facing` member** (+1 / -1) tracks the current facing as a sign on `scale.x`, so the tap-bump tween multiplies through facing and a left-facing monster stays left-facing through the bump.
+
+**Tests (169 passing, +4)**
+- `test_monster_instance_animation.gd`:
+  - Walk-cycle frame advances past frame 0 within 0.2 s of WANDER.
+  - PAUSE state holds the configured pause frame (frame 0).
+  - `_set_facing(-1)` flips the synchronous `_facing` member and creates a live scale-x tween.
+  - Redundant `_set_facing(same)` is a no-op (doesn't allocate a new tween).
+
+**Fixed (save robustness)**
+- **Save persistence still failing on Android** despite the v0.7.5 `NOTIFICATION_APPLICATION_PAUSED` handler — user reported on a Galaxy Z Fold7 (Android 16) that close+reopen still drops progress. Three changes:
+  - Periodic save cadence dropped from 30 s → **10 s**. Cheap (single small JSON write) but narrows worst-case progress loss by 3×.
+  - `_notification` now also catches `NOTIFICATION_APPLICATION_FOCUS_OUT` and `NOTIFICATION_WM_WINDOW_FOCUS_OUT`. Some Android versions / OEMs dispatch one but not the other when the activity backgrounds; saving on all three is idempotent and harmless.
+  - **`SaveIndicatorOverlay`** ([game/scenes/ui/save_indicator_overlay.gd](game/scenes/ui/save_indicator_overlay.gd)) — bottom-right toast that flashes `Saved HH:MM:SS` for ~1.5 s every time `EventBus.game_saved` fires. Diagnostic for this cycle: lets the user visually confirm whether the periodic Timer + lifecycle hooks actually fire on their device. Once persistence is verified reliable across cold-launch cycles, the overlay can be gated behind a debug flag or removed.
+
 ### Phase 7b — Real Google Play Games Services cloud sync
 
 **Added**

@@ -8,6 +8,11 @@
 
 config_version=5
 
+[admob]
+
+rewarded_unit_id=""
+use_test_ad_units=true
+
 [application]
 
 config/name="IdleBeastPractices"
@@ -26,7 +31,7 @@ GameState="*res://game/autoloads/game_state.gd"
 AudioManager="*res://game/autoloads/audio_manager.gd"
 Narrator="*res://game/autoloads/narrator.gd"
 AdsManager="*res://game/autoloads/ads_manager.gd"
-GodotPlayGameServices="*res://addons/GodotPlayGameServices/scripts/autoloads/godot_play_game_services.gd"
+GodotPlayGameServices="*uid://bin06y213u26g"
 CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
 
 [display]
@@ -43,15 +48,6 @@ project/assembly_name="IdleBeastPractices"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/admob/plugin.cfg", "res://addons/GodotPlayGameServices/plugin.cfg")
-
-[admob]
-
-rewarded_unit_id=""
-; Force AdMobAdsBackend to use Google's documented test ad unit IDs even
-; when ADMOB_REWARDED_UNIT_ID resolves a real value at release time.
-; Flip to false once the AdMob account exits "in review" status and real
-; ads start serving (i.e. when "Publisher Data not found" stops firing).
-use_test_ad_units=true
 
 [rendering]
 

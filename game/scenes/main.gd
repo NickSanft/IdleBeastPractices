@@ -4,8 +4,12 @@ extends Control
 
 ## Periodic-save cadence in seconds. The OS can kill an Android app
 ## without warning (low memory, force-stop, system update); this Timer
-## bounds how much progress a hard kill can lose.
-const _PERIODIC_SAVE_SECONDS := 30.0
+## bounds how much progress a hard kill can lose. Lowered from 30 s to
+## 10 s in v0.8.2 after the user reported persistence failures even
+## with the lifecycle-notification handler in place — every 10 s is
+## still cheap (a single small JSON write) and dramatically narrows
+## the worst-case loss window.
+const _PERIODIC_SAVE_SECONDS := 10.0
 
 const _CURRENCY_BAR := preload("res://game/scenes/ui/currency_bar.tscn")
 const _CATCHING_VIEW := preload("res://game/scenes/catching/catching_view.tscn")
@@ -20,6 +24,7 @@ const _LEDGER_VIEW := preload("res://game/scenes/ledger/ledger_view.tscn")
 const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _NARRATOR_OVERLAY := preload("res://game/scenes/ui/narrator_overlay.tscn")
 const _AD_DIAGNOSTIC_OVERLAY := preload("res://game/scenes/ui/ad_diagnostic_overlay.tscn")
+const _SAVE_INDICATOR_OVERLAY := preload("res://game/scenes/ui/save_indicator_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -54,19 +59,26 @@ func _save_now() -> void:
 	SaveManager.save(GameState.to_dict())
 
 
-## Persist on Android lifecycle events. NOTIFICATION_APPLICATION_PAUSED
-## is dispatched via SceneTree to every node when the activity loses
-## focus — home button, app switcher, screen-off, incoming call — and is
-## the last reliable hook before Android may kill the process. On
-## desktop the X button is already handled by the close_requested signal
-## above; on Android close_requested never fires.
+## Persist on every Android lifecycle event that could be the last
+## one we get. v0.7.5 only handled NOTIFICATION_APPLICATION_PAUSED;
+## v0.8.2 expands coverage after a user report that saves still
+## weren't persisting on a Galaxy Z Fold7 (Android 16):
+##   - APPLICATION_PAUSED:    home button, app switcher, screen-off
+##   - APPLICATION_FOCUS_OUT: same triggers but routed through the
+##                            focus subsystem; some Android versions /
+##                            OEMs dispatch one but not the other.
+##   - WM_WINDOW_FOCUS_OUT:   window-level focus loss; redundant on
+##                            most devices but cheap insurance.
 ##
-## (NOTIFICATION_WM_CLOSE_REQUEST and NOTIFICATION_WM_GO_BACK_REQUEST are
-## Window-only and don't propagate to Control children, so we don't list
-## them here. The close_requested signal connection covers WM_CLOSE.)
+## Saving on every one is idempotent and fast (single JSON write).
+## NOTIFICATION_WM_CLOSE_REQUEST is Window-only and is covered by the
+## `close_requested` signal connection above.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_PAUSED:
-		_save_now()
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED, \
+		NOTIFICATION_APPLICATION_FOCUS_OUT, \
+		NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+			_save_now()
 
 
 func _build_ui() -> void:
@@ -134,6 +146,13 @@ func _build_ui() -> void:
 	# Subscribes to AdsManager.requested / rewarded_completed / rewarded_failed.
 	var ad_diag: Control = _AD_DIAGNOSTIC_OVERLAY.instantiate()
 	add_child(ad_diag)
+
+	# Bottom-right toast that flashes "Saved <HH:MM:SS>" each time
+	# SaveManager.save() commits — diagnostic for the v0.8.2 cycle so
+	# the user can verify save lifecycle hooks are actually firing on
+	# Android. Cheap; subscribes to EventBus.game_saved.
+	var save_indicator: Control = _SAVE_INDICATOR_OVERLAY.instantiate()
+	add_child(save_indicator)
 
 
 func _seed_default_net_if_needed() -> void:

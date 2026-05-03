@@ -12,6 +12,17 @@ const _WANDER_SPEED_PX_PER_SEC := 60.0
 const _PAUSE_TIME_RANGE := Vector2(0.4, 1.4)
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
 const _RENDER_SCALE := 3.0
+## Sprite sheet is 256x32 = 8 frames laid out horizontally. Animation
+## walks through all 8 frames at _WALK_FPS during WANDER state and
+## holds frame 0 during PAUSE (with a subtle vertical bob).
+const _SPRITE_FRAME_COUNT := 8
+const _WALK_FPS := 8.0
+const _PAUSE_FRAME := 0
+const _PAUSE_BOB_AMPLITUDE_PX := 2.0
+const _PAUSE_BOB_HZ := 1.6
+## Direction-flip easing time in seconds. Anything under ~0.25 still
+## reads as a quick "turnaround" rather than a slow rotation.
+const _FLIP_DURATION := 0.18
 ## Print one line per tap and per catch to the Godot console. Phase 2 dev aid;
 ## flip to false (or remove) once the catch loop is verified end-to-end.
 const _DEBUG_LOG := true
@@ -32,6 +43,18 @@ var _state: int = _State.WANDER
 var _target_pos: Vector2
 var _pause_left: float = 0.0
 var _alive: bool = true
+
+## +1 = facing right, -1 = facing left. Encoded as a sign on the
+## sprite's x scale so the tap-bump tween can multiply through it
+## without losing direction.
+var _facing: int = 1
+## Frame index running through 0.._SPRITE_FRAME_COUNT-1 during WANDER.
+var _anim_time: float = 0.0
+var _bob_time: float = 0.0
+## Single shared tween for all sprite-scale animations (direction flip
+## + tap bump). Kept on a member so we can kill it before starting a
+## new one; otherwise concurrent tweens fight for the same property.
+var _scale_tween: Tween
 
 enum _State { WANDER, PAUSE, CAUGHT }
 
@@ -113,15 +136,44 @@ func _process(delta: float) -> void:
 			position = _target_pos
 			_state = _State.PAUSE
 			_pause_left = randf_range(_PAUSE_TIME_RANGE.x, _PAUSE_TIME_RANGE.y)
+			_bob_time = 0.0
+			_sprite.position.y = 0.0   # zero out residual walk offset
 		else:
 			position += to_target / dist * step
-		# Flip sprite to face direction of motion.
+		# Smooth direction-change: tween scale.x through 0 to flip,
+		# instead of a hard `flip_h` swap. Reads as a quick turnaround.
 		if to_target.x != 0.0:
-			_sprite.flip_h = to_target.x < 0.0
+			_set_facing(-1 if to_target.x < 0.0 else 1)
+		# Walk-cycle frame.
+		_anim_time += delta
+		var frame: int = int(_anim_time * _WALK_FPS) % _SPRITE_FRAME_COUNT
+		_sprite.region_rect = Rect2(
+				Vector2(frame * _SPRITE_FRAME_SIZE.x, 0.0),
+				_SPRITE_FRAME_SIZE)
 	elif _state == _State.PAUSE:
 		_pause_left -= delta
+		# Hold the pause frame.
+		_sprite.region_rect = Rect2(
+				Vector2(_PAUSE_FRAME * _SPRITE_FRAME_SIZE.x, 0.0),
+				_SPRITE_FRAME_SIZE)
+		# Subtle vertical bob — feels like the monster is breathing.
+		_bob_time += delta
+		_sprite.position.y = sin(_bob_time * TAU * _PAUSE_BOB_HZ) * _PAUSE_BOB_AMPLITUDE_PX
 		if _pause_left <= 0.0:
 			_pick_new_target()
+			_anim_time = 0.0   # restart walk cycle from frame 0
+
+
+func _set_facing(facing: int) -> void:
+	if _facing == facing:
+		return
+	_facing = facing
+	if _scale_tween != null and _scale_tween.is_valid():
+		_scale_tween.kill()
+	_scale_tween = create_tween()
+	_scale_tween.tween_property(
+			_sprite, "scale:x", float(facing) * _RENDER_SCALE, _FLIP_DURATION,
+	).set_trans(Tween.TRANS_QUAD)
 
 
 func _pick_new_target() -> void:
@@ -129,6 +181,9 @@ func _pick_new_target() -> void:
 	var y: float = randf_range(bounds.position.y + 32, bounds.position.y + bounds.size.y - 32)
 	_target_pos = Vector2(x, y)
 	_state = _State.WANDER
+	# Reset bob residual so the next walk cycle starts at sprite-y=0.
+	if _sprite != null:
+		_sprite.position.y = 0.0
 
 
 func _on_area_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
@@ -161,14 +216,17 @@ func play_tap_feedback() -> void:
 
 func _play_tap_bump() -> void:
 	# Quick squash-and-rebound on the sprite so even without particles you
-	# feel the tap registered.
+	# feel the tap registered. Multiplies through `_facing` so a monster
+	# facing left stays facing left through the bump.
 	if _sprite == null:
 		return
-	var base: Vector2 = Vector2(_RENDER_SCALE, _RENDER_SCALE)
+	if _scale_tween != null and _scale_tween.is_valid():
+		_scale_tween.kill()
+	var base: Vector2 = Vector2(float(_facing) * _RENDER_SCALE, _RENDER_SCALE)
 	var bump: Vector2 = base * 1.18
-	var t: Tween = create_tween()
-	t.tween_property(_sprite, "scale", bump, 0.06)
-	t.tween_property(_sprite, "scale", base, 0.10)
+	_scale_tween = create_tween()
+	_scale_tween.tween_property(_sprite, "scale", bump, 0.06)
+	_scale_tween.tween_property(_sprite, "scale", base, 0.10)
 
 
 ## Called by CatchingView once a catch resolves.
@@ -182,9 +240,13 @@ func play_catch_and_despawn() -> void:
 	_state = _State.CAUGHT
 	_area.input_pickable = false
 	_catch_particles.restart()
+	# Kill any in-flight scale animation (tap bump or direction flip)
+	# so the catch despawn isn't fighting them for the same property.
+	if _scale_tween != null and _scale_tween.is_valid():
+		_scale_tween.kill()
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(_sprite, "scale", Vector2(_RENDER_SCALE * 1.4, _RENDER_SCALE * 1.4), 0.15)
+	tween.tween_property(_sprite, "scale", Vector2(float(_facing) * _RENDER_SCALE * 1.4, _RENDER_SCALE * 1.4), 0.15)
 	tween.tween_property(_sprite, "modulate:a", 0.0, 0.18)
 	tween.chain().tween_callback(func() -> void:
 		caught_self.emit(self)
