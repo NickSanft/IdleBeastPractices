@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.4 — Hit-test mismatch fix (relaxed v0.8.3 stylebox padding)
+
+**Fixed**
+- **Buttons in v0.8.3 had a clickable area that didn't match the visible button** — user reported on the Fold7 that taps only registered "near the top" of buttons. Root cause: the v0.8.3 mobile-theme stylebox padding (14 px vertical / 18 px horizontal `content_margin_*`) was forcing the rendered stylebox larger than the parent container could allocate on certain views (settings sliders' embedded buttons, corner-anchored Buttons in CatchingView/BattleView, the cloud-save toggle). Godot's Button still hit-tests against the control's actual rect, but the stylebox had drawn past the bottom — so the visible "button surface" extended beyond the clickable region. Reduced to 8/12 (top/bottom and left/right) — still a noticeable size bump over Godot's ~4/8 default but no longer fights with constrained parent heights. Tab bar similarly relaxed from 14/18 to 10/14.
+
 ### v0.8.3 — Mobile UX polish (bigger tap targets, tab bar, scrollable Settings)
 
 **Changed**

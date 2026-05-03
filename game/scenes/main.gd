@@ -168,14 +168,20 @@ func _build_ui() -> void:
 func _apply_mobile_default_theme() -> void:
 	var theme := Theme.new()
 
-	# Buttons: ~48 dp min hit-box via vertical padding; rounded corners
+	# Buttons: bigger hit-box via vertical padding; rounded corners
 	# so the bigger surface still reads as a button rather than a slab.
+	# v0.8.4: reduced from 14/18 to 8/12 after a hit-test-mismatch
+	# report — the larger margins were making the stylebox draw past
+	# the actual control rect on screens where the parent container
+	# constrained the button height (sliders, anchored corner buttons).
+	# Net result is still a comfortable ~36-40 dp tap target for
+	# label-only buttons but no longer fights the layout.
 	var btn_normal := StyleBoxFlat.new()
 	btn_normal.bg_color = Color(0.22, 0.24, 0.30)
-	btn_normal.content_margin_top = 14.0
-	btn_normal.content_margin_bottom = 14.0
-	btn_normal.content_margin_left = 18.0
-	btn_normal.content_margin_right = 18.0
+	btn_normal.content_margin_top = 8.0
+	btn_normal.content_margin_bottom = 8.0
+	btn_normal.content_margin_left = 12.0
+	btn_normal.content_margin_right = 12.0
 	btn_normal.corner_radius_top_left = 6
 	btn_normal.corner_radius_top_right = 6
 	btn_normal.corner_radius_bottom_left = 6
@@ -229,10 +235,12 @@ func _apply_mobile_tab_theme(tabs: TabContainer) -> void:
 
 	for state in ["tab_selected", "tab_unselected", "tab_hovered", "tab_focus"]:
 		var sb := StyleBoxFlat.new()
-		sb.content_margin_top = 14
-		sb.content_margin_bottom = 14
-		sb.content_margin_left = 18
-		sb.content_margin_right = 18
+		# v0.8.4: relaxed padding from 14/18 to 10/14 to match the
+		# button stylebox correction (see _apply_mobile_default_theme).
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 10
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
 		# Tint the selected tab so it's visually distinct on touch.
 		if state == "tab_selected":
 			sb.bg_color = Color(0.32, 0.36, 0.44)
