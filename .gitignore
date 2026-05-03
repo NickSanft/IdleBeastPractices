@@ -53,3 +53,13 @@ ios/plugins/
 
 # Generated screenshot import sidecars
 screenshots/*.import
+
+# AdMob plugin auto-installer extracts mediator binaries
+# (adcolony, meta, vungle) and a package.gd into the bin folder if
+# the editor is opened with the plugin enabled. We only ship the
+# core "ads" library; gitignore the rest so they don't sneak back.
+addons/admob/android/bin/adcolony/
+addons/admob/android/bin/meta/
+addons/admob/android/bin/vungle/
+addons/admob/android/bin/package.gd
+addons/admob/android/bin/package.gd.uid
