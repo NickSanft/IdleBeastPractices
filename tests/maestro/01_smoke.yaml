@@ -1,0 +1,13 @@
+# Minimal smoke test: launch the app, verify it stays running for a
+# few seconds, capture the landing screen for visual regression review.
+# Catches: boot crashes, autoload init failures, missing assets.
+#
+# `launchApp` exits non-zero on crash, so a clean run with the
+# screenshot is itself the assertion.
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 01_smoke_landing

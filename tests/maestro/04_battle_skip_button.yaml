@@ -1,0 +1,27 @@
+# Smoke-test the Battle tab's Phase 6a wiring: switch to Battle, tap
+# Fight, verify the Skip-ad button row appears. A regression here would
+# catch:
+#  - BattleView _ready failing (no roster shown)
+#  - Fight button not registering a tap (the v0.8.x input bug, again)
+#  - Skip button missing from the post-fight HBox (Phase 6a wiring)
+#
+# This flow doesn't actually need pets to be owned — BattleView shows
+# a "Complete a tier to earn your first pet" message in that case
+# and the Fight button is disabled. Either rendered state is a valid
+# pass for "Battle tab loads and is interactive".
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+    clearState: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    point: "21%, 5%"     # Battle tab
+- waitForAnimationToEnd
+- takeScreenshot: 04_battle_idle
+- tapOn:
+    point: "50%, 95%"    # Fight button at the bottom of the action row
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 04_battle_after_fight

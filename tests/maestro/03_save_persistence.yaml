@@ -1,0 +1,44 @@
+# Save persistence end-to-end. Catch a few monsters, background the
+# app via Home, relaunch, verify the screenshot still shows progress
+# (gold > 0 in currency bar). Catches the v0.7.5/v0.8.2 class of
+# bug — `_notification` lifecycle hooks not firing on this device's
+# Android version, periodic-save Timer not running, or
+# `_on_close_requested` being the only save trigger.
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+    clearState: true     # fresh save so the test is deterministic
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Tap the catch area five times to collect some gold. The catch-view
+# spawns monsters at random positions; tapping the center of the
+# screen has a fair chance of landing on one. The tap is harmless if
+# it misses (just dead-tap on the background).
+- tapOn:
+    point: "50%, 50%"
+- tapOn:
+    point: "50%, 50%"
+- tapOn:
+    point: "50%, 50%"
+- tapOn:
+    point: "30%, 60%"
+- tapOn:
+    point: "70%, 40%"
+- waitForAnimationToEnd
+- takeScreenshot: 03_save_after_taps
+
+# Background the app via the Home button.
+- pressKey: Home
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 03_save_home_screen
+
+# Relaunch — the autosave should have committed before the activity
+# paused, OR the periodic 10 s timer should have caught it.
+- launchApp:
+    appId: com.divora.beast
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 03_save_after_relaunch

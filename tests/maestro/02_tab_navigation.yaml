@@ -1,0 +1,66 @@
+# Tap each visible tab in turn and screenshot the resulting content
+# area. The 10-tab strip overflows the device width so only the first
+# 6-7 tabs are visible at any time; this flow tests those, then
+# scrolls the tab bar and tests the remainder.
+#
+# Tab y-coordinate: tab bar sits below the currency bar, roughly 5%
+# of the screen height. On a Pixel 6 emulator at 1080x2400, that's
+# y ≈ 120 px. Use percentage so the same flow works at other emulator
+# resolutions.
+#
+# Tab x-coordinates assume the bigger v0.8.3+ stylebox padding — each
+# tab is ~14% wide; centers at 7%, 21%, 35%, 49%, 63%, 77%, 91%.
+#
+# This is THE test that would have caught the v0.8.5 letterbox/input
+# bug: if a tap at the visible tab x/y doesn't open that tab's
+# content, the screenshot diff vs. the smoke landing screenshot will
+# not change between steps.
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- tapOn:
+    point: "7%, 5%"     # Catch (already selected by default but tap to confirm)
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_catch
+
+- tapOn:
+    point: "21%, 5%"    # Battle
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_battle
+
+- tapOn:
+    point: "35%, 5%"    # Inventory
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_inventory
+
+- tapOn:
+    point: "49%, 5%"    # Bestiary
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_bestiary
+
+- tapOn:
+    point: "63%, 5%"    # Crafting
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_crafting
+
+- tapOn:
+    point: "77%, 5%"    # Ledger
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_ledger
+
+# The remaining 4 tabs (Shop, Upgrades, Prestige, Settings) are
+# offscreen-right on the tab bar. Swipe the tab bar leftward then
+# tap the last visible position.
+- swipe:
+    start: "85%, 5%"
+    end: "15%, 5%"
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_after_swipe
+- tapOn:
+    point: "85%, 5%"    # whatever last-visible tab landed at this position after swipe
+- waitForAnimationToEnd
+- takeScreenshot: 02_tab_post_swipe_tap

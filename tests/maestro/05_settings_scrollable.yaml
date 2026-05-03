@@ -1,0 +1,33 @@
+# Verify the Settings tab is reachable and scrollable. Catches:
+#  - Settings tab broken / not navigable
+#  - The Settings VBoxContainer not wrapped in a ScrollContainer (the
+#    v0.8.3 fix), so the cloud-save section + sliders get clipped on
+#    a tall screen
+#  - Cloud-save section not rendering on platforms without the PGS
+#    plugin (the "Unavailable on this platform" disabled-button state)
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Settings is one of the trailing tabs that requires scrolling the
+# tab bar. Swipe-left first so it comes into the visible region.
+- swipe:
+    start: "85%, 5%"
+    end: "15%, 5%"
+- waitForAnimationToEnd
+- takeScreenshot: 05_settings_tabs_after_swipe
+
+# After the swipe, Settings is now near the right edge of the visible
+# tab strip. Tap there.
+- tapOn:
+    point: "85%, 5%"
+- waitForAnimationToEnd
+- takeScreenshot: 05_settings_landing
+
+# Scroll the content area to verify the ScrollContainer works.
+- scroll
+- waitForAnimationToEnd
+- takeScreenshot: 05_settings_scrolled

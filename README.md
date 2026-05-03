@@ -11,7 +11,7 @@ Targets: **Android** (primary), **Windows**, and **Web**. iOS planned for a late
 | Engine | **Godot 4.6.1-stable (mono)** — pinned in `project.godot`. Mono build runs the GDScript-only project; no C# is used. |
 | Language | GDScript |
 | UI | Godot Control nodes + custom theme |
-| Testing | [GUT](https://github.com/bitwes/Gut) (vendored in `addons/gut/`) |
+| Testing | [GUT](https://github.com/bitwes/Gut) (unit tests, vendored in `addons/gut/`) + [Maestro](https://maestro.mobile.dev) (Android emulator UI flows in [`tests/maestro/`](tests/maestro/)) |
 | Save format | Versioned JSON with a migration chain |
 | CI/CD | GitHub Actions (`barichello/godot-ci:4.6.1` container) |
 

@@ -1,0 +1,183 @@
+name: Maestro emulator UI tests
+
+# Runs on every push to main + on PRs targeting main. Heavier than
+# the headless GUT job (~12 min: emulator boot + APK install + Maestro
+# run) so we don't run on every branch push, only main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GODOT_VERSION: "4.6.1"
+  GODOT_RELEASE: "4.6.1-stable"
+  GODOT_TEMPLATE_DIR: "4.6.1.stable"
+
+jobs:
+  maestro:
+    name: Maestro flows on Pixel 6 emulator
+    runs-on: ubuntu-latest
+    # Long timeout because the emulator can take 5-8 min to boot on
+    # Linux runners (no KVM hardware acceleration).
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;23.2.8568313"
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/godot
+          key: godot-${{ env.GODOT_RELEASE }}-linux
+
+      - name: Cache export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_TEMPLATE_DIR }}
+          key: godot-templates-${{ env.GODOT_RELEASE }}
+
+      - name: Install Godot + templates if not cached
+        run: |
+          set -euxo pipefail
+          if [ ! -x /usr/local/bin/godot ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            unzip -q "Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+            sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+            sudo chmod +x /usr/local/bin/godot
+          fi
+          if [ ! -d "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}" ]; then
+            wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+            mkdir -p "$HOME/.local/share/godot/export_templates"
+            unzip -q "Godot_v${GODOT_RELEASE}_export_templates.tpz" -d /tmp/templates
+            mv /tmp/templates/templates "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}"
+          fi
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -storepass android -keypass android
+
+      - name: Install Android gradle build template + manifest patch
+        run: |
+          mkdir -p android/build
+          unzip -q "$HOME/.local/share/godot/export_templates/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
+          echo "${GODOT_TEMPLATE_DIR}" > android/.build_version
+          cat >> android/build/build.gradle <<'EOF'
+
+          afterEvaluate {
+              tasks.matching { it.name ==~ /process.*Manifest.*/ }.all { Task t ->
+                  t.doLast {
+                      project.fileTree(dir: project.buildDir, include: '**/AndroidManifest.xml').each { File f ->
+                          String text = f.text
+                          if (text.contains('android:resizeableActivity="true"')) {
+                              f.text = text.replace('android:resizeableActivity="true"', 'android:resizeableActivity="false"')
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
+
+      - name: Write stub Play Games Services strings.xml
+        run: |
+          mkdir -p android/build/src/main/res/values
+          cat > android/build/src/main/res/values/games_strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="game_services_project_id" translatable="false">0</string>
+          </resources>
+          EOF
+
+      - name: Import project
+        run: godot --headless --path . --import 2>&1 | tail -10 || true
+
+      - name: Export Android debug AAB
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          mkdir -p exports/android
+          godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.aab
+
+      - name: Convert AAB to universal APK via bundletool
+        # Maestro tests run on an emulator; the emulator installs APKs
+        # via `adb install`, not AABs. bundletool's universal mode
+        # produces a single APK that targets every ABI / density.
+        run: |
+          set -euxo pipefail
+          wget -q https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar -O bundletool.jar
+          java -jar bundletool.jar build-apks \
+            --bundle=exports/android/IdleBeastPractices-debug.aab \
+            --output=exports/android/IdleBeastPractices-debug.apks \
+            --mode=universal \
+            --ks=debug.keystore --ks-pass=pass:android --ks-key-alias=androiddebugkey --ks-key-pass=pass:android
+          unzip -p exports/android/IdleBeastPractices-debug.apks universal.apk > exports/android/IdleBeastPractices-debug.apk
+          ls -lh exports/android/
+
+      - name: Install Maestro CLI
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-pixel-6-api-34-v1
+
+      - name: Generate AVD snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run Maestro flows on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          disable-animations: true
+          script: |
+            set -e
+            adb wait-for-device
+            adb install -r exports/android/IdleBeastPractices-debug.apk
+            # Maestro screenshots and logs land in ~/.maestro/tests/<run-id>/.
+            # Surface them as CI artifacts via continue-on-error and a copy.
+            maestro test tests/maestro/ || EXIT=$?
+            mkdir -p maestro-output
+            cp -r ~/.maestro/tests/* maestro-output/ 2>/dev/null || true
+            exit ${EXIT:-0}
+
+      - name: Upload Maestro screenshots + logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-output
+          path: maestro-output/
+          if-no-files-found: warn
+          retention-days: 14
