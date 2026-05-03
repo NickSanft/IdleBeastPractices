@@ -117,11 +117,14 @@ jobs:
         run: |
           set -euxo pipefail
           wget -q https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar -O bundletool.jar
+          # bundletool 1.17.2 reuses --ks-pass for the alias key when
+          # --key-pass is omitted; our debug keystore uses the same
+          # password for both so we don't pass it explicitly.
           java -jar bundletool.jar build-apks \
             --bundle=exports/android/IdleBeastPractices-debug.aab \
             --output=exports/android/IdleBeastPractices-debug.apks \
             --mode=universal \
-            --ks=debug.keystore --ks-pass=pass:android --ks-key-alias=androiddebugkey --ks-key-pass=pass:android
+            --ks=debug.keystore --ks-pass=pass:android --ks-key-alias=androiddebugkey
           unzip -p exports/android/IdleBeastPractices-debug.apks universal.apk > exports/android/IdleBeastPractices-debug.apk
           ls -lh exports/android/
 
