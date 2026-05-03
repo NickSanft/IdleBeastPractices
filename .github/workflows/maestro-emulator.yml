@@ -101,6 +101,18 @@ jobs:
       - name: Import project
         run: godot --headless --path . --import 2>&1 | tail -10 || true
 
+      - name: Enable x86_64 ABI for the emulator build
+        # The committed export_presets.cfg builds arm64-v8a only
+        # (production target — keeps the AAB small for real devices).
+        # The Linux runner's emulator is x86_64 though, so an arm64-only
+        # APK fails install with INSTALL_FAILED_NO_MATCHING_ABIS. Patch
+        # the preset locally so the debug build includes x86_64; the
+        # commit is unaffected.
+        run: |
+          set -euxo pipefail
+          sed -i 's|^architectures/x86_64=false|architectures/x86_64=true|' export_presets.cfg
+          grep '^architectures' export_presets.cfg
+
       - name: Export Android debug AAB
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
