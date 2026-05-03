@@ -39,13 +39,22 @@ CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
 window/size/viewport_width=720
 window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
-; v0.8.5: explicitly "keep" the 720:1280 aspect with letterboxing
-; rather than Godot's default non-uniform "ignore" scaling. The
-; non-uniform path triggers a canvas_items input-coordinate-mapping
-; bug on Android (godotengine/godot#118153) where visible buttons
-; appear at the right place but tap coordinates don't transform back
-; correctly. Letterboxing on the Fold7 inner display is acceptable.
-window/stretch/aspect="keep"
+; v0.8.7: switched from "keep" to "keep_width" after the v0.8.6 touch
+; debug overlay screenshot conclusively showed aspect="keep" was the
+; cause of the buttons-hard-to-press bug on Android. On a Galaxy Z
+; Fold7 (1080x2520, 9:21 aspect), keeping the 720x1280 (9:16) viewport
+; with "keep" inserted ~300 px of black letterbox at the top. Godot's
+; touch input transform did NOT subtract that offset back out — taps
+; at the visible top of UI were recorded at a viewport y far above
+; where the user's finger landed, so the user was physically reaching
+; INTO the black letterbox to make taps register.
+;
+; "keep_width" extends the viewport vertically (720x1680 effective on
+; the Fold7) instead of letterboxing. No letterbox -> no offset math
+; -> touch coordinates match the visible UI 1:1. UI elements anchored
+; top-left stay where they were; bottom-anchored elements shift to
+; the new viewport bottom, which is what we want on a taller device.
+window/stretch/aspect="keep_width"
 window/handheld/orientation=1
 
 [dotnet]

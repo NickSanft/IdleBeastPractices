@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.7 — Letterbox-induced input offset fixed (aspect: keep → keep_width)
+
+**Root cause confirmed via the v0.8.6 diagnostic overlay**
+
+User's Fold7 screenshot reported: `viewport=720x1280  window=1080x2520  scale=1.50`. With those values:
+- Width scale: `1080 / 720 = 1.50`
+- Height scale: `2520 / 1280 = 1.97`
+- `aspect="keep"` picks the smaller scale (1.50), so the viewport renders at `720*1.50 = 1080` × `1280*1.50 = 1920` — leaving **600 px of vertical letterbox** (300 top + 300 bottom).
+
+The user's screenshot showed the black letterbox bars clearly, and confirmed Godot's touch transform was NOT subtracting the 300 px top-letterbox offset from incoming touches. So a tap at the visible top of "Inventory" (device y ≈ 420 — i.e. just below the 300 px black bar) got recorded at viewport y ≈ 280 (well below the actual tab bar). To register on the tab bar at viewport y ≈ 80, the user had to physically tap at device y ≈ 120 — *inside the black letterbox*. The phrase from the report: "Works is even farther up and finally works."
+
+This is godotengine/godot#118153 manifested concretely on the Fold7's 9:21 inner display.
+
+**Fix**
+
+- **`display/window/stretch/aspect="keep_width"`** in [project.godot](project.godot). Width still matches design (720), but height extends to fill the device aspect — `720 × 1680` effective viewport on the Fold7 — eliminating the letterbox entirely. No letterbox → no offset math → touch coordinates match the visible UI directly.
+- Existing layouts: top-anchored UI (currency bar, tab bar) stays exactly where it was. Bottom-anchored elements (the catching view's `Watch ad: 2× drops × 10` button, the `Skip (ad)` row in BattleView) move to the new viewport bottom, which is what we want on a taller device — they're now in the natural thumb zone instead of squeezed into the middle of a letterboxed view.
+- Tests still 169/169 green.
+
+**What you should see on the Fold7 once v0.8.7 reaches Play Store**
+
+1. No black bars at top or bottom — the game fills the inner display.
+2. Tap targets register exactly where you physically tap. The crosshair from `TouchDebugOverlay` should land directly on the green outline of the Button you tapped.
+3. The bottom-of-screen UI (drops-2x button, skip ad, etc.) sits at the natural bottom of the screen, not floating mid-screen.
+
 ### v0.8.6 — TouchDebugOverlay actually shows now, plus button hit-rect outlines
 
 **Fixed**
