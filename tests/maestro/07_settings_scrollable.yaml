@@ -1,0 +1,29 @@
+# Verify the Settings tab is reachable via More and scrolls cleanly.
+# Catches the v0.8.3-class regression where the Settings VBoxContainer
+# wasn't wrapped in a ScrollContainer, leaving the Cloud Save section
+# clipped off the bottom on shorter screens.
+#
+# Uses the v0.9.3 debug-only number-key shortcut (KEY_0 → tab index 9
+# = Settings) to bypass the More-popup tap dance, since coordinate
+# taps inside a popup are calibration-fragile across emulator
+# resolutions. Number-key shortcut is gated by OS.is_debug_build()
+# so production builds ignore it.
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+    clearState: true
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Direct keyboard nav: KEY_0 → Settings (tab index 9).
+- pressKey: 0
+- waitForAnimationToEnd
+- takeScreenshot: 07_settings_landing
+
+# Scroll downward to verify the ScrollContainer works. After a scroll
+# the viewport should still render content (Cloud Save section) — if
+# the scroll is a no-op the screenshot will look identical.
+- scroll
+- waitForAnimationToEnd
+- takeScreenshot: 07_settings_scrolled

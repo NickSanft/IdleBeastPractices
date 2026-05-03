@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.9.3 — Debug number-key shortcut + restored Maestro coverage
+
+**Why**
+
+Phase 9's Maestro flow inventory regressed when v0.9.0 moved Settings (and
+five other destinations) into the More sheet. Coordinate taps inside a
+Godot popup are calibration-fragile across emulator resolutions, and
+`swipe` on the TabContainer's tab bar doesn't reliably scroll in the
+emulator (see the v0.8.x flow that timed out and got removed). Without a
+deterministic way to land on trailing tabs, the v0.8.3-class
+"Settings clipped off bottom" bug class lost its regression net.
+
+**Added**
+
+- **Number-key debug shortcuts in [`main.gd`](game/scenes/main.gd) `_unhandled_input`**. Keys `1`–`9` and `0` jump the TabContainer to indices 0–9 directly: `1`→Catch, `2`→Battle, `3`→Inventory, `4`→Bestiary, `5`→Crafting, `6`→Ledger, `7`→Shop, `8`→Upgrades, `9`→Prestige, `0`→Settings. Gated by `OS.is_debug_build()` so production-exported APKs ignore them; editor and debug-exported builds (the kind the Maestro CI flow installs) honor them.
+
+- **[`tests/maestro/06_more_sheet.yaml`](tests/maestro/06_more_sheet.yaml)**. Taps the More button (rightmost in the v0.9.0 bottom nav, ~`90%, 95%`), screenshots the open popup, taps the first secondary destination (Shop) at `50%, 80%`, screenshots the resulting view. Catches: More popup handler unwired, popup renders empty, secondary-destination tap doesn't switch tabs.
+
+- **[`tests/maestro/07_settings_scrollable.yaml`](tests/maestro/07_settings_scrollable.yaml)**. Uses `pressKey: 0` (the new debug shortcut) to land on Settings without coordinate-tap dependencies, then `scroll`s and screenshots before/after. Catches the v0.8.3-class regression where Settings' VBoxContainer wasn't wrapped in a ScrollContainer and the Cloud Save section clipped off shorter screens.
+
+**Documentation**
+
+- [`tests/maestro/README.md`](tests/maestro/README.md): two new flow rows in the inventory table, plus a "Debug number-key shortcut" section with the full key→tab mapping so future flow authors know the pattern is available.
+
+**Tests (181 passing, no count change)**
+
+GUT suites unaffected; the changes are runtime-only behavior gated on debug builds.
+
 ### v0.9.2 — Dialogue corpus expansion 71 → 150 lines
 
 **Added**

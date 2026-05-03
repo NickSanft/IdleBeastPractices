@@ -544,6 +544,28 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_F3:
 			_reset_all_progress()
 			get_viewport().set_input_as_handled()
+		_:
+			# v0.9.3: number-key shortcuts (1-0) jump to the matching
+			# TabContainer index. Only active in debug builds — gated
+			# by OS.is_debug_build() so production releases ignore them.
+			# Used by the Maestro test suite to drive trailing-tab nav
+			# without depending on `swipe`/coordinate taps that don't
+			# reliably scroll Godot's TabContainer tab bar in the
+			# emulator (see tests/maestro/README.md).
+			if not OS.is_debug_build():
+				return
+			var key_to_index: Dictionary = {
+				KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3, KEY_5: 4,
+				KEY_6: 5, KEY_7: 6, KEY_8: 7, KEY_9: 8, KEY_0: 9,
+			}
+			if not key_to_index.has(event.keycode):
+				return
+			var idx: int = key_to_index[event.keycode]
+			if _tabs == null or idx >= _tabs.get_tab_count():
+				return
+			_tabs.current_tab = idx
+			_set_active_nav(_tabs.get_tab_title(idx))
+			get_viewport().set_input_as_handled()
 
 
 ## Wipes save state and reloads first-launch defaults. Bound to F3.

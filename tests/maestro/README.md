@@ -69,15 +69,33 @@ maestro studio
 | `02_tab_navigation.yaml` | Tap each of the 10 tabs by coord, screenshot each | Tabs not tappable (the v0.8.x letterbox bug) |
 | `03_save_persistence.yaml` | Launch, simulate gameplay, background via Home, relaunch | Save lifecycle not firing on background |
 | `04_battle_skip_button.yaml` | Switch to Battle, tap Fight, verify Skip button appears | Phase 6a wiring regression |
+| `06_more_sheet.yaml` | Tap More, screenshot popup, tap a secondary destination, screenshot | More-sheet wiring breakage; popup not opening; secondary nav unwired |
+| `07_settings_scrollable.yaml` | Use the v0.9.3 number-key shortcut to jump to Settings, scroll content | Settings clipped off bottom on tall screens (the v0.8.3-class bug) |
 
-**Flows on the backlog** (need additional work to be reliable in CI):
+## Debug number-key shortcut
 
-- `settings_scrollable` / trailing-tabs navigation: Maestro's `swipe` on
-  Godot's GL canvas doesn't reliably scroll the TabContainer's tab bar
-  in the emulator — the first-pass flow timed out the runner at 35 min.
-  To re-enable, either add a debug-mode keybinding that sets
-  `tabs.current_tab = N` directly, or use Maestro's `runScript` to drive
-  Godot via a localhost HTTP endpoint.
+[`main.gd`](../../game/scenes/main.gd) `_unhandled_input` listens for keys
+**1–9 and 0** when `OS.is_debug_build()` is true (editor + debug-exported
+APKs; production releases ignore the keys). Each digit jumps the
+TabContainer to the matching index:
+
+| Key | Tab index | Destination |
+|---|---|---|
+| `1` | 0 | Catch |
+| `2` | 1 | Battle |
+| `3` | 2 | Inventory |
+| `4` | 3 | Bestiary |
+| `5` | 4 | Crafting |
+| `6` | 5 | Ledger |
+| `7` | 6 | Shop |
+| `8` | 7 | Upgrades |
+| `9` | 8 | Prestige |
+| `0` | 9 | Settings |
+
+Maestro flows use `pressKey: 0` (etc.) to navigate directly to a
+specific tab without relying on coordinate taps that drift across
+emulator resolutions or popup positions. Skip the Maestro-on-Godot-canvas
+swipe-doesn't-scroll problem entirely.
 
 Adding new flows: prefix with the next number, drop in this dir, push. The CI
 workflow runs everything matching `tests/maestro/*.yaml` automatically.
