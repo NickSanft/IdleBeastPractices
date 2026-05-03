@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 7b — Real Google Play Games Services cloud sync
+
+**Added**
+- **Vendored godot-play-game-services v3.2.0** at [`addons/GodotPlayGameServices/`](addons/GodotPlayGameServices/) (MIT-licensed, ~345 KB plain git, no LFS — saved bandwidth memory respected). Pulled from `godot-sdk-integrations/godot-play-game-services` GitHub releases. Vendored as-is (no pruning) since the editor dock and assets weigh <40 KB combined.
+- **[`PlayGamesCloudBackend`](game/systems/play_games_cloud_backend.gd)** — concrete `CloudSyncBackend` impl. Wraps the plugin's `PlayGamesSignInClient` (sign-in lifecycle) and `PlayGamesSnapshotsClient` (Saved Games / Snapshots API). Save format: `GameState.to_dict()` → `JSON.stringify` → `to_utf8_buffer()` → passed as `PackedByteArray` to `save_game()`. Download reverses this; the plugin's `PlayGamesSnapshot.content` is the raw bytes. Plugin's auto-startup auth check is silent (only signals when the user *was* signed in, so signed-out cold starts don't show a fake error); explicit `sign_in()` calls surface success/failure normally.
+- **[`CloudSyncManager`](game/autoloads/cloud_sync_manager.gd)** autoload — orchestrates the sign-in → download → merge → upload-after-save flow:
+  - Picks `PlayGamesCloudBackend` on Android with the PGS plugin loaded; otherwise `backend = null` (editor / desktop / web stay disabled).
+  - On first successful sign-in: pulls the cloud snapshot, runs `SaveConflictResolver.resolve(local, remote)` from Phase 7a, applies the merged dict to `GameState`, writes back to local.
+  - Subscribes to `EventBus.game_saved`: each save schedules a debounced (5 s) cloud upload, so rapid back-to-back saves coalesce into one push.
+  - Status field + `status_changed(status)` signal: `disabled` / `signed_out` / `downloading` / `uploading` / `idle` / `error`. The Settings tab subscribes for live UI updates.
+- **Settings tab — Cloud Save section** ([game/scenes/ui/settings_view.gd](game/scenes/ui/settings_view.gd)) — status label + "Sign in to Google Play Games" / "Sign out" button. Shows "Cloud sync is only available on Android with the Play Games Services plugin" + disabled button on platforms where the backend is null. Updates live as `CloudSyncManager.status_changed` fires.
+- **CI manifest wiring** ([.github/workflows/release.yml](.github/workflows/release.yml)) — new "Write Play Games Services games_strings.xml" step before the AdMob secret injection. Extracts the App ID from `PGS_OAUTH_CLIENT_ID` (first numeric segment, e.g. `933809256647-xxx.apps.googleusercontent.com` → `933809256647`), validates it's all digits, writes `android/build/src/main/res/values/games_strings.xml` with `<string name="game_services_project_id">$APP_ID</string>`. The plugin's `EditorExportPlugin._get_android_manifest_application_element_contents()` injects `<meta-data android:name="com.google.android.gms.games.APP_ID" android:value="@string/game_services_project_id"/>` into the manifest at export time, AGP resolves the string resource, and the resulting AAB has the right App ID. `build.yml` writes a stub value (`0`) since debug builds don't ship cloud sync — but AAPT still needs the resource to exist for the meta-data reference to compile.
+- **`PGS_OAUTH_CLIENT_ID` GitHub secret** — set to the OAuth 2.0 client ID from the Google Play Console PGS configuration.
+
+**Tests (165 passing, +6)**
+- `test_cloud_sync_manager.gd`:
+  - Disabled when no PGS plugin (default state in headless tests).
+  - Sign-in → download → merge → idle status transition.
+  - Upload-after-save no-op when not signed in.
+  - `status_changed` signal fires on transitions.
+  - Sign-out resets the initial-sync-done flag.
+  - Idempotent sign-in (second call no-ops if already signed in).
+
+**Notes**
+- The plugin auto-attempts auth at every cold start. If the user previously signed in on this device, the cloud sync runs invisibly within a few hundred ms of launch; otherwise the Settings tab shows the sign-in prompt.
+- Conflict resolution: when the plugin reports two divergent snapshots that it can't auto-merge, `_on_conflict_emitted` surfaces it as a download/upload failure and skips the sync. Local progress is never overwritten. A future Phase 7c could expose dual-snapshot resolution UI; for now we trust the plugin's auto-merge for the common case.
+- Sign-out is local-only — Google Play Games doesn't expose programmatic sign-out from a third-party app. The "Sign out" button just flips `CloudSyncManager`'s flag so uploads stop; to fully revoke, the user does it from the Play Games app's settings.
+- **Dev-track caveat**: Cloud sync only works on internal-track installs for users you've added to the PGS Testers list in Play Console (until the underlying app + PGS configuration pass Google review). Test users see green sign-in immediately; non-testers get an OAuth 404 from Google's auth flow.
+
 ### Phase 7a — Cloud sync scaffolding (resolver + abstract backend)
 
 **Added**

@@ -26,6 +26,8 @@ GameState="*res://game/autoloads/game_state.gd"
 AudioManager="*res://game/autoloads/audio_manager.gd"
 Narrator="*res://game/autoloads/narrator.gd"
 AdsManager="*res://game/autoloads/ads_manager.gd"
+GodotPlayGameServices="*res://addons/GodotPlayGameServices/scripts/autoloads/godot_play_game_services.gd"
+CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
 
 [display]
 
@@ -40,7 +42,7 @@ project/assembly_name="IdleBeastPractices"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/admob/plugin.cfg")
+enabled=PackedStringArray("res://addons/admob/plugin.cfg", "res://addons/GodotPlayGameServices/plugin.cfg")
 
 [admob]
 

@@ -245,6 +245,21 @@ jobs:
           }
           EOF
 
+      - name: Write stub Play Games Services games_strings.xml
+        # The PGS plugin injects a manifest meta-data tag referencing
+        # @string/game_services_project_id. Even debug builds need that
+        # resource to exist or AAPT errors out. Use a numeric stub since
+        # debug builds aren't shipping cloud sync — only release.yml
+        # injects the real PGS_APP_ID from the secret.
+        run: |
+          mkdir -p android/build/src/main/res/values
+          cat > android/build/src/main/res/values/games_strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="game_services_project_id" translatable="false">0</string>
+          </resources>
+          EOF
+
       - name: Import project
         run: godot --headless --path . --import 2>&1 | tail -10 || true
 

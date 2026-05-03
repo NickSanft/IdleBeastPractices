@@ -64,6 +64,39 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_B64" | base64 -d > release.keystore
+      - name: Write Play Games Services games_strings.xml
+        # The vendored godot-play-game-services plugin's export plugin
+        # injects `<meta-data com.google.android.gms.games.APP_ID
+        # value="@string/game_services_project_id"/>` into the manifest
+        # at export time. We must provide that string resource. Google's
+        # docs warn the value MUST be a string resource (not a literal
+        # int) and contain only digits — so we extract the first
+        # numeric segment of PGS_OAUTH_CLIENT_ID
+        # (`933809256647-xxx.apps.googleusercontent.com` -> `933809256647`)
+        # and write a one-string XML into android/build/src/main/res/values/.
+        # AGP merges all files in res/values/ at build time.
+        env:
+          PGS_OAUTH_CLIENT_ID: ${{ secrets.PGS_OAUTH_CLIENT_ID }}
+        run: |
+          set -euxo pipefail
+          if [ -z "${PGS_OAUTH_CLIENT_ID:-}" ]; then
+            echo "::warning::PGS_OAUTH_CLIENT_ID secret is not set; cloud sync will not work in this AAB."
+            exit 0
+          fi
+          PGS_APP_ID="${PGS_OAUTH_CLIENT_ID%%-*}"
+          if ! [[ "$PGS_APP_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::PGS_APP_ID derived from secret is not numeric: '$PGS_APP_ID'"
+            exit 1
+          fi
+          mkdir -p android/build/src/main/res/values
+          cat > android/build/src/main/res/values/games_strings.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="game_services_project_id" translatable="false">${PGS_APP_ID}</string>
+          </resources>
+          EOF
+          echo "Wrote PGS app id ${PGS_APP_ID} to games_strings.xml"
+
       - name: Inject AdMob secrets into config.gd + project.godot
         # Production AdMob IDs ship via GitHub Secrets, never committed to
         # the repo. Defaults in source are Google's documented test IDs

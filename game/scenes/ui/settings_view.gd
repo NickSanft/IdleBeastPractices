@@ -7,6 +7,8 @@ var _music_slider: HSlider
 var _sfx_slider: HSlider
 var _music_value_label: Label
 var _sfx_value_label: Label
+var _cloud_status_label: Label
+var _cloud_button: Button
 
 
 func _ready() -> void:
@@ -39,10 +41,79 @@ func _ready() -> void:
 				_sfx_value_label.text = _format_db(v))
 	_sfx_value_label = _sfx_slider.get_meta("value_label")
 
+	_build_cloud_save_section(vbox)
+
 	# Spacer at the bottom so the sliders sit at the top of the panel.
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(spacer)
+
+
+## Cloud Save section: status indicator + sign-in button. Hidden on
+## platforms where CloudSyncManager.backend is null (editor / desktop /
+## web — PGS plugin only registers its singleton on Android).
+func _build_cloud_save_section(parent: Container) -> void:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+	parent.add_child(section)
+
+	var heading := Label.new()
+	heading.text = "Cloud Save"
+	heading.add_theme_font_size_override("font_size", 18)
+	section.add_child(heading)
+
+	_cloud_status_label = Label.new()
+	_cloud_status_label.add_theme_font_size_override("font_size", 14)
+	_cloud_status_label.modulate = Color(0.85, 0.85, 0.85)
+	_cloud_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(_cloud_status_label)
+
+	_cloud_button = Button.new()
+	_cloud_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cloud_button.pressed.connect(_on_cloud_button_pressed)
+	section.add_child(_cloud_button)
+
+	# Subscribe to status updates so the section reflects sign-in /
+	# sync-in-flight in real time.
+	CloudSyncManager.status_changed.connect(_refresh_cloud_section)
+	_refresh_cloud_section(CloudSyncManager.status)
+
+
+func _refresh_cloud_section(_status: String) -> void:
+	if _cloud_status_label == null or _cloud_button == null:
+		return
+	match CloudSyncManager.status:
+		CloudSyncManager.STATUS_DISABLED:
+			_cloud_status_label.text = "Cloud sync is only available on Android with the Play Games Services plugin."
+			_cloud_button.text = "(Unavailable on this platform)"
+			_cloud_button.disabled = true
+		CloudSyncManager.STATUS_SIGNED_OUT:
+			_cloud_status_label.text = "Sign in to sync your progress across devices via Google Play Games."
+			_cloud_button.text = "Sign in to Google Play Games"
+			_cloud_button.disabled = false
+		CloudSyncManager.STATUS_DOWNLOADING:
+			_cloud_status_label.text = "Syncing from cloud…"
+			_cloud_button.text = "(Syncing)"
+			_cloud_button.disabled = true
+		CloudSyncManager.STATUS_UPLOADING:
+			_cloud_status_label.text = "Uploading to cloud…"
+			_cloud_button.text = "(Syncing)"
+			_cloud_button.disabled = true
+		CloudSyncManager.STATUS_IDLE:
+			_cloud_status_label.text = "Signed in. Progress is being synced automatically."
+			_cloud_button.text = "Sign out"
+			_cloud_button.disabled = false
+		CloudSyncManager.STATUS_ERROR:
+			_cloud_status_label.text = "Cloud sync error: %s" % CloudSyncManager.last_error
+			_cloud_button.text = "Try sign-in again"
+			_cloud_button.disabled = false
+
+
+func _on_cloud_button_pressed() -> void:
+	if CloudSyncManager.is_signed_in():
+		CloudSyncManager.sign_out()
+	else:
+		CloudSyncManager.sign_in()
 
 
 func _build_volume_slider(
