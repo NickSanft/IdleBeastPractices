@@ -34,6 +34,20 @@ var _ad_diag_overlay: Control
 var _save_indicator_overlay: Control
 var _touch_debug_overlay: Control
 
+## v0.9.0 nav split: 4 primary destinations get bottom-nav buttons;
+## the rest live behind a "More" sheet. Order in PRIMARY drives the
+## bottom-nav button order from left to right. Order in SECONDARY
+## drives the More-sheet menu order.
+const _PRIMARY_NAV: Array[String] = ["Catch", "Battle", "Inventory", "Upgrades"]
+const _SECONDARY_NAV: Array[String] = ["Shop", "Crafting", "Bestiary", "Prestige", "Ledger", "Settings"]
+const _NAV_BUTTON_HEIGHT_DP := 64.0   # comfortably above Material's 48 dp floor
+
+## Bottom-nav button widgets, keyed by the destination tab name. Used
+## to flip `button_pressed` so the active primary tab gets visual
+## emphasis via the v0.8.3 mobile theme's pressed stylebox.
+var _nav_buttons: Dictionary = {}
+var _more_button: Button
+
 
 func _ready() -> void:
 	get_tree().root.close_requested.connect(_on_close_requested)
@@ -109,10 +123,15 @@ func _build_ui() -> void:
 	currency_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root_vbox.add_child(currency_bar)
 
+	# v0.9.0: TabContainer still owns the content area + visibility
+	# management, but its tab bar is hidden — navigation moved to the
+	# bottom-anchored nav bar built below. Keeps the existing scene
+	# wiring (TabContainer.current_tab drives which child is visible)
+	# while lifting interaction into the thumb zone.
 	var tabs := TabContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_apply_mobile_tab_theme(tabs)
+	tabs.tabs_visible = false
 	root_vbox.add_child(tabs)
 	_tabs = tabs
 
@@ -155,6 +174,10 @@ func _build_ui() -> void:
 	var settings_tab: Control = _SETTINGS_VIEW.instantiate()
 	settings_tab.name = "Settings"
 	tabs.add_child(settings_tab)
+
+	# v0.9.0: bottom navigation bar below the tab content. 4 primary
+	# destinations + a "More" button that opens a sheet with the rest.
+	_build_bottom_nav(root_vbox)
 
 	# NarratorOverlay sits ABOVE the tab container so it can float over any
 	# tab. Mouse_filter is IGNORE on the overlay so background taps still
@@ -292,36 +315,95 @@ func _on_any_button_pressed() -> void:
 ## each tab's hit-box is closer to Material's 48 dp recommendation,
 ## and turn on horizontal scrolling so 10 tabs don't fight for the
 ## same 720 px of viewport width.
-func _apply_mobile_tab_theme(tabs: TabContainer) -> void:
-	tabs.add_theme_font_size_override("font_size", 18)
-	tabs.tabs_rearrange_group = -1
-	tabs.tab_alignment = TabBar.ALIGNMENT_LEFT
-	# v0.8.5: TabContainer + MOUSE_FILTER_STOP can dispatch tab clicks
-	# in two different coordinate systems on Godot 4.6 (godotengine/
-	# godot#91987), causing hit-test mismatches especially on Android.
-	# PASS lets the child TabBar handle input cleanly without the
-	# parent re-emitting a duplicate event.
-	tabs.mouse_filter = Control.MOUSE_FILTER_PASS
+## v0.9.0 bottom navigation: 4 primary destinations as toggleable
+## buttons + a "More" button that opens a PopupMenu listing the
+## secondary destinations. Each button is _NAV_BUTTON_HEIGHT_DP tall
+## and stretches horizontally (size_flags_horizontal = SIZE_EXPAND_FILL),
+## so the row evenly spans the device width.
+func _build_bottom_nav(root_vbox: VBoxContainer) -> void:
+	var bottom_nav := HBoxContainer.new()
+	bottom_nav.add_theme_constant_override("separation", 0)
+	bottom_nav.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(bottom_nav)
 
-	for state in ["tab_selected", "tab_unselected", "tab_hovered", "tab_focus"]:
-		var sb := StyleBoxFlat.new()
-		# v0.8.5: restored to 14/18 alongside the button stylebox bump
-		# now that the canvas_items stretch input bug is mitigated via
-		# project.godot's stretch/aspect="keep".
-		sb.content_margin_top = 14
-		sb.content_margin_bottom = 14
-		sb.content_margin_left = 18
-		sb.content_margin_right = 18
-		# Tint the selected tab so it's visually distinct on touch.
-		if state == "tab_selected":
-			sb.bg_color = Color(0.32, 0.36, 0.44)
-		elif state == "tab_hovered":
-			sb.bg_color = Color(0.28, 0.30, 0.36)
-		else:
-			sb.bg_color = Color(0.18, 0.20, 0.24)
-		sb.border_color = Color(0.45, 0.48, 0.55) if state == "tab_selected" else Color(0.0, 0.0, 0.0, 0.0)
-		sb.border_width_top = 2 if state == "tab_selected" else 0
-		tabs.add_theme_stylebox_override(state, sb)
+	for tab_name in _PRIMARY_NAV:
+		var btn := Button.new()
+		btn.text = tab_name
+		btn.toggle_mode = true
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
+		btn.pressed.connect(_on_nav_button_pressed.bind(tab_name))
+		_nav_buttons[tab_name] = btn
+		bottom_nav.add_child(btn)
+
+	_more_button = Button.new()
+	_more_button.text = "More"
+	_more_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_more_button.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
+	_more_button.pressed.connect(_on_more_pressed)
+	bottom_nav.add_child(_more_button)
+
+	# Initial selection: Catch (the home / main loop tab).
+	_set_active_nav("Catch")
+
+
+## Bottom-nav button handler — switches the (hidden) TabContainer's
+## current_tab to the named tab and updates the active highlight.
+func _on_nav_button_pressed(tab_name: String) -> void:
+	_navigate_to_tab(tab_name)
+
+
+func _navigate_to_tab(tab_name: String) -> void:
+	if _tabs == null:
+		return
+	var idx: int = _find_tab_index(tab_name)
+	if idx < 0:
+		push_warning("nav: tab not found: " + tab_name)
+		return
+	_tabs.current_tab = idx
+	_set_active_nav(tab_name)
+
+
+func _find_tab_index(tab_name: String) -> int:
+	for i in _tabs.get_tab_count():
+		if _tabs.get_tab_title(i) == tab_name:
+			return i
+	return -1
+
+
+## Toggle the `button_pressed` flag on each primary-nav button so the
+## one matching `tab_name` shows the v0.8.3 mobile theme's pressed
+## stylebox; the others go back to the normal stylebox. When the
+## active destination is a SECONDARY tab (reached via More), no
+## primary button is pressed.
+func _set_active_nav(tab_name: String) -> void:
+	for name in _nav_buttons:
+		_nav_buttons[name].button_pressed = (name == tab_name)
+
+
+## More-button handler: open a PopupMenu containing the secondary
+## destinations. Selecting any item navigates to the corresponding
+## tab and dismisses the popup.
+func _on_more_pressed() -> void:
+	var menu := PopupMenu.new()
+	for tab_name in _SECONDARY_NAV:
+		menu.add_item(tab_name)
+	menu.id_pressed.connect(_on_more_item_pressed)
+	menu.close_requested.connect(menu.queue_free)
+	add_child(menu)
+	# Anchor the popup just above the More button so it reads as a
+	# bottom-sheet. position is in screen coords on the popup.
+	var more_rect: Rect2 = _more_button.get_global_rect()
+	menu.position = Vector2i(
+			int(more_rect.position.x + more_rect.size.x / 2.0),
+			int(more_rect.position.y))
+	menu.popup()
+
+
+func _on_more_item_pressed(item_id: int) -> void:
+	if item_id < 0 or item_id >= _SECONDARY_NAV.size():
+		return
+	_navigate_to_tab(_SECONDARY_NAV[item_id])
 
 
 func _seed_default_net_if_needed() -> void:

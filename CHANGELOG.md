@@ -6,6 +6,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 9 — Bottom navigation restructure (v0.9.0)
+
+**Why**
+
+The original 10-tab top bar fought basic mobile-game ergonomics. Material 3
+recommends 3–5 primary destinations in a bottom nav (thumb zone) with the
+rest in a "More" sheet — and that's the pattern most successful idle/clicker
+games (Egg Inc, Almost a Hero, etc.) actually ship. The Galaxy Z Fold7
+foldable testing further reinforced the case: the top tab bar was both
+hard to reach with one thumb and hard to scroll horizontally. v0.8.8
+fixed the actual tap-blocker bug; v0.9.0 puts the navigation where Android
+players' thumbs already live.
+
+**Changed**
+
+- **Bottom navigation bar.** Built in [main.gd](game/scenes/main.gd)'s new
+  `_build_bottom_nav(root_vbox)`. Five buttons, each `64 dp` tall (above
+  Material's 48 dp accessibility floor), `SIZE_EXPAND_FILL` horizontally
+  so the row evenly spans the device width. Buttons stay visible on every
+  screen, anchored at the bottom of the root VBoxContainer below the
+  TabContainer's content area.
+- **Primary destinations** (left → right): **Catch**, **Battle**,
+  **Inventory**, **Upgrades**, **More**. Catch is the default selection
+  on first launch. The first four use `toggle_mode = true`; the active
+  one shows the v0.8.3 mobile theme's pressed stylebox so the player
+  always knows where they are at a glance.
+- **More sheet.** Tapping More opens a `PopupMenu` listing the six
+  secondary destinations: **Shop**, **Crafting**, **Bestiary**,
+  **Prestige**, **Ledger**, **Settings** (frequency-ordered). Selecting
+  any item navigates the TabContainer's `current_tab` to it and dismisses
+  the popup. While a secondary destination is active, no primary button
+  is highlighted — visual cue that the player has stepped outside the
+  primary loop.
+- **TabContainer's tab bar hidden** (`tabs.tabs_visible = false`). The
+  TabContainer still owns content visibility / per-tab scenes — the bottom
+  nav just drives `current_tab`. Means every existing tab scene wires up
+  unchanged.
+- **`SaveIndicatorOverlay` re-anchored** to sit ~8 px above the new nav
+  bar (`offset_top = -96, offset_bottom = -72`) so the "Saved HH:MM:SS"
+  toast doesn't overlap the nav buttons.
+
+**Removed**
+
+- `_apply_mobile_tab_theme(tabs)` — was styling the (now-hidden)
+  TabContainer tab bar. Dead code.
+
+**Tests (181 passing, +7)**
+
+[`test_bottom_nav.gd`](game/tests/test_bottom_nav.gd):
+- Tab bar is hidden.
+- Each `_PRIMARY_NAV` destination has a corresponding bottom-nav Button.
+- The More button exists and reads `"More"`.
+- `_navigate_to_tab(name)` switches the TabContainer's `current_tab` to
+  the right index for every primary destination.
+- Only the active primary button is `button_pressed = true`; the others
+  are unpressed.
+- Navigating to a SECONDARY destination unpresses every primary button.
+- `_PRIMARY_NAV + _SECONDARY_NAV` covers every TabContainer tab —
+  catches anyone adding a new tab and forgetting to wire it into the nav.
+
+**Backlog for v0.9.x**
+
+- Icons next to each nav button label (currently text-only).
+- Polish for the More popup: a custom `PopupPanel` with bigger touch
+  targets instead of the system `PopupMenu` (which uses Godot's default
+  small-text styling).
+- Animated transition when switching tabs (currently instant via
+  TabContainer.current_tab).
+
 ### v0.8.8 — Actual root cause: overlays' child Controls were eating taps
 
 **Investigation**

@@ -23,16 +23,17 @@ var _current_tween: Tween
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Anchor bottom-right with a small inset so it doesn't overlap the
-	# tab bar or the catching view's drops-2x button.
+	# Anchor bottom-right, sitting just ABOVE the v0.9.0 bottom nav
+	# bar (64 dp) so the toast doesn't overlap the nav buttons.
+	# Offsets give a 24 px-tall toast with an 8 px gap above the nav.
 	anchor_left = 1.0
 	anchor_top = 1.0
 	anchor_right = 1.0
 	anchor_bottom = 1.0
 	offset_left = -180
-	offset_top = -32
+	offset_top = -96
 	offset_right = -16
-	offset_bottom = -8
+	offset_bottom = -72
 
 	_label = Label.new()
 	_label.set_anchors_preset(Control.PRESET_FULL_RECT)
