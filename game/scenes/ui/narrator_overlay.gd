@@ -35,7 +35,13 @@ func _ready() -> void:
 	_bubble = PanelContainer.new()
 	_bubble.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bubble.modulate = Color(1, 1, 1, 0)   # start invisible
-	_bubble.mouse_filter = Control.MOUSE_FILTER_STOP
+	# v0.8.8: gate STOP on visibility. The bubble sits at the bottom
+	# of the screen permanently, so a default-STOP filter would eat
+	# taps on Battle's Skip button + CatchingView's drops-2x button
+	# even when no narrator line is showing. _show() flips to STOP
+	# (so a tap dismisses the bubble); _hide() flips to IGNORE once
+	# the fade-out completes.
+	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bubble)
 
 	var margins := MarginContainer.new()
@@ -43,15 +49,18 @@ func _ready() -> void:
 	margins.add_theme_constant_override("margin_right", 16)
 	margins.add_theme_constant_override("margin_top", 12)
 	margins.add_theme_constant_override("margin_bottom", 12)
+	margins.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble.add_child(margins)
 
 	var vbox := VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margins.add_child(vbox)
 
 	var name_label := Label.new()
 	name_label.text = "Peniber"
 	name_label.add_theme_font_size_override("font_size", 14)
 	name_label.modulate = Color(1.0, 0.85, 0.5)
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(name_label)
 
 	_text_label = RichTextLabel.new()
@@ -60,6 +69,7 @@ func _ready() -> void:
 	_text_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_text_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_text_label.add_theme_font_size_override("normal_font_size", 16)
+	_text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(_text_label)
 
 	_hide_timer = Timer.new()
@@ -83,6 +93,8 @@ func _on_narrator_line_chosen(_line_id: String, text: String, mood: String) -> v
 func _show() -> void:
 	if _current_tween != null and _current_tween.is_running():
 		_current_tween.kill()
+	# Bubble is becoming visible; switch to STOP so a tap dismisses it.
+	_bubble.mouse_filter = Control.MOUSE_FILTER_STOP
 	var t: Tween = create_tween()
 	t.tween_property(_bubble, "modulate:a", 1.0, FADE_SECONDS)
 	_current_tween = t
@@ -94,6 +106,11 @@ func _hide() -> void:
 		_current_tween.kill()
 	var t: Tween = create_tween()
 	t.tween_property(_bubble, "modulate:a", 0.0, FADE_SECONDS)
+	# Once the fade-out completes, flip back to IGNORE so the
+	# invisible bubble's rect doesn't keep blocking taps on the
+	# Battle / Catch buttons that sit beneath it.
+	t.tween_callback(func() -> void:
+		_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE)
 	_current_tween = t
 
 

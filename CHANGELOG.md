@@ -6,6 +6,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.8 — Actual root cause: overlays' child Controls were eating taps
+
+**Investigation**
+
+User reported the buttons-hard-to-press symptom **also reproduces in the Godot
+editor** — meaning v0.8.5 / v0.8.7's stretch/aspect changes were chasing an
+Android-specific input bug that wasn't actually the issue. The real root
+cause was in our own GDScript overlay code, present on every platform.
+
+**Root cause**
+
+Each of the four overlay scenes (`AdDiagnosticOverlay`, `SaveIndicatorOverlay`,
+`TouchDebugOverlay`, `NarratorOverlay`) sets `mouse_filter = MOUSE_FILTER_IGNORE`
+on its **wrapper** `Control`. But every child Control inside (the
+`PanelContainer` bubble, `MarginContainer`, `Label`, `RichTextLabel`,
+`VBoxContainer`) defaults to `MOUSE_FILTER_STOP`. Each child silently consumes
+taps that fall in its own rect, **even when the wrapper is fully transparent**.
+
+The visible consequence:
+- `AdDiagnosticOverlay` is anchored top-wide (y=64–116). Its inner Label/Margins
+  blocked taps on the **tab bar** in that strip — the user's "tap on Inventory
+  doesn't register" report. ([screenshot reference from v0.8.6 thread.](https://github.com/NickSanft/IdleBeastPractices))
+- `SaveIndicatorOverlay` is anchored bottom-right with `offset_left = -180`.
+  Its Label blocked taps on `CatchingView`'s **drops-2× ad button**.
+- `NarratorOverlay`'s bubble was set `STOP` permanently in `_ready`, so the
+  invisible (alpha=0) bubble at the bottom of the screen blocked taps on
+  `BattleView`'s **Skip-ad row** and `CatchingView`'s drops-2× button — even
+  when no narrator line was showing.
+- `TouchDebugOverlay`'s info label blocked a small upper-left strip.
+
+**Fixed**
+
+- All four overlays now set `mouse_filter = MOUSE_FILTER_IGNORE` explicitly on
+  every child `Control` (`PanelContainer`, `MarginContainer`, `VBoxContainer`,
+  `Label`, `RichTextLabel`).
+- `NarratorOverlay`'s bubble is gated by visibility: starts `IGNORE`, flips
+  to `STOP` inside `_show()` so a tap dismisses an active bubble, flips
+  back to `IGNORE` once `_hide()`'s fade-out tween completes.
+
+**Regression test (174 passing, +5)**
+
+- `test_overlay_mouse_filter.gd`: instantiates each overlay, walks every
+  Control descendant via the scene tree, asserts `mouse_filter` is `IGNORE`.
+  Catches anyone (me) re-introducing the same bug class on a future overlay.
+- The `narrator_overlay_active` variant verifies the bubble flips to `STOP`
+  while a narrator line is visible (so the dismiss-tap path still works).
+
+**Why we didn't catch this earlier**
+
+- Headless GUT runs of the scenes succeeded — they don't fire input.
+- The 4 added overlays were all introduced *after* the catch loop's main UI,
+  spread across v0.7.1 (ad diagnostic), v0.8.2 (save indicator), v0.8.5
+  (touch debug). Each by itself was a small patch; the cumulative effect of
+  4 invisible-to-visual but hit-test-active strips overlapping the gameplay
+  UI wasn't obvious from any single review.
+- The Galaxy Z Fold7 testing accidentally led down the canvas_items input
+  rabbit hole, with v0.8.5's `aspect="keep"` introducing a *separate* bug
+  (the letterbox offset) that masked the real issue.
+
 ### v0.8.7 — Letterbox-induced input offset fixed (aspect: keep → keep_width)
 
 **Root cause confirmed via the v0.8.6 diagnostic overlay**

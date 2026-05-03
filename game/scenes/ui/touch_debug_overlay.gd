@@ -36,6 +36,10 @@ func _ready() -> void:
 	_info_label.modulate = Color(1.0, 1.0, 0.5, 0.9)
 	_info_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_info_label.position = Vector2(8, 96)
+	# v0.8.8: IGNORE so the debug label doesn't intercept taps in its
+	# rect. Default STOP would mean diagnosing the bug introduces a
+	# new bug.
+	_info_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_info_label)
 
 

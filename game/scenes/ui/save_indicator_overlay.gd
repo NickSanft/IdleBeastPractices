@@ -40,6 +40,10 @@ func _ready() -> void:
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_label.modulate = Color(0.6, 1.0, 0.7, 0.0)   # green, start hidden
+	# v0.8.8: explicit IGNORE so taps on the catching view's
+	# bottom-right drops-2x button (which sits under this overlay)
+	# pass through. Default STOP would silently eat them.
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)
 
 	_hide_timer = Timer.new()

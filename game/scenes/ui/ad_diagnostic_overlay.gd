@@ -36,6 +36,11 @@ func _ready() -> void:
 	_bubble = PanelContainer.new()
 	_bubble.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bubble.modulate = Color(1, 1, 1, 0)   # start invisible
+	# v0.8.8: Mouse_filter STOP by default on Control descendants would
+	# silently eat any tap that lands inside this overlay's strip even
+	# when it's fully transparent. Forcing IGNORE on the bubble AND its
+	# descendant Container/Label nodes prevents the diagnostic overlay
+	# from blocking taps on the underlying tab bar.
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bubble)
 
@@ -44,12 +49,14 @@ func _ready() -> void:
 	margins.add_theme_constant_override("margin_right", 12)
 	margins.add_theme_constant_override("margin_top", 8)
 	margins.add_theme_constant_override("margin_bottom", 8)
+	margins.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble.add_child(margins)
 
 	_label = Label.new()
 	_label.add_theme_font_size_override("font_size", 14)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margins.add_child(_label)
 
 	_hide_timer = Timer.new()
