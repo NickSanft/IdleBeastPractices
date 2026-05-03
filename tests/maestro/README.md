@@ -69,7 +69,15 @@ maestro studio
 | `02_tab_navigation.yaml` | Tap each of the 10 tabs by coord, screenshot each | Tabs not tappable (the v0.8.x letterbox bug) |
 | `03_save_persistence.yaml` | Launch, simulate gameplay, background via Home, relaunch | Save lifecycle not firing on background |
 | `04_battle_skip_button.yaml` | Switch to Battle, tap Fight, verify Skip button appears | Phase 6a wiring regression |
-| `05_settings_scrollable.yaml` | Switch to Settings, scroll to bottom, verify reachable | Long views getting clipped on tall screens |
+
+**Flows on the backlog** (need additional work to be reliable in CI):
+
+- `settings_scrollable` / trailing-tabs navigation: Maestro's `swipe` on
+  Godot's GL canvas doesn't reliably scroll the TabContainer's tab bar
+  in the emulator — the first-pass flow timed out the runner at 35 min.
+  To re-enable, either add a debug-mode keybinding that sets
+  `tabs.current_tab = N` directly, or use Maestro's `runScript` to drive
+  Godot via a localhost HTTP endpoint.
 
 Adding new flows: prefix with the next number, drop in this dir, push. The CI
 workflow runs everything matching `tests/maestro/*.yaml` automatically.

@@ -52,15 +52,8 @@ appId: com.divora.beast
 - waitForAnimationToEnd
 - takeScreenshot: 02_tab_ledger
 
-# The remaining 4 tabs (Shop, Upgrades, Prestige, Settings) are
-# offscreen-right on the tab bar. Swipe the tab bar leftward then
-# tap the last visible position.
-- swipe:
-    start: "85%, 5%"
-    end: "15%, 5%"
-- waitForAnimationToEnd
-- takeScreenshot: 02_tab_after_swipe
-- tapOn:
-    point: "85%, 5%"    # whatever last-visible tab landed at this position after swipe
-- waitForAnimationToEnd
-- takeScreenshot: 02_tab_post_swipe_tap
+# Trailing tabs (Shop, Upgrades, Prestige, Settings) are off-screen
+# on the tab bar. Maestro's swipe-on-Godot doesn't reliably scroll
+# the tab strip, so this flow stops here. Add a separate flow that
+# uses Godot's keyboard fallback or scripted tab.current_tab=N once
+# the basics are green.

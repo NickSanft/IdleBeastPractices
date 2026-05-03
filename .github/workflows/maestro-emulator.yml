@@ -17,9 +17,12 @@ jobs:
   maestro:
     name: Maestro flows on Pixel 6 emulator
     runs-on: ubuntu-latest
-    # Long timeout because the emulator can take 5-8 min to boot on
-    # Linux runners (no KVM hardware acceleration).
-    timeout-minutes: 35
+    # Long timeout. Cold-cache run: AVD creation (~5 min) + emulator
+    # cold boot (~3 min) + second emulator launch from snapshot
+    # (~3 min) + APK install (~3 min) + 4 flows (~3 min) = ~17 min in
+    # the happy path; pad to 50 to avoid spurious cancellations on a
+    # slow runner. Hot-cache runs are ~10 min total.
+    timeout-minutes: 50
 
     steps:
       - uses: actions/checkout@v4
