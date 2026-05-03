@@ -12,10 +12,20 @@ var _cloud_button: Button
 
 
 func _ready() -> void:
+	# Wrap the whole panel in a ScrollContainer so the cloud-save
+	# section, sliders, and spacer don't get clipped on small phones
+	# in portrait. Without this, the lower section is unreachable on
+	# anything shorter than ~720x1280 once the bigger v0.8.3 tap
+	# targets and the cloud-save section land.
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(scroll)
 	var vbox := VBoxContainer.new()
-	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 16)
-	add_child(vbox)
+	scroll.add_child(vbox)
 
 	var heading := Label.new()
 	heading.text = "Settings"

@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.3 — Mobile UX polish (bigger tap targets, tab bar, scrollable Settings)
+
+**Changed**
+- **Project-wide mobile theme** — `main.gd._apply_mobile_default_theme()` builds a `Theme` at startup and assigns it to `get_tree().root.theme` so every `Control` inherits mobile-friendly defaults:
+  - `Button` styleboxes now have 14 px vertical / 18 px horizontal content margins → ~48 dp min hit-box per Material's tap-target recommendation. Rounded corners (6 px) keep the bigger surface reading as a button.
+  - `Button` and `Label` / `RichTextLabel` font sizes bumped to 18 / 16 / 16 px respectively.
+  - `HSlider` grabber gets a 24 px circular grabber via stylebox padding so the volume sliders are draggable with a thumb without stylus precision.
+  - Per-control `add_theme_*_override` calls already in the codebase still take precedence; the project-wide theme just raises the floor everywhere else.
+- **Bigger tab bar** — `_apply_mobile_tab_theme(tabs)` overrides the four tab styleboxes (`tab_selected`, `tab_unselected`, `tab_hovered`, `tab_focus`) with 14 px vertical and 18 px horizontal padding. Selected tab gets a 2 px top border + brighter background tint so the current tab is unambiguous on a small screen. Font size bumped to 18 px. The 10-tab strip auto-overflows now that each tab has a real min-size; Godot's TabBar shows left/right arrows for horizontal scrolling.
+- **Settings tab scrolls** — wrapped the existing `VBoxContainer` in a `ScrollContainer` (vertical-only) so the cloud-save section, volume sliders, and the spacer no longer clip off the bottom on shorter phones once the bigger v0.8.3 tap targets land.
+
+**Why now**
+User reported on Galaxy Z Fold7 (Android 16) that buttons were too small to reliably hit and scrolling through the tab menu was difficult. The 48-dp / Material guideline is the floor for finger-friendly UI; anything smaller is a tap-target failure on phones, especially foldables where the inner display is larger but pixel density is even higher.
+
 ### v0.8.2 — Sprite animation polish + save robustness
 
 **Added (animation polish — Catch screen)**

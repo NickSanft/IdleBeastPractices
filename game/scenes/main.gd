@@ -33,6 +33,7 @@ var _welcome_back_dialog: AcceptDialog
 func _ready() -> void:
 	get_tree().root.close_requested.connect(_on_close_requested)
 	ContentRegistry.ensure_loaded()
+	_apply_mobile_default_theme()
 	_build_ui()
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
@@ -94,6 +95,7 @@ func _build_ui() -> void:
 	var tabs := TabContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_apply_mobile_tab_theme(tabs)
 	root_vbox.add_child(tabs)
 
 	var catch_tab: Control = _CATCHING_VIEW.instantiate()
@@ -153,6 +155,94 @@ func _build_ui() -> void:
 	# Android. Cheap; subscribes to EventBus.game_saved.
 	var save_indicator: Control = _SAVE_INDICATOR_OVERLAY.instantiate()
 	add_child(save_indicator)
+
+
+## Project-wide theme assigned to the root window so every Control
+## inherits mobile-friendly defaults — bigger buttons, larger fonts.
+## Per-control `add_theme_*_override` calls already in the codebase
+## still take precedence; this just raises the floor everywhere else.
+##
+## v0.8.3: user reported on Galaxy Z Fold7 (Android 16) that buttons
+## were too small to reliably hit and the tab bar was hard to scroll
+## through. Applied across the board.
+func _apply_mobile_default_theme() -> void:
+	var theme := Theme.new()
+
+	# Buttons: ~48 dp min hit-box via vertical padding; rounded corners
+	# so the bigger surface still reads as a button rather than a slab.
+	var btn_normal := StyleBoxFlat.new()
+	btn_normal.bg_color = Color(0.22, 0.24, 0.30)
+	btn_normal.content_margin_top = 14.0
+	btn_normal.content_margin_bottom = 14.0
+	btn_normal.content_margin_left = 18.0
+	btn_normal.content_margin_right = 18.0
+	btn_normal.corner_radius_top_left = 6
+	btn_normal.corner_radius_top_right = 6
+	btn_normal.corner_radius_bottom_left = 6
+	btn_normal.corner_radius_bottom_right = 6
+	var btn_hover: StyleBoxFlat = btn_normal.duplicate(true)
+	btn_hover.bg_color = Color(0.28, 0.30, 0.38)
+	var btn_pressed: StyleBoxFlat = btn_normal.duplicate(true)
+	btn_pressed.bg_color = Color(0.34, 0.38, 0.48)
+	var btn_disabled: StyleBoxFlat = btn_normal.duplicate(true)
+	btn_disabled.bg_color = Color(0.18, 0.18, 0.20)
+
+	theme.set_stylebox("normal", "Button", btn_normal)
+	theme.set_stylebox("hover", "Button", btn_hover)
+	theme.set_stylebox("pressed", "Button", btn_pressed)
+	theme.set_stylebox("disabled", "Button", btn_disabled)
+	theme.set_font_size("font_size", "Button", 18)
+
+	# Labels: bump up for phone readability. Custom-styled labels
+	# (currency_bar, peniber overlay) override per-control.
+	theme.set_font_size("font_size", "Label", 16)
+	theme.set_font_size("font_size", "RichTextLabel", 16)
+
+	# CheckBox / OptionButton inherit Button styling so they get the
+	# same hit-box bump. Sliders need an explicit grabber bump.
+	var slider_grabber := StyleBoxFlat.new()
+	slider_grabber.bg_color = Color(0.92, 0.92, 0.96)
+	slider_grabber.corner_radius_top_left = 12
+	slider_grabber.corner_radius_top_right = 12
+	slider_grabber.corner_radius_bottom_left = 12
+	slider_grabber.corner_radius_bottom_right = 12
+	slider_grabber.content_margin_top = 8
+	slider_grabber.content_margin_bottom = 8
+	slider_grabber.content_margin_left = 8
+	slider_grabber.content_margin_right = 8
+	theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
+	theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
+
+	get_tree().root.theme = theme
+
+
+## Bigger, fingertap-friendly tab bar. Default Godot tabs are ~28 px
+## tall with a 16 px font — way too small on a 1280-tall portrait
+## phone. We bump font size and pad the tab styleboxes vertically so
+## each tab's hit-box is closer to Material's 48 dp recommendation,
+## and turn on horizontal scrolling so 10 tabs don't fight for the
+## same 720 px of viewport width.
+func _apply_mobile_tab_theme(tabs: TabContainer) -> void:
+	tabs.add_theme_font_size_override("font_size", 18)
+	tabs.tabs_rearrange_group = -1
+	tabs.tab_alignment = TabBar.ALIGNMENT_LEFT
+
+	for state in ["tab_selected", "tab_unselected", "tab_hovered", "tab_focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.content_margin_top = 14
+		sb.content_margin_bottom = 14
+		sb.content_margin_left = 18
+		sb.content_margin_right = 18
+		# Tint the selected tab so it's visually distinct on touch.
+		if state == "tab_selected":
+			sb.bg_color = Color(0.32, 0.36, 0.44)
+		elif state == "tab_hovered":
+			sb.bg_color = Color(0.28, 0.30, 0.36)
+		else:
+			sb.bg_color = Color(0.18, 0.20, 0.24)
+		sb.border_color = Color(0.45, 0.48, 0.55) if state == "tab_selected" else Color(0.0, 0.0, 0.0, 0.0)
+		sb.border_width_top = 2 if state == "tab_selected" else 0
+		tabs.add_theme_stylebox_override(state, sb)
 
 
 func _seed_default_net_if_needed() -> void:
