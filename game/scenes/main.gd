@@ -29,6 +29,10 @@ const _TOUCH_DEBUG_OVERLAY := preload("res://game/scenes/ui/touch_debug_overlay.
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
+var _tabs: TabContainer
+var _ad_diag_overlay: Control
+var _save_indicator_overlay: Control
+var _touch_debug_overlay: Control
 
 
 func _ready() -> void:
@@ -44,6 +48,17 @@ func _ready() -> void:
 	_apply_offline_progress(loaded)
 	_seed_default_net_if_needed()
 	_start_periodic_save()
+
+	# Optional one-shot screenshot generator for Play Store listing.
+	# Activated via `godot --path . -- --screenshots`. Seeds GameState
+	# with a mid-game snapshot, hides diagnostic overlays, sizes the
+	# window to 1080x1920 (Play Store-compliant 9:16 portrait, fits
+	# all three Play Console categories: phone / 7" tablet / 10"
+	# tablet), cycles through key tabs and saves PNGs.
+	if "--screenshots" in OS.get_cmdline_user_args():
+		await _run_screenshot_mode()
+		get_tree().quit()
+		return
 
 
 func _start_periodic_save() -> void:
@@ -99,6 +114,7 @@ func _build_ui() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_apply_mobile_tab_theme(tabs)
 	root_vbox.add_child(tabs)
+	_tabs = tabs
 
 	var catch_tab: Control = _CATCHING_VIEW.instantiate()
 	catch_tab.name = "Catch"
@@ -148,23 +164,23 @@ func _build_ui() -> void:
 
 	# Top-of-screen banner that surfaces ad lifecycle events for debugging.
 	# Subscribes to AdsManager.requested / rewarded_completed / rewarded_failed.
-	var ad_diag: Control = _AD_DIAGNOSTIC_OVERLAY.instantiate()
-	add_child(ad_diag)
+	_ad_diag_overlay = _AD_DIAGNOSTIC_OVERLAY.instantiate()
+	add_child(_ad_diag_overlay)
 
 	# Bottom-right toast that flashes "Saved <HH:MM:SS>" each time
 	# SaveManager.save() commits — diagnostic for the v0.8.2 cycle so
 	# the user can verify save lifecycle hooks are actually firing on
 	# Android. Cheap; subscribes to EventBus.game_saved.
-	var save_indicator: Control = _SAVE_INDICATOR_OVERLAY.instantiate()
-	add_child(save_indicator)
+	_save_indicator_overlay = _SAVE_INDICATOR_OVERLAY.instantiate()
+	add_child(_save_indicator_overlay)
 
 	# Crosshair that paints at every touch / click position for ~0.8 s.
 	# v0.8.5 diagnostic — confirms whether Godot's hit-test coordinate
 	# matches where the user thought they tapped. Cheap (only paints
 	# while a tap is recent); will be gated behind a debug flag in a
 	# follow-up release once we've confirmed the user's input issue.
-	var touch_debug: Control = _TOUCH_DEBUG_OVERLAY.instantiate()
-	add_child(touch_debug)
+	_touch_debug_overlay = _TOUCH_DEBUG_OVERLAY.instantiate()
+	add_child(_touch_debug_overlay)
 
 
 ## Project-wide theme assigned to the root window so every Control
@@ -396,6 +412,130 @@ func _reset_all_progress() -> void:
 	EventBus.currency_changed.emit("gold", GameState.current_gold())
 	EventBus.currency_changed.emit("rancher_points", GameState.current_rancher_points())
 	print("[debug] PROGRESS RESET — back to first-launch defaults.")
+
+
+## One-shot Play Store screenshot generator. Run via:
+##   godot --path . -- --screenshots
+## Output lands in `OS.get_user_data_dir() + "/screenshots/"` as PNGs.
+func _run_screenshot_mode() -> void:
+	# Hide debug overlays so they don't end up in marketing screenshots.
+	if _ad_diag_overlay:
+		_ad_diag_overlay.visible = false
+	if _save_indicator_overlay:
+		_save_indicator_overlay.visible = false
+	if _touch_debug_overlay:
+		_touch_debug_overlay.visible = false
+
+	# Seed mid-game state so screens look populated.
+	_seed_screenshot_state()
+	EventBus.game_loaded.emit()
+	EventBus.currency_changed.emit("gold", GameState.current_gold())
+	EventBus.currency_changed.emit("rancher_points", GameState.current_rancher_points())
+	# Resize to Play Store-compliant 9:16 portrait. 1080x1920 satisfies
+	# phone, 7" tablet, AND 10" tablet listing constraints in one go.
+	get_window().size = Vector2i(1080, 1920)
+	# Three frames for layout to settle after the resize.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var out_dir := OS.get_user_data_dir() + "/screenshots"
+	DirAccess.make_dir_recursive_absolute(out_dir)
+
+	# Tab name -> output filename. Six shots cover the breadth of the
+	# game in marketing terms.
+	var shots: Array[Dictionary] = [
+		{"tab": "Catch", "name": "01_catch.png"},
+		{"tab": "Battle", "name": "02_battle.png"},
+		{"tab": "Bestiary", "name": "03_bestiary.png"},
+		{"tab": "Inventory", "name": "04_inventory.png"},
+		{"tab": "Upgrades", "name": "05_upgrades.png"},
+		{"tab": "Settings", "name": "06_settings.png"},
+	]
+
+	for shot in shots:
+		var idx := -1
+		for i in _tabs.get_tab_count():
+			if _tabs.get_tab_title(i) == shot["tab"]:
+				idx = i
+				break
+		if idx < 0:
+			push_warning("screenshot tab not found: " + shot["tab"])
+			continue
+		_tabs.current_tab = idx
+		# Wait for tab content to render. Catch screen needs more time
+		# because monsters spawn over time; force-spawn a few so the
+		# screenshot isn't an empty room.
+		if shot["tab"] == "Catch":
+			var catch_view := _tabs.get_child(idx)
+			if catch_view != null:
+				for s in 4:
+					if catch_view.has_method("_spawn_one"):
+						var net = catch_view.call("_active_net")
+						catch_view.call("_spawn_one", net)
+				for f in 240:   # 4 s — let monsters wander to varied positions
+					await get_tree().process_frame
+		else:
+			for f in 4:
+				await get_tree().process_frame
+		var image: Image = get_viewport().get_texture().get_image()
+		var path: String = out_dir + "/" + shot["name"]
+		image.save_png(path)
+		print("[screenshot] saved ", path)
+
+	print("[screenshot] all done. Output at: ", out_dir)
+
+
+## Seeds GameState with a mid-game snapshot for marketing screenshots:
+## ~50K gold, a stocked bestiary, a few pets, a leveled-up active net,
+## and a few upgrades purchased.
+func _seed_screenshot_state() -> void:
+	# Currencies
+	GameState.currencies = {
+		"gold": {"m": 5.27, "e": 4},   # 52.7K gold
+		"rancher_points": 12,
+	}
+	GameState.total_gold_earned_this_run = {"m": 8.4, "e": 4}
+	# Inventory
+	GameState.inventory = {
+		"wisplet_ectoplasm": 247,
+		"centiphantom_jelly": 88,
+		"hush_shroud": 41,
+		"wraith_cinder": 17,
+	}
+	# Bestiary entries — a few species, with one shiny.
+	GameState.monsters_caught = {
+		"green_wisplet": {"normal": 102, "shiny": 3},
+		"red_wisplet": {"normal": 67, "shiny": 1},
+		"blue_wisplet": {"normal": 54, "shiny": 0},
+		"dawn_centiphantom": {"normal": 38, "shiny": 1},
+		"dusk_centiphantom": {"normal": 22, "shiny": 0},
+		"dust_centiphantom": {"normal": 19, "shiny": 0},
+		"bramble_hush": {"normal": 12, "shiny": 0},
+		"glowmoth_hush": {"normal": 8, "shiny": 0},
+	}
+	GameState.pets_owned = ["green_wisplet_pet", "dawn_centiphantom_pet"]
+	GameState.pet_variants_owned = ["green_wisplet_pet"]
+	GameState.nets_owned = ["basic_net", "tier2_net"]
+	GameState.active_net = "tier2_net"
+	GameState.current_max_tier = 4
+	GameState.tiers_completed = [1, 2, 3]
+	GameState.upgrades_purchased = [
+		{"id": "tap_speed_1", "level": 2},
+		{"id": "gold_mult_1", "level": 1},
+	]
+	GameState.recipes_crafted = ["recipe_tier2_net"]
+	GameState.ledger = {
+		"total_catches": 322,
+		"total_taps": 1547,
+		"total_shinies": 5,
+		"session_count": 14,
+		"total_play_seconds": 7423,
+		"total_offline_seconds_credited": 2100,
+		"prestige_count": 0,
+		"first_launch_unix": int(Time.get_unix_time_from_system()) - 7423,
+		"peniber_quotes_seen": 28,
+	}
 
 
 func _on_close_requested() -> void:

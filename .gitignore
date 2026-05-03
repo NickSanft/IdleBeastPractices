@@ -50,3 +50,6 @@ logs/
 # ios/plugins/ if you happen to open the editor with the plugin enabled.
 # We don't ship iOS, so skip them — keeps the repo lean.
 ios/plugins/
+
+# Generated screenshot import sidecars
+screenshots/*.import
