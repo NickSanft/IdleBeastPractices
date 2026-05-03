@@ -39,6 +39,13 @@ CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
 window/size/viewport_width=720
 window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
+; v0.8.5: explicitly "keep" the 720:1280 aspect with letterboxing
+; rather than Godot's default non-uniform "ignore" scaling. The
+; non-uniform path triggers a canvas_items input-coordinate-mapping
+; bug on Android (godotengine/godot#118153) where visible buttons
+; appear at the right place but tap coordinates don't transform back
+; correctly. Letterboxing on the Fold7 inner display is acceptable.
+window/stretch/aspect="keep"
 window/handheld/orientation=1
 
 [dotnet]

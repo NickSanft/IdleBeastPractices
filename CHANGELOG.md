@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.8.5 — Targeted Android input fixes (named-bug mitigations + diagnostics)
+
+**Investigation note**
+The v0.8.3 → v0.8.4 padding adjustments didn't actually move the needle on the user's "buttons hard to press" report. A research pass turned up two **named Godot 4 bugs** that are far more likely to be the root cause:
+- [godotengine/godot#118153](https://github.com/godotengine/godot/issues/118153) — `canvas_items` stretch mode on Android can render UI at the right place but fail to map touch coordinates back to the same point.
+- [godotengine/godot#91987](https://github.com/godotengine/godot/issues/91987) — `TabContainer` with `MOUSE_FILTER_STOP` can dispatch tab clicks in two different coordinate systems.
+
+**Fixed**
+- **`display/window/stretch/aspect="keep"`** in [project.godot](project.godot). Previously unset → Godot's default `"ignore"` non-uniformly stretched the 720×1280 viewport to whatever device aspect, which is the path that triggers #118153. With `"keep"`, the viewport letterboxes on the Fold7's inner display but every coordinate transform uses the same uniform scale factor.
+- **`TabContainer.mouse_filter = MOUSE_FILTER_PASS`** applied in `_apply_mobile_tab_theme`. Per #91987's documented workaround, this lets the child `TabBar` handle input cleanly without the parent re-emitting a duplicate event in mismatched coords.
+- **48 dp tap targets restored**. v0.8.4 dialed Button stylebox `content_margin_*` down to `8/12` thinking the padding was the bug. With the real bugs identified, restored to `14/18` (text height ~22 px + 14 + 14 = ~50 px ≈ 48 dp at our viewport scale, matching Material's accessibility floor). Tab styleboxes similarly restored to `14/18`.
+
+**Added**
+- **Haptic feedback on every Button press** — [main.gd](game/scenes/main.gd) walks the tree on startup and again on `SceneTree.node_added`, connecting `Input.vibrate_handheld(20)` to every Button's `pressed` signal. 20 ms is Android's recommended `EFFECT_CLICK` duration. No-op on desktop.
+- **`TouchDebugOverlay`** ([game/scenes/ui/touch_debug_overlay.gd](game/scenes/ui/touch_debug_overlay.gd)) — paints a fading red crosshair + outer ring at every touch / click position for ~0.8 s. Diagnostic for confirming the input-coordinate-mapping bug is actually fixed: if a tap lands on a button visually but the crosshair appears off-button, we have direct evidence of #118153 still affecting the build. Will be gated behind a debug flag in a follow-up release.
+
+**Tests**: 169/169 still green.
+
+**What's queued for v0.9.0**
+A bigger UI restructure based on the same research: 10-tab top bar replaced by a 5-button bottom navigation in the thumb zone + a "More" sheet for the secondary destinations (Bestiary, Crafting, Ledger, Shop, Upgrades). The current pattern fights basic mobile-game ergonomics; this is a Phase-level revamp, not a release-cycle tweak.
+
 ### v0.8.4 — Hit-test mismatch fix (relaxed v0.8.3 stylebox padding)
 
 **Fixed**

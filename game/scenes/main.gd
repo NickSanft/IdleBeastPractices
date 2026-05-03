@@ -25,6 +25,7 @@ const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _NARRATOR_OVERLAY := preload("res://game/scenes/ui/narrator_overlay.tscn")
 const _AD_DIAGNOSTIC_OVERLAY := preload("res://game/scenes/ui/ad_diagnostic_overlay.tscn")
 const _SAVE_INDICATOR_OVERLAY := preload("res://game/scenes/ui/save_indicator_overlay.tscn")
+const _TOUCH_DEBUG_OVERLAY := preload("res://game/scenes/ui/touch_debug_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
 var _welcome_back_dialog: AcceptDialog
@@ -34,6 +35,7 @@ func _ready() -> void:
 	get_tree().root.close_requested.connect(_on_close_requested)
 	ContentRegistry.ensure_loaded()
 	_apply_mobile_default_theme()
+	_install_global_haptic_feedback()
 	_build_ui()
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
@@ -156,6 +158,14 @@ func _build_ui() -> void:
 	var save_indicator: Control = _SAVE_INDICATOR_OVERLAY.instantiate()
 	add_child(save_indicator)
 
+	# Crosshair that paints at every touch / click position for ~0.8 s.
+	# v0.8.5 diagnostic — confirms whether Godot's hit-test coordinate
+	# matches where the user thought they tapped. Cheap (only paints
+	# while a tap is recent); will be gated behind a debug flag in a
+	# follow-up release once we've confirmed the user's input issue.
+	var touch_debug: Control = _TOUCH_DEBUG_OVERLAY.instantiate()
+	add_child(touch_debug)
+
 
 ## Project-wide theme assigned to the root window so every Control
 ## inherits mobile-friendly defaults — bigger buttons, larger fonts.
@@ -168,20 +178,20 @@ func _build_ui() -> void:
 func _apply_mobile_default_theme() -> void:
 	var theme := Theme.new()
 
-	# Buttons: bigger hit-box via vertical padding; rounded corners
-	# so the bigger surface still reads as a button rather than a slab.
-	# v0.8.4: reduced from 14/18 to 8/12 after a hit-test-mismatch
-	# report — the larger margins were making the stylebox draw past
-	# the actual control rect on screens where the parent container
-	# constrained the button height (sliders, anchored corner buttons).
-	# Net result is still a comfortable ~36-40 dp tap target for
-	# label-only buttons but no longer fights the layout.
+	# Buttons: 48 dp tap target per Material's accessibility floor
+	# (text height ~22 px + 14 px top + 14 px bottom = ~50 px = 48 dp
+	# at our viewport scale). v0.8.4 dialed this down to 8/12 thinking
+	# the padding was the source of the hit-test mismatch; research
+	# (godotengine/godot#118153 — canvas_items stretch input mapping)
+	# pointed at the real culprit (now mitigated via
+	# `display/window/stretch/aspect="keep"` in project.godot), so
+	# v0.8.5 restores the proper 48 dp size.
 	var btn_normal := StyleBoxFlat.new()
 	btn_normal.bg_color = Color(0.22, 0.24, 0.30)
-	btn_normal.content_margin_top = 8.0
-	btn_normal.content_margin_bottom = 8.0
-	btn_normal.content_margin_left = 12.0
-	btn_normal.content_margin_right = 12.0
+	btn_normal.content_margin_top = 14.0
+	btn_normal.content_margin_bottom = 14.0
+	btn_normal.content_margin_left = 18.0
+	btn_normal.content_margin_right = 18.0
 	btn_normal.corner_radius_top_left = 6
 	btn_normal.corner_radius_top_right = 6
 	btn_normal.corner_radius_bottom_left = 6
@@ -222,6 +232,44 @@ func _apply_mobile_default_theme() -> void:
 	get_tree().root.theme = theme
 
 
+## Wire a 20-millisecond haptic pulse to every Button press in the
+## tree, so the user gets a tactile "tap registered" cue regardless of
+## which screen they're on. `Input.vibrate_handheld(20)` is a no-op on
+## desktop (we only ever fire it on Android) and is the recommended
+## duration for `EFFECT_CLICK`-equivalent button feedback per Android's
+## haptic guidelines (10-20 ms).
+##
+## Implementation: walk the tree once after _build_ui completes (called
+## via call_deferred so child nodes are in place), then re-walk on
+## SceneTree.node_added so any Button instantiated later (catching view
+## drops-2x button, welcome-back claim button, etc.) also gets wired.
+##
+## We connect to `pressed` rather than `button_down` so the haptic
+## fires only on a successful click, not on mid-drag presses.
+func _install_global_haptic_feedback() -> void:
+	get_tree().node_added.connect(_maybe_wire_haptic_to)
+	call_deferred("_walk_and_wire_haptics", self)
+
+
+func _walk_and_wire_haptics(node: Node) -> void:
+	_maybe_wire_haptic_to(node)
+	for child in node.get_children():
+		_walk_and_wire_haptics(child)
+
+
+func _maybe_wire_haptic_to(node: Node) -> void:
+	if not node is Button:
+		return
+	var button: Button = node
+	if button.pressed.is_connected(_on_any_button_pressed):
+		return
+	button.pressed.connect(_on_any_button_pressed)
+
+
+func _on_any_button_pressed() -> void:
+	Input.vibrate_handheld(20)
+
+
 ## Bigger, fingertap-friendly tab bar. Default Godot tabs are ~28 px
 ## tall with a 16 px font — way too small on a 1280-tall portrait
 ## phone. We bump font size and pad the tab styleboxes vertically so
@@ -232,15 +280,22 @@ func _apply_mobile_tab_theme(tabs: TabContainer) -> void:
 	tabs.add_theme_font_size_override("font_size", 18)
 	tabs.tabs_rearrange_group = -1
 	tabs.tab_alignment = TabBar.ALIGNMENT_LEFT
+	# v0.8.5: TabContainer + MOUSE_FILTER_STOP can dispatch tab clicks
+	# in two different coordinate systems on Godot 4.6 (godotengine/
+	# godot#91987), causing hit-test mismatches especially on Android.
+	# PASS lets the child TabBar handle input cleanly without the
+	# parent re-emitting a duplicate event.
+	tabs.mouse_filter = Control.MOUSE_FILTER_PASS
 
 	for state in ["tab_selected", "tab_unselected", "tab_hovered", "tab_focus"]:
 		var sb := StyleBoxFlat.new()
-		# v0.8.4: relaxed padding from 14/18 to 10/14 to match the
-		# button stylebox correction (see _apply_mobile_default_theme).
-		sb.content_margin_top = 10
-		sb.content_margin_bottom = 10
-		sb.content_margin_left = 14
-		sb.content_margin_right = 14
+		# v0.8.5: restored to 14/18 alongside the button stylebox bump
+		# now that the canvas_items stretch input bug is mitigated via
+		# project.godot's stretch/aspect="keep".
+		sb.content_margin_top = 14
+		sb.content_margin_bottom = 14
+		sb.content_margin_left = 18
+		sb.content_margin_right = 18
 		# Tint the selected tab so it's visually distinct on touch.
 		if state == "tab_selected":
 			sb.bg_color = Color(0.32, 0.36, 0.44)
