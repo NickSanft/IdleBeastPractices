@@ -16,7 +16,9 @@ var reduce_motion: bool = false
 var font_scale: float = 1.0
 
 # Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
-var debug_fast_pets: bool = true   # F2: lower tier-complete threshold + force variant rolls
+# Default off so production builds use the real catch threshold (25) and
+# real variant_rate per pet. F2 flips it on for hand-testing.
+var debug_fast_pets: bool = false   # F2: lower tier-complete threshold + force variant rolls
 
 
 func set_music_db(db: float) -> void:

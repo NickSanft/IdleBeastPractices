@@ -2,6 +2,11 @@
 ## save on quit. Replaces the Phase 0 placeholder.
 extends Control
 
+## Periodic-save cadence in seconds. The OS can kill an Android app
+## without warning (low memory, force-stop, system update); this Timer
+## bounds how much progress a hard kill can lose.
+const _PERIODIC_SAVE_SECONDS := 30.0
+
 const _CURRENCY_BAR := preload("res://game/scenes/ui/currency_bar.tscn")
 const _CATCHING_VIEW := preload("res://game/scenes/catching/catching_view.tscn")
 const _BATTLE_VIEW := preload("res://game/scenes/battle/battle_view.tscn")
@@ -30,6 +35,38 @@ func _ready() -> void:
 	GameState.reconcile_total_gold_earned_this_run()
 	_apply_offline_progress(loaded)
 	_seed_default_net_if_needed()
+	_start_periodic_save()
+
+
+func _start_periodic_save() -> void:
+	# Auto-save every _PERIODIC_SAVE_SECONDS. Cheap on disk (a single small
+	# JSON write) and bounds worst-case progress loss when the OS kills the
+	# app without firing a lifecycle notification.
+	var timer := Timer.new()
+	timer.wait_time = _PERIODIC_SAVE_SECONDS
+	timer.one_shot = false
+	timer.autostart = true
+	timer.timeout.connect(_save_now)
+	add_child(timer)
+
+
+func _save_now() -> void:
+	SaveManager.save(GameState.to_dict())
+
+
+## Persist on Android lifecycle events. NOTIFICATION_APPLICATION_PAUSED
+## is dispatched via SceneTree to every node when the activity loses
+## focus — home button, app switcher, screen-off, incoming call — and is
+## the last reliable hook before Android may kill the process. On
+## desktop the X button is already handled by the close_requested signal
+## above; on Android close_requested never fires.
+##
+## (NOTIFICATION_WM_CLOSE_REQUEST and NOTIFICATION_WM_GO_BACK_REQUEST are
+## Window-only and don't propagate to Control children, so we don't list
+## them here. The close_requested signal connection covers WM_CLOSE.)
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED:
+		_save_now()
 
 
 func _build_ui() -> void:

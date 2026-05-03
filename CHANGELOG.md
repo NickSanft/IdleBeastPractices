@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.7.5 — Android save lifecycle + debug-toggle default off
+
+**Fixed**
+- **Save not persisting on Android** — `main.gd`'s only save trigger was `Window.close_requested`, which fires when the user clicks the X on desktop but never fires on Android (home button, app switcher, swipe-to-dismiss, screen-off, force-stop all bypass it). Result: progress was lost every time the app was backgrounded. Two changes:
+  - Hook `NOTIFICATION_APPLICATION_PAUSED` in [main.gd](game/scenes/main.gd)'s `_notification()`. This is dispatched via SceneTree to every node when the Android activity is paused (covers home, app switcher, screen-off, incoming call) — the last reliable hook before Android may kill the process.
+  - Add a 30-second periodic save Timer as a safety net for hard kills (low-memory OOM, force-stop, system update) that don't fire any lifecycle notification. Cheap (single small JSON write) and idempotent.
+- **All three pet variants unlocked simultaneously on tier completion** — `Settings.debug_fast_pets` defaulted to `true` in [game/autoloads/settings.gd](game/autoloads/settings.gd), which (1) dropped the per-tier catch threshold from 25 to 2 and (2) forced every variant roll to succeed (`roll_ceiling = 1.0`). Production builds shouldn't ship in dev-toggle mode. Defaulted to `false`; F2 still toggles it on for hand-testing.
+
 ### v0.7.4 — Force test ad units while AdMob account is "in review"
 
 **Changed**
