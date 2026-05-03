@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.9.4 — Difficulty curve QA via headless simulation
+
+**Why**
+
+Manual playtesting can't surface a 3-day stall on tier 13 — by the time you hit it you've forgotten what the sprint from tier 6→9 felt like. v0.9.4 adds a deterministic, headless Godot simulator that fast-forwards a model player through tier 1-20 over a configurable real-time horizon, reusing the live game's `OfflineProgressSystem` / `CatchingSystem` / `UpgradeEffectsSystem` / `PrestigeSystem` so the sim can't drift from the live balance numbers in `game/data/`.
+
+**Added**
+
+- **[`tests/sim/sim_runner.tscn`](tests/sim/sim_runner.tscn) + [`sim_runner.gd`](tests/sim/sim_runner.gd)**. Standalone headless scene; run with `godot --headless --path . res://tests/sim/sim_runner.tscn -- --seed=N --hours=N --tick=N`. Outputs:
+  - [`tests/sim/output/difficulty_curve.csv`](tests/sim/output/difficulty_curve.csv) — every milestone event (first-catch, tier-complete, net-crafted, upgrade-purchased, prestige) with timestamp, gold, RP, total catches, max tier, prestige count, active net.
+  - [`tests/sim/output/difficulty_curve.md`](tests/sim/output/difficulty_curve.md) — human-readable report: tier-completion timeline with wall/sprint flags, prestige timeline, net-acquisition timeline, methodology, stall diagnosis (when triggered).
+- **[`tests/sim/README.md`](tests/sim/README.md)** documents the AI policy, limitations, and how to use the sim for regression diffs after balance edits.
+- **Stall detection.** If 24 sim-hours pass with no progression event, the sim terminates early and emits a structured diagnosis explaining the next net the AI tried to craft, what's missing, and what tier each input drops from.
+
+**AI policy**
+
+Greedy each tick: equip best owned net for `current_max_tier`; craft next net up the chain when gold + items + prereqs all clear; buy cheapest affordable upgrade. Prestige is *patient* — only when `current_max_tier ≥ 8 AND projected_rp ≥ max(20, 2× current_rp)`. The patient gate avoids a local minimum where a fully-greedy AI cycles tier 1-4 forever (each prestige resets nets, the threshold is met immediately again, RP never compounds). `prestige_starting_net` is skipped because the sim re-equips `basic_net` post-prestige regardless.
+
+**Findings (seed 42, 14-day horizon)**
+
+- **Tier 3 → tier 4 is a hard wall.** The first sim run **stalls at t=31.8h** with the player permanently stuck. Diagnosis from [the report](tests/sim/output/difficulty_curve.md): `recipe_wraith_net` requires 50 `wraith_cinder` (tier-4-only drop) but `wraith_net` is the **only** net that targets tier 4. Circular dependency: the only net for tier T requires drops from tier T monsters, but tier T monsters only spawn when a net targets tier T. Tap-grinding does NOT bypass this — `CatchingSystem.pick_spawn` filters by `net.targets_tiers` for both auto-catch and tap spawns ([catching_view.gd:154](game/scenes/catching/catching_view.gd:154)).
+- **Auto-catch speed has no upgrade.** All the `catch_speed_1` purchases the AI logs feed `tap_speed`, not `auto_speed`. Auto-catch rate is a function of `net.catches_per_second` only — which means there's no in-tier way to speed up idle play. Possibly intentional, but worth confirming.
+- **Tier 1 → 2 → 3 is well-paced.** Tier 1 completes in ~3 minutes (3 wisplet species, 25 catches each), tier 2 at 5.2h (after crafting tier2_net), tier 3 at 7.7h (after crafting tier3_net). Smooth ramp; no walls or sprints in the early curve.
+
+The fix for the tier-3→4 wall is a separate balance task — the headline path is overlapping `tier3_net.targets_tiers` to include tier 4, or adding cross-tier drops. The simulator is committed so future balance edits can be regression-checked by diffing the output report.
+
+**Limitations**
+
+- **Auto-catch only.** Tap-grinding isn't modeled. Doesn't matter for tiers past ~3 (where catch difficulty makes tap progress negligible) but the player is handed `basic_net` for free at sim start to skip the bootstrap.
+- **No battles.** Battle RP is a separate income stream the sim under-reports.
+- **Player AI is one fixed policy.** A real human's prestige intuition varies; the patient-gate heuristic is a baseline, not the only valid policy.
+
+**Tests (181 passing, no count change)**
+
+The sim is invoked manually for QA, not in CI. GUT suites are unaffected.
+
 ### v0.9.3 — Debug number-key shortcut + restored Maestro coverage
 
 **Why**
