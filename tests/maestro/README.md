@@ -21,9 +21,12 @@ content area changed*. Maestro on an emulator gives us that.
 - **Coordinate-based taps**, not text-based. Godot renders all UI to a single
   GL canvas, so Maestro's Android accessibility tree only sees one big
   surface — `tapOn: "Battle"` doesn't work. Flows use percentage points
-  (`tapOn: { point: "25%, 5%" }`) which are calibrated for the Pixel 6
-  emulator's 1080×2400 portrait resolution. If the emulator profile changes,
-  re-calibrate.
+  (`tapOn: { point: "25%, 5%" }`) which are resolution-independent. The CI
+  emulator profile is **Pixel 4 / API 33 / default target** (no Google APIs
+  — boots ~2× faster on the Linux runner without KVM hardware acceleration,
+  and we don't need Play Services because AdMob and Cloud Sync are stubbed
+  in dev builds). If the profile changes again, percentages should still
+  work but worth re-calibrating.
 - **Default emulator ≠ Galaxy Z Fold7**. The Pixel 6 emulator is a 9:20
   conventional phone. Foldable-specific bugs (the kind we hit on the user's
   inner display) won't always reproduce here. Tier 3 (Firebase Test Lab on a

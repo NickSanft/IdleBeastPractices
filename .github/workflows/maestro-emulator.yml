@@ -140,28 +140,39 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-pixel-6-api-34-v1
+          key: avd-pixel-4-api-33-default-v2
 
       - name: Generate AVD snapshot for caching
+        # First-run-only step: cold-boot the emulator and persist a
+        # snapshot to the cache so subsequent runs start from a hot
+        # snapshot in seconds instead of cold-booting (~5-10 min on
+        # Linux runners without KVM).
+        # The "default" target (no google_apis) boots roughly twice as
+        # fast as "google_apis" since it skips Play Services
+        # initialization. We don't need Play Services for these flows
+        # — AdMob and Cloud Sync are stubbed in dev builds.
+        # Note: omit `-no-snapshot-save` here so the snapshot actually
+        # persists; the run-tests step below adds it to avoid mutating
+        # the cached snapshot.
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 33
+          target: default
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_4
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: echo "Generated AVD snapshot for caching."
 
       - name: Run Maestro flows on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 33
+          target: default
           arch: x86_64
-          profile: pixel_6
+          profile: pixel_4
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           disable-animations: true
