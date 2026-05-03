@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Phase 7a — Cloud sync scaffolding (resolver + abstract backend)
+
+**Added**
+- **`SaveConflictResolver`** ([game/systems/save_conflict_resolver.gd](game/systems/save_conflict_resolver.gd)) — pure static `resolve(local, remote) -> Dictionary` function that merges two save dicts (e.g. local + cloud) using these rules per field:
+  - **Monotonic accumulating** (preserve from BOTH saves so divergent offline play never loses progress): `pets_owned`, `pet_variants_owned`, `recipes_crafted`, `nets_owned` UNION; `monsters_caught` per-species per-{normal,shiny} MAX; `ledger` per-counter MAX (with `first_launch_unix` taking the earliest non-zero value); `narrator_state.lines_seen` per-line MAX; `prestige_count`, `current_max_tier` MAX.
+  - **Last-write-wins** (the save with the higher `last_saved_unix` represents "where the player is now"): `currencies`, `inventory`, `active_net`, `current_battle`, `upgrades_purchased`, `tiers_completed`, `session_id`, `total_gold_earned_this_run`.
+  - **Schema**: `version` MAX, `last_saved_unix` MAX. Tied timestamps prefer the remote save so two pristine devices converge on the same fixpoint regardless of which one runs the resolver.
+- **`CloudSyncBackend`** ([game/systems/cloud_sync_backend.gd](game/systems/cloud_sync_backend.gd)) — abstract `RefCounted` defining the sign-in / upload / download contract. Signals: `sign_in_complete(success, error)`, `sign_out_complete()`, `upload_complete(success, error)`, `download_complete(data, success, error)`. Mirrors the `AdsBackend` pattern from Phase 6: Phase 7b will swap the stub for a real `PlayGamesCloudBackend` wrapping the Saved Games API on Android, callers stay backend-agnostic.
+- **`StubCloudSyncBackend`** ([game/systems/stub_cloud_sync_backend.gd](game/systems/stub_cloud_sync_backend.gd)) — in-memory only. `sign_in()` succeeds immediately; `upload(state)` records the dict; `download()` returns the last upload (or `{}` if no upload ever happened, simulating a fresh device pulling cloud state). All callbacks deferred via `call_deferred` so the orchestrator's signal-handler invariants match a real async backend.
+
+**Tests (159 passing, +24)**
+- `test_save_conflict_resolver.gd` (16 tests) — every merge rule covered: empty-input handling, last-write-wins on non-monotonic fields, pet/recipe/net union, bestiary per-species MAX, ledger per-counter MAX with `first_launch_unix=MIN` and zero-handling, `current_max_tier` / `prestige_count` / `version` MAX, narrator `lines_seen` per-line MAX, `last_saved_unix` tiebreak determinism, input-mutation safety.
+- `test_stub_cloud_sync_backend.gd` (8 tests) — sign-in flips state and emits, sign-out clears, upload-while-signed-out fails cleanly, upload→download round-trip preserves payload, first-time download returns empty dict, upload doesn't mutate caller's state.
+
+**What's NOT in this phase**
+- No real cloud provider — the stub doesn't talk to a network. Phase 7b will vendor a Play Games Services Godot plugin and wire `PlayGamesCloudBackend`.
+- `SaveManager` is unchanged. The resolver and backend exist as standalone primitives ready for the orchestration layer Phase 7b will add (sync-on-login, upload-after-save, download-and-resolve at startup).
+- No UI yet (no "Sign in to Google Play Games" button). Coming in 7b alongside the real backend.
+
 ### v0.7.5 — Android save lifecycle + debug-toggle default off
 
 **Fixed**

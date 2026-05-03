@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8mxk2pdx7v01"]
+[gd_scene format=3 uid="uid://b8mxk2pdx7v01"]
 
 [ext_resource type="Script" path="res://game/scenes/ui/ad_diagnostic_overlay.gd" id="1_admdiag"]
 
