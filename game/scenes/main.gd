@@ -91,6 +91,9 @@ func _ready() -> void:
 	_install_global_haptic_feedback()
 	_build_ui()
 	_install_celebrations()
+	# Phase 11d: empty-state hint buttons in Battle / Crafting can
+	# request a tab switch without reaching into Main directly.
+	EventBus.tab_switch_requested.connect(_navigate_to_tab)
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
 	GameState.reconcile_pet_awards()

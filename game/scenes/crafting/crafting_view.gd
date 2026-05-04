@@ -55,12 +55,67 @@ func _refresh() -> void:
 		return
 	for child in _list.get_children():
 		child.queue_free()
+	var visible_count: int = 0
+	var next_locked_tier: int = -1
 	for r in ContentRegistry.recipes():
 		# Hide recipes whose tier requirement is more than 1 above current
 		# max — the player shouldn't see things that don't yet exist as content.
 		if int(r.tier_required) > int(GameState.current_max_tier) + 1:
+			# Track the smallest tier_required among hidden recipes so
+			# the empty-state hint can tell the player when the next
+			# unlock arrives.
+			if next_locked_tier < 0 or int(r.tier_required) < next_locked_tier:
+				next_locked_tier = int(r.tier_required)
 			continue
 		_list.add_child(_build_recipe_card(r))
+		visible_count += 1
+	# Phase 11d: empty-state hint when no recipes are visible. The
+	# crafting tab should never feel like an empty void; tell the
+	# player when their next unlock arrives.
+	if visible_count == 0:
+		_list.add_child(_build_empty_state_card(next_locked_tier))
+
+
+## Phase 11d empty-state card. Shown when no recipes are currently
+## available to craft (typically pre-tier-1-completion). Tells the
+## player when their next recipe unlocks and offers a tab-jump back
+## to the catch view so they can grind toward it.
+func _build_empty_state_card(next_locked_tier: int) -> Control:
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", 16)
+	margins.add_theme_constant_override("margin_right", 16)
+	margins.add_theme_constant_override("margin_top", 16)
+	margins.add_theme_constant_override("margin_bottom", 16)
+	card.add_child(margins)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 8)
+	margins.add_child(vbox)
+
+	var heading := Label.new()
+	heading.text = "Nothing crafted here yet"
+	heading.add_theme_font_size_override("font_size", 18)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(heading)
+
+	var hint := Label.new()
+	if next_locked_tier > 0:
+		hint.text = "Recipes start unlocking at tier %d. Catch monsters to advance." % next_locked_tier
+	else:
+		hint.text = "Recipes will unlock as you progress through tiers."
+	hint.modulate = Color(0.85, 0.85, 0.85)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(hint)
+
+	var to_catch_btn := Button.new()
+	to_catch_btn.text = "Go to Catch"
+	to_catch_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	to_catch_btn.pressed.connect(func() -> void:
+		EventBus.tab_switch_requested.emit("Catch"))
+	vbox.add_child(to_catch_btn)
+	return card
 
 
 func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:

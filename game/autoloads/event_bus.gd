@@ -61,3 +61,10 @@ extends Node
 # region — Ads
 @warning_ignore("unused_signal") signal rewarded_video_completed(reward_id: String, granted: bool)
 # endregion
+
+# region — Navigation
+# Phase 11d — empty-state hint buttons fire this so any screen can
+# request a primary-tab switch without reaching into main.gd. Main
+# subscribes and routes to _navigate_to_tab.
+@warning_ignore("unused_signal") signal tab_switch_requested(tab_name: String)
+# endregion

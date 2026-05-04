@@ -6,6 +6,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.11.3 — Phase 11d: Progression visibility
+
+**Why**
+
+The audit's #3 cluster: new players had to deduce the loop. Tier-up arrived as a surprise (no "23/25 caught" indicator). The Battle tab's "no pets" empty state had no path forward. The Crafting tab pre-tier-1 was a literal empty void with no hint of when something would unlock. Per Pecorella's GDC Europe talk, idle games should layer goal horizons; the catching screen had none.
+
+**Added**
+
+- **[`game/scenes/ui/next_goal_chip.tscn`](game/scenes/ui/next_goal_chip.tscn) + [`.gd`](game/scenes/ui/next_goal_chip.gd)** — compact tier-progress indicator. Themed PanelContainer + Label + ProgressBar. Two display modes:
+  - "Tier N: K species left to find" while any tier-N species is unseen.
+  - "Tier N: K / 25 catches" once every species is at least seen — surfaces the actual catch count toward the unlock.
+  - Subscribes to `EventBus.monster_caught`, `tier_completed`, `game_loaded`. Disconnects in `_exit_tree` so the chip is signal-leak-clean across instantiations.
+  - Reads the same threshold the awarding code uses (`_TIER_DEBUG_THRESHOLD` vs `_TIER_COMPLETE_CATCH_THRESHOLD`) gated by `Settings.debug_fast_pets`, so the chip and the actual unlock condition stay in sync.
+- **Mounted on the catching view** at top-right (anchor 1,0,1,0; offsets -200/12/-12/56). Sits just below the currency_bar in the natural eye-scan path.
+
+**Empty-state hints**
+
+- **Battle tab without pets** ([battle_view.gd `_render_idle`](game/scenes/battle/battle_view.gd)) now surfaces a "Go to Catch" button below the "Complete a tier..." message. Players never get stuck on an empty Battle screen.
+- **Crafting tab without unlocked recipes** ([crafting_view.gd `_refresh`](game/scenes/crafting/crafting_view.gd)) shows a centered "Nothing crafted here yet" card with the next-tier-required teaser ("Recipes start unlocking at tier N. Catch monsters to advance.") and a "Go to Catch" button.
+
+**Cross-screen navigation**
+
+- **`EventBus.tab_switch_requested(tab_name)`** — new signal so any screen can request a primary-tab switch without coupling to main.gd. Main subscribes and routes to the existing `_navigate_to_tab`.
+
+**Tests (277 passing, +4)**
+
+- [`game/tests/test_next_goal_chip.gd`](game/tests/test_next_goal_chip.gd) — 4 tests:
+  - Fresh state shows "species left to find" message.
+  - After catching one of every tier-1 species, switches to "X / 25 catches" mode.
+  - Progress bar tracks `max_count / threshold` (15/25 ≈ 0.6).
+  - Bar clamps at 1.0 even when `max_count` exceeds threshold.
+- Full GUT suite: **277/277 passing, 3185 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes / future work**
+
+- POLISH_PLAN finding F15 (prestige progress meter on Catch/Battle tabs) is **not** addressed here. The catch screen now shows "what's next at this tier"; surfacing prestige progress requires more design (where does it live? how do we keep it from cluttering the catching view further?). Deferred.
+- The next_goal_chip UI is single-line; multi-line goal horizons (Pecorella's seconds/minutes/hours/days framing) are a richer future project.
+
 ### v0.11.2 — Phase 11c: Production hygiene
 
 **Why**

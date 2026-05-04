@@ -125,6 +125,14 @@ func _render_idle() -> void:
 		label.modulate = Color(0.85, 0.85, 0.85)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_content_box.add_child(label)
+		# Phase 11d: empty state must give the player a path forward.
+		# Switch to the Catch tab on tap.
+		var to_catch_btn := Button.new()
+		to_catch_btn.text = "Go to Catch"
+		to_catch_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		to_catch_btn.pressed.connect(func() -> void:
+			EventBus.tab_switch_requested.emit("Catch"))
+		_content_box.add_child(to_catch_btn)
 		_status_label.text = "No pets in roster"
 		_action_button.text = "Fight"
 		_action_button.disabled = true

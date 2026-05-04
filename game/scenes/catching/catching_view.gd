@@ -4,6 +4,7 @@ extends Control
 const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_instance.tscn")
 const _FLOATING_NUMBER_SCENE := preload("res://game/scenes/ui/floating_number.tscn")
 const _BACKGROUND_SCENE := preload("res://game/scenes/catching/catching_background.tscn")
+const _NEXT_GOAL_CHIP := preload("res://game/scenes/ui/next_goal_chip.tscn")
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
 const _DEBUG_LOG := true
@@ -43,6 +44,7 @@ func _ready() -> void:
 	_spawn_bounds = Rect2(20, 80, viewport_size.x - 40, viewport_size.y - 200)
 	resized.connect(_on_resized)
 	_build_drops_2x_button()
+	_build_next_goal_chip()
 	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
 	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
 	# Seed: if there's no active net, the catch screen still works (taps only).
@@ -382,6 +384,23 @@ func _award_tier_completion(catch_tier: int) -> void:
 	if GameState.current_max_tier <= catch_tier:
 		GameState.current_max_tier = catch_tier + 1
 		EventBus.tier_unlocked.emit(GameState.current_max_tier)
+
+
+## Phase 11d: surface tier-completion progress so the player always
+## knows what they're working toward. Anchored top-right; reads
+## current tier + monsters_caught and renders a compact progress
+## chip via next_goal_chip.gd. Self-subscribes to EventBus.
+func _build_next_goal_chip() -> void:
+	var chip: PanelContainer = _NEXT_GOAL_CHIP.instantiate()
+	chip.anchor_left = 1.0
+	chip.anchor_top = 0.0
+	chip.anchor_right = 1.0
+	chip.anchor_bottom = 0.0
+	chip.offset_left = -200
+	chip.offset_top = 12
+	chip.offset_right = -12
+	chip.offset_bottom = 56
+	add_child(chip)
 
 
 func _build_drops_2x_button() -> void:
