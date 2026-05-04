@@ -38,6 +38,24 @@ var haptics_enabled: bool = true
 ## per battle_view._SPEED_OPTIONS.
 var battle_speed_index: int = 0
 
+## Phase 12b — hold-to-tap accessibility. When `hold_to_tap_enabled`
+## is true and the player holds finger on a monster, the catching
+## view fires repeat tap events at `hold_tap_rate_hz`. Per Game
+## Accessibility Guidelines, hold-to-tap is the highest-leverage
+## clicker accessibility addition: it serves players with RSI, motor
+## sensitivities, and players whose phones can't keep up with rapid
+## taps. Defaults off so existing players see no behavior change.
+var hold_to_tap_enabled: bool = false
+var hold_tap_rate_hz: float = 8.0
+const HOLD_TAP_RATE_MIN := 4.0
+const HOLD_TAP_RATE_MAX := 16.0
+
+## Phase 12b — color-blind redundancy. When on, bestiary slot pills +
+## shiny floating-number cues add shape/icon variation alongside
+## color so players who can't distinguish certain colors still parse
+## the state. Defaults off — color-blind users opt in via Settings.
+var colorblind_mode: bool = false
+
 # Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
 # Default off so production builds use the real catch threshold (25) and
 # real variant_rate per pet. F2 flips it on for hand-testing.
@@ -101,6 +119,31 @@ func set_battle_speed_index(value: int) -> void:
 	save_to_disk()
 
 
+func set_hold_to_tap_enabled(value: bool) -> void:
+	if hold_to_tap_enabled == value:
+		return
+	hold_to_tap_enabled = value
+	accessibility_settings_changed.emit()
+	save_to_disk()
+
+
+func set_hold_tap_rate_hz(value: float) -> void:
+	var clamped: float = clampf(value, HOLD_TAP_RATE_MIN, HOLD_TAP_RATE_MAX)
+	if is_equal_approx(hold_tap_rate_hz, clamped):
+		return
+	hold_tap_rate_hz = clamped
+	accessibility_settings_changed.emit()
+	save_to_disk()
+
+
+func set_colorblind_mode(value: bool) -> void:
+	if colorblind_mode == value:
+		return
+	colorblind_mode = value
+	accessibility_settings_changed.emit()
+	save_to_disk()
+
+
 func _ready() -> void:
 	load_from_disk()
 
@@ -117,6 +160,9 @@ func load_from_disk() -> void:
 	reduce_motion = cfg.get_value("accessibility", "reduce_motion", reduce_motion)
 	font_scale = cfg.get_value("accessibility", "font_scale", font_scale)
 	haptics_enabled = cfg.get_value("accessibility", "haptics_enabled", haptics_enabled)
+	hold_to_tap_enabled = cfg.get_value("accessibility", "hold_to_tap_enabled", hold_to_tap_enabled)
+	hold_tap_rate_hz = cfg.get_value("accessibility", "hold_tap_rate_hz", hold_tap_rate_hz)
+	colorblind_mode = cfg.get_value("accessibility", "colorblind_mode", colorblind_mode)
 	battle_speed_index = cfg.get_value("gameplay", "battle_speed_index", battle_speed_index)
 
 
@@ -128,5 +174,8 @@ func save_to_disk() -> void:
 	cfg.set_value("accessibility", "reduce_motion", reduce_motion)
 	cfg.set_value("accessibility", "font_scale", font_scale)
 	cfg.set_value("accessibility", "haptics_enabled", haptics_enabled)
+	cfg.set_value("accessibility", "hold_to_tap_enabled", hold_to_tap_enabled)
+	cfg.set_value("accessibility", "hold_tap_rate_hz", hold_tap_rate_hz)
+	cfg.set_value("accessibility", "colorblind_mode", colorblind_mode)
 	cfg.set_value("gameplay", "battle_speed_index", battle_speed_index)
 	cfg.save(SETTINGS_PATH)

@@ -21,6 +21,15 @@ var _instance_counter: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _drops_2x_button: Button   # rewarded-video bonus toggle
 
+# Phase 12b — hold-to-tap state. While `_hold_active`, _process
+# accumulates time and fires synthetic tap-resolves at the rate set
+# in Settings. `_hold_pos` retains the last known finger position so
+# moving the finger across multiple monsters still resolves taps on
+# whatever's under it.
+var _hold_active: bool = false
+var _hold_pos: Vector2 = Vector2.ZERO
+var _hold_accumulator: float = 0.0
+
 
 func _ready() -> void:
 	ContentRegistry.ensure_loaded()
@@ -59,32 +68,66 @@ func _on_resized() -> void:
 func _process(delta: float) -> void:
 	_handle_spawning(delta)
 	_handle_auto_catch(delta)
+	_handle_hold_to_tap(delta)
+
+
+## Phase 12b: while a hold is active, fire repeat taps at the rate
+## configured in Settings. Accumulator-based so the rate stays steady
+## even if frame deltas vary.
+func _handle_hold_to_tap(delta: float) -> void:
+	if not _hold_active or not Settings.hold_to_tap_enabled:
+		return
+	var rate: float = max(0.5, float(Settings.hold_tap_rate_hz))
+	var period: float = 1.0 / rate
+	_hold_accumulator += delta
+	while _hold_accumulator >= period:
+		_resolve_tap_at(_hold_pos)
+		_hold_accumulator -= period
 
 
 ## Detect taps and hit-test against on-screen monster instances. We use
 ## _gui_input rather than Area2D.input_event because Area2D physics picking
 ## doesn't reliably fire when the Area2D lives under a TabContainer's content
 ## Control — the GUI consumes the click before the picking pass.
+##
+## v0.12.1 (Phase 12b): also tracks hold-to-tap state. Press starts
+## hold-mode; release ends it. Movement updates the tracked position
+## so dragging across multiple monsters still hits whatever's under
+## the finger. The actual tap repeats fire from `_process` rather
+## than here so the rate is decoupled from input event frequency.
 func _gui_input(event: InputEvent) -> void:
-	var is_tap: bool = false
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		is_tap = true
-	elif event is InputEventScreenTouch and event.pressed:
-		is_tap = true
-	if not is_tap:
+	# Press → resolve tap immediately + arm hold (if enabled).
+	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) \
+			or (event is InputEventScreenTouch and event.pressed):
+		_resolve_tap_at(event.position)
+		if Settings.hold_to_tap_enabled:
+			_hold_active = true
+			_hold_pos = event.position
+			_hold_accumulator = 0.0
 		return
-	# event.position is in this Control's local coords. Node2D children of
-	# the Control share the same local space (Node2D.position == screen-relative
-	# offset from the Control's top-left).
-	var click_local: Vector2 = event.position
+	# Release → end hold.
+	if (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed) \
+			or (event is InputEventScreenTouch and not event.pressed):
+		_hold_active = false
+		return
+	# Drag — update tracked position so the next hold-tap fires at the
+	# new spot (dragging across monsters resolves them in turn).
+	if _hold_active and event is InputEventMouseMotion:
+		_hold_pos = event.position
+	elif _hold_active and event is InputEventScreenDrag:
+		_hold_pos = event.position
+
+
+## Resolve a tap at the given local position. Extracted from
+## _gui_input so the hold-to-tap path can call it directly without
+## fabricating a fake InputEvent.
+func _resolve_tap_at(click_local: Vector2) -> void:
 	if _DEBUG_LOG:
-		print("[catch] _gui_input click @ %s, %d on-screen monsters" % [
+		print("[catch] tap @ %s, %d on-screen monsters" % [
 			click_local, _spawn_root.get_child_count() if _spawn_root != null else 0,
 		])
 	var hit: Node2D = _find_monster_at(click_local)
 	if hit == null:
-		# Phase 10b: miss-tap feedback — a small ripple + soft SFX so the
-		# player still feels acknowledged when they tap empty space.
 		_spawn_miss_tap_ripple(click_local)
 		AudioManager.play_miss_tap_sfx()
 		return

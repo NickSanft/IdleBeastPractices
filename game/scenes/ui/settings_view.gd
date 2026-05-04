@@ -194,6 +194,75 @@ func _build_accessibility_section(parent: Container) -> void:
 	hap_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hap_row.add_child(hap_label)
 
+	# Phase 12b: hold-to-tap. Highest-leverage clicker accessibility
+	# add per Game Accessibility Guidelines — serves players with
+	# RSI / motor sensitivities + phones that can't keep up with
+	# rapid taps. Defaults off so existing players see no change.
+	var hold_row := HBoxContainer.new()
+	hold_row.add_theme_constant_override("separation", 12)
+	section.add_child(hold_row)
+	var hold_check := CheckBox.new()
+	hold_check.button_pressed = Settings.hold_to_tap_enabled
+	hold_check.toggled.connect(func(on: bool) -> void:
+		Settings.set_hold_to_tap_enabled(on))
+	hold_row.add_child(hold_check)
+	var hold_label := Label.new()
+	hold_label.text = "Hold to auto-tap"
+	hold_label.add_theme_font_size_override("font_size", 16)
+	hold_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hold_row.add_child(hold_label)
+
+	# Hold rate slider — only meaningful when the toggle is on, but
+	# always editable; the rate persists either way.
+	var rate_header := HBoxContainer.new()
+	section.add_child(rate_header)
+	var rate_name := Label.new()
+	rate_name.text = "Hold tap rate"
+	rate_name.add_theme_font_size_override("font_size", 16)
+	rate_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rate_header.add_child(rate_name)
+	var rate_value := Label.new()
+	rate_value.text = "%.0f Hz" % Settings.hold_tap_rate_hz
+	rate_value.add_theme_font_size_override("font_size", 14)
+	rate_value.modulate = _PALETTE.SEPIA_MID
+	rate_header.add_child(rate_value)
+
+	var rate_slider := HSlider.new()
+	rate_slider.min_value = Settings.HOLD_TAP_RATE_MIN
+	rate_slider.max_value = Settings.HOLD_TAP_RATE_MAX
+	rate_slider.step = 1.0
+	rate_slider.value = Settings.hold_tap_rate_hz
+	rate_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rate_slider.value_changed.connect(func(v: float) -> void:
+		Settings.set_hold_tap_rate_hz(v)
+		rate_value.text = "%.0f Hz" % Settings.hold_tap_rate_hz)
+	section.add_child(rate_slider)
+
+	# Phase 12b: color-blind mode toggle. Adds shape redundancy
+	# (✓ / · suffixes) on bestiary slot pills so filled vs unfilled
+	# state reads without color discrimination.
+	var cb_row := HBoxContainer.new()
+	cb_row.add_theme_constant_override("separation", 12)
+	section.add_child(cb_row)
+	var cb_check := CheckBox.new()
+	cb_check.button_pressed = Settings.colorblind_mode
+	cb_check.toggled.connect(func(on: bool) -> void:
+		Settings.set_colorblind_mode(on))
+	cb_row.add_child(cb_check)
+	var cb_label := Label.new()
+	cb_label.text = "Color-blind mode"
+	cb_label.add_theme_font_size_override("font_size", 16)
+	cb_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cb_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cb_row.add_child(cb_label)
+	var cb_blurb := Label.new()
+	cb_blurb.text = "Adds shape markers alongside color so bestiary slot states are readable without color discrimination."
+	cb_blurb.add_theme_font_size_override("font_size", 13)
+	cb_blurb.modulate = _PALETTE.SEPIA_MID
+	cb_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(cb_blurb)
+
 	# Font scale slider.
 	var font_header := HBoxContainer.new()
 	section.add_child(font_header)

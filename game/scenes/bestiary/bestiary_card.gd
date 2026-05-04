@@ -239,7 +239,14 @@ func slot_state() -> int:
 
 func _pill(glyph: String, filled: bool, color: Color, hint: String) -> Control:
 	var label := Label.new()
-	label.text = glyph
+	# Phase 12b colorblind mode: append a redundant shape token (✓ for
+	# filled, · for unfilled) so the filled/unfilled state is readable
+	# without distinguishing the modulate color from the dim outline.
+	# Defaults off — only colorblind_mode users see the suffix.
+	if Settings.colorblind_mode:
+		label.text = "%s%s" % [glyph, "✓" if filled else "·"]
+	else:
+		label.text = glyph
 	label.add_theme_font_size_override("font_size", 18)
 	label.modulate = color if filled else Color(0.55, 0.5, 0.4, 0.45)
 	label.tooltip_text = hint

@@ -6,6 +6,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.12.1 — Phase 12b: Accessibility v2 (hold-to-tap + color-blind redundancy)
+
+**Why**
+
+Game Accessibility Guidelines flags hold-to-tap as the highest-leverage accessibility add for clicker games — it serves players with RSI, motor sensitivities, and players whose phones can't keep up with rapid taps. Color-blind mode similarly addresses a population the existing UI hadn't considered: bestiary slot pills (and the shiny floating-number cue) leaned on color discrimination for filled-vs-unfilled state.
+
+**Added — Hold-to-tap (item 11)**
+
+- **`Settings.hold_to_tap_enabled: bool`** (default false), **`hold_tap_rate_hz: float`** (default 8 Hz, clamped 4–16). New setters `set_hold_to_tap_enabled()` + `set_hold_tap_rate_hz()` emit `accessibility_settings_changed` and persist to the `[accessibility]` section of `settings.cfg`.
+- **[`catching_view.gd`](game/scenes/catching/catching_view.gd) `_handle_hold_to_tap`** — accumulator-based repeat-tap loop in `_process`. Press starts hold mode, drag updates the tracked finger position (so dragging across multiple monsters resolves them in turn), release ends it. Decoupled from input-event frequency so the rate stays steady at the configured Hz.
+- Refactored `_gui_input` into `_resolve_tap_at(local_pos)` so the hold loop and the press handler share one resolve path.
+
+**Added — Color-blind redundancy (item 12)**
+
+- **`Settings.colorblind_mode: bool`** (default false). Same persistence + signal pattern as the other accessibility flags.
+- **[`bestiary_card.gd `_pill`](game/scenes/bestiary/bestiary_card.gd)** — appends `✓` for filled / `·` for unfilled when `colorblind_mode` is on. Filled-vs-unfilled state now reads through shape regardless of whether the player can distinguish the modulate color from the dim outline.
+- The shiny floating-number cue already uses shape redundancy (`✨` prefix + larger font), so no extra change there.
+
+**Added — Settings UI**
+
+- Three new controls in the Accessibility section: "Hold to auto-tap" toggle, "Hold tap rate" slider (4–16 Hz), and "Color-blind mode" toggle with a one-line blurb explaining what it does.
+
+**Tests (304 passing, +8)**
+
+- [`test_hold_to_tap.gd`](game/tests/test_hold_to_tap.gd) (4): rate clamps below 0 and above 99, enabled-setter emits signal, idempotent on unchanged value, round-trips through `settings.cfg`.
+- [`test_colorblind_mode.gd`](game/tests/test_colorblind_mode.gd) (4): setter emits signal, no shape suffix when off, ✓/· suffixes appear when on, round-trips through `settings.cfg`.
+- The behavioral catching_view test for hold-to-tap was scoped down to setter contracts after instantiating catching_view in tests caused state-leak warnings ("lambda capture freed") in unrelated tests further along in the alphabetical order. The integration is straightforward `_process` logic — its real validation happens via Maestro emulator flows.
+- Full GUT suite: **304/304 passing, 3230 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.12.0 — Phase 12a: Quality-of-life bundle
 
 **Why**

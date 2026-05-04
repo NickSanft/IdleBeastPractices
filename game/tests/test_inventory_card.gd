@@ -6,6 +6,18 @@ extends GutTest
 const _CARD := preload("res://game/scenes/ui/inventory_card.tscn")
 
 
+## RefCounted helper that turns a signal into a list of received
+## ids. Avoids the "lambda capture freed" engine warning that showed
+## up when connecting a closure-over-local-Array to a card signal —
+## a RefCounted instance lives as long as the test holds a ref to
+## it, so its captured method always has a valid `self`.
+class _IdCaptor:
+	extends RefCounted
+	var ids: Array = []
+	func on_id(id: StringName) -> void:
+		ids.append(id)
+
+
 func _new_item(rarity_value: int = 0) -> ItemResource:
 	var item := ItemResource.new()
 	item.id = &"test_item"
@@ -56,28 +68,26 @@ func test_rarity_applies_distinct_border_colors() -> void:
 func test_short_press_emits_card_tapped() -> void:
 	var card := _new_card(_new_item(), 1)
 	await wait_frames(1)
-	var captured: Array = []
-	card.card_tapped.connect(func(id: StringName) -> void: captured.append(id))
-	# Simulate press + release within long-press threshold.
+	var captor := _IdCaptor.new()
+	card.card_tapped.connect(captor.on_id)
 	var press := InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
 	card._gui_input(press)
-	# Brief hold under 500 ms.
 	await wait_frames(2)
 	var release := InputEventMouseButton.new()
 	release.button_index = MOUSE_BUTTON_LEFT
 	release.pressed = false
 	card._gui_input(release)
-	assert_eq(captured.size(), 1)
-	assert_eq(captured[0], &"test_item")
+	assert_eq(captor.ids.size(), 1)
+	assert_eq(captor.ids[0], &"test_item")
 
 
 func test_long_hold_emits_card_long_pressed() -> void:
 	var card := _new_card(_new_item(), 1)
 	await wait_frames(1)
-	var captured: Array = []
-	card.card_long_pressed.connect(func(id: StringName) -> void: captured.append(id))
+	var captor := _IdCaptor.new()
+	card.card_long_pressed.connect(captor.on_id)
 	var press := InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
@@ -85,5 +95,5 @@ func test_long_hold_emits_card_long_pressed() -> void:
 	# Wait past the 500 ms threshold so the _process polling fires
 	# the long-press signal mid-hold.
 	await wait_seconds(0.6)
-	assert_gte(captured.size(), 1, "long_pressed must fire after 500ms hold")
-	assert_eq(captured[0], &"test_item")
+	assert_gte(captor.ids.size(), 1, "long_pressed must fire after 500ms hold")
+	assert_eq(captor.ids[0], &"test_item")
