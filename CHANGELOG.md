@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.11.2 — Phase 11c: Production hygiene
+
+**Why**
+
+The Phase 10 audit flagged three diagnostic overlays + two debug keyboard shortcuts as production-leaks: shipping with the touch-debug overlay paints **green outlines around every Button** in release builds (a visible "this is in development" tell), the save-indicator flashes "Saved <HH:MM:SS>" every save tick (no end-user value), and F3 silently wipes the save with no confirmation if a Bluetooth keyboard happens to send the keystroke.
+
+These were left in production through Phase 10 because the Android input + save-lifecycle bugs they debugged were still being investigated. Those are resolved now.
+
+**Fixed**
+
+- **[`main.gd` `_build_ui`](game/scenes/main.gd)** — `_AD_DIAGNOSTIC_OVERLAY`, `_SAVE_INDICATOR_OVERLAY`, `_TOUCH_DEBUG_OVERLAY` instantiation now gated behind `OS.is_debug_build()`. Release builds get a clean UI.
+- **[`main.gd` `_unhandled_input`](game/scenes/main.gd)** — F2 (debug_fast_pets toggle) and F3 (full save reset) gated behind `OS.is_debug_build()` at the top of the handler. The number-key shortcut block immediately below was already gated; this just covers the two function keys that weren't.
+
+**Tests (273 passing, no count change)**
+
+- Pure plumbing change — existing test suite catches structural regressions and stays green.
+- Full GUT suite: 273/273 passing, 3181 asserts.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes**
+
+- Emoji-glyph nav icons (POLISH_PLAN finding F62) are still in place — replacing them with shipped PNG icons requires authoring 11 nav-bar glyphs, deferred until the broader sprite-asset pass.
+
 ### v0.11.1 — Phase 11b: Accessibility section (reduce motion + haptics + font scale)
 
 **Why**

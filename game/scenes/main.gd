@@ -221,25 +221,22 @@ func _build_ui() -> void:
 	var overlay: Control = _NARRATOR_OVERLAY.instantiate()
 	add_child(overlay)
 
-	# Top-of-screen banner that surfaces ad lifecycle events for debugging.
-	# Subscribes to AdsManager.requested / rewarded_completed / rewarded_failed.
-	_ad_diag_overlay = _AD_DIAGNOSTIC_OVERLAY.instantiate()
-	add_child(_ad_diag_overlay)
+	# v0.11.2 (Phase 11c): three diagnostic overlays — ad lifecycle
+	# banner, "Saved <HH:MM:SS>" toast, touch crosshair — gated behind
+	# OS.is_debug_build(). They were left on in production through
+	# Phase 10 because the Android input + save-lifecycle bugs they
+	# debugged were still being investigated; those are resolved now,
+	# so release builds no longer paint green outlines on every Button
+	# (touch debug) or flash "Saved" toasts every save tick.
+	if OS.is_debug_build():
+		_ad_diag_overlay = _AD_DIAGNOSTIC_OVERLAY.instantiate()
+		add_child(_ad_diag_overlay)
 
-	# Bottom-right toast that flashes "Saved <HH:MM:SS>" each time
-	# SaveManager.save() commits — diagnostic for the v0.8.2 cycle so
-	# the user can verify save lifecycle hooks are actually firing on
-	# Android. Cheap; subscribes to EventBus.game_saved.
-	_save_indicator_overlay = _SAVE_INDICATOR_OVERLAY.instantiate()
-	add_child(_save_indicator_overlay)
+		_save_indicator_overlay = _SAVE_INDICATOR_OVERLAY.instantiate()
+		add_child(_save_indicator_overlay)
 
-	# Crosshair that paints at every touch / click position for ~0.8 s.
-	# v0.8.5 diagnostic — confirms whether Godot's hit-test coordinate
-	# matches where the user thought they tapped. Cheap (only paints
-	# while a tap is recent); will be gated behind a debug flag in a
-	# follow-up release once we've confirmed the user's input issue.
-	_touch_debug_overlay = _TOUCH_DEBUG_OVERLAY.instantiate()
-	add_child(_touch_debug_overlay)
+		_touch_debug_overlay = _TOUCH_DEBUG_OVERLAY.instantiate()
+		add_child(_touch_debug_overlay)
 
 
 ## Project-wide theme assigned to the root window so every Control
@@ -667,6 +664,12 @@ func _on_welcome_back_claimed(summary: Dictionary) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	# v0.11.2 (Phase 11c): F2 and F3 are debug-only. F3 in particular
+	# wipes save state with no confirm — a Bluetooth keyboard or
+	# accidental press on a desktop release build would silently
+	# erase progress. Production builds now ignore both keys.
+	if not OS.is_debug_build():
 		return
 	match event.keycode:
 		KEY_F2:
