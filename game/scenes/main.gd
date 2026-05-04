@@ -434,6 +434,12 @@ func _on_more_pressed() -> void:
 
 func _build_more_popup() -> void:
 	_more_popup = PopupPanel.new()
+	# PopupPanel is a Window subtype — Window subtrees don't inherit the
+	# theme of their parent Control, so without this assignment the
+	# popup falls back to Godot's default styleboxes (visibly: teal-
+	# green focus outlines on the secondary-nav buttons that don't
+	# match the rest of the parchment/brass UI).
+	_more_popup.theme = preload("res://game/resources/main_theme.tres")
 	add_child(_more_popup)
 
 	var margins := MarginContainer.new()

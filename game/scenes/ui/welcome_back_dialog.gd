@@ -21,6 +21,12 @@ func _ready() -> void:
 	get_ok_button().text = "Claim"
 	confirmed.connect(_on_confirmed)
 	min_size = Vector2(440, 280)
+	# AcceptDialog is a Window subtype — Window subtrees don't inherit
+	# the parent Control's theme, so without this assignment the dialog
+	# falls back to Godot's default styleboxes (visibly: white-on-parch
+	# RichTextLabel + teal-green button focus that doesn't match the
+	# rest of the parchment/brass UI).
+	theme = preload("res://game/resources/main_theme.tres")
 	_body_label = RichTextLabel.new()
 	_body_label.bbcode_enabled = true
 	_body_label.fit_content = true

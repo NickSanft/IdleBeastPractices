@@ -19,6 +19,9 @@ func _ready() -> void:
 	# so a long flavor line doesn't squash the sprite.
 	min_size = Vector2(360, 0)
 	exclusive = true   # tap outside dismisses
+	# Window subtypes don't inherit Control theme; assign explicitly so
+	# buttons + RichTextLabels in the modal use the parchment/brass theme.
+	theme = preload("res://game/resources/main_theme.tres")
 
 
 ## Build the body. Called by the view right before popup_centered.

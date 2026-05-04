@@ -217,6 +217,14 @@ LineEdit/styles/focus = SubResource("sb_lineedit_focus")
 
 PopupPanel/styles/panel = SubResource("sb_popup")
 
+; RichTextLabel inherits its body color from `default_color`, NOT from
+; Label's `font_color`. Without this entry, RTLs render white — which
+; vanishes against the parchment bubble Peniber's overlay sits in.
+; Applies to: narrator_overlay, prestige_view summary, crafting_view
+; recipe lines, welcome_back_dialog body.
+RichTextLabel/colors/default_color = Color(0.10, 0.07, 0.05, 1)
+RichTextLabel/font_sizes/normal_font_size = 16
+
 CheckBox/colors/font_color = Color(0.31, 0.22, 0.13, 1)
 CheckBox/colors/font_hover_color = Color(0.10, 0.07, 0.05, 1)
 CheckBox/colors/font_pressed_color = Color(0.10, 0.07, 0.05, 1)

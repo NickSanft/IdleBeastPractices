@@ -6,6 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.4 — Theme fixes for popups + RichTextLabel default color
+
+**Why**
+
+Two visual issues surfaced after Phase 10a–10d shipped, both rooted in the same gap:
+
+1. **More menu showed teal-green button outlines** that didn't match the rest of the parchment/brass UI.
+2. **Peniber's dialog bubble was unreadable** — pale text on the parchment background with the new bubble fill.
+
+**Root cause**
+
+- `PopupPanel`, `AcceptDialog`, and other `Popup`-family nodes are `Window` subtypes in Godot 4. **Window subtrees do not inherit theme from their parent Control's theme cascade.** They read from `get_tree().root.theme`, which `_apply_mobile_default_theme()` overrides at startup with a v0.8.3 dark-gray mobile theme. So popups have always lived in their own visual world; before Phase 10a the rest of the UI matched that world, so it didn't show. After Phase 10a the rest of the UI is parchment, and the popup mismatch became visible.
+- `Label/colors/font_color` does NOT cascade to `RichTextLabel`. RichTextLabel reads `RichTextLabel/colors/default_color`, which my Phase 10a theme didn't set — so RichTextLabels were rendering Godot's default white text. The narrator overlay's bubble has a parchment fill, so white-on-parchment was nearly invisible.
+
+**Fixed**
+
+- **[`game/resources/main_theme.tres`](game/resources/main_theme.tres)** — added `RichTextLabel/colors/default_color = INK_BLACK` and `RichTextLabel/font_sizes/normal_font_size = 16`. Five RichTextLabel uses (narrator_overlay, prestige_view summary, crafting_view recipes, welcome_back_dialog body, plus the Phase 10d card detail) now render with sepia text on parchment.
+- **[`game/scenes/main.gd`](game/scenes/main.gd)** `_build_more_popup` — assign `theme = main_theme.tres` to the More popup at construction time so its buttons paint with the parchment/brass styleboxes instead of inheriting the dark-gray root theme.
+- **[`game/scenes/bestiary/bestiary_card_detail.gd`](game/scenes/bestiary/bestiary_card_detail.gd)** `_ready` — same treatment for the Phase 10d bestiary detail modal.
+- **[`game/scenes/ui/welcome_back_dialog.gd`](game/scenes/ui/welcome_back_dialog.gd)** `_ready` — same for the welcome-back AcceptDialog. This was already broken before 10a (white-on-dark instead of white-on-parchment), but now visually consistent with the rest of the UI.
+
+**Tests (221 passing, no count change)**
+
+- Pure stylistic plumbing change; existing test suite catches structural regressions and stays green.
+- Full GUT suite: 221/221 passing, 3060 asserts.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.10.3 — Phase 10d: Bestiary cards
 
 **Why**
