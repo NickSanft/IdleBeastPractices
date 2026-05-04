@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.12.2 — Phase 12c: FTUE / Tutorial coachmarks
+
+**Why**
+
+The Phase 10 audit's #3 cluster: new players had to deduce the loop. There was zero scripted onboarding (`Grep tutorial|onboarding|coachmark` returned nothing). Per Pecorella's GDC framing, idle games shouldn't *teach* — they should *unlock* mechanics in sequence and surface the next mechanic when its trigger condition fires.
+
+Phase 12c lays the FTUE foundation: 4 contextually-fired coachmarks, persistent state so they don't replay, and a Replay-tutorial button in Settings.
+
+**Added**
+
+- **`TutorialState` autoload** ([`game/autoloads/tutorial_state.gd`](game/autoloads/tutorial_state.gd)) — tracks which steps have been completed. Persists to `user://tutorial.cfg`. API: `should_show(step_id)`, `mark_seen(step_id)`, `reset()`, `has_any_progress()`. Six step ids defined; four are wired in this iteration (`tap_first_monster`, `buy_first_net`, `enter_battle`, `craft_first_recipe`); `equip_net` and `complete_first_tier` remain in the registry as future hooks.
+- **[`game/scenes/ui/coachmark.tscn`](game/scenes/ui/coachmark.tscn) + [`.gd`](game/scenes/ui/coachmark.gd)** — focused tooltip overlay:
+  - `CanvasLayer` at layer 75 (below celebration_overlay 80, above narrator).
+  - Dim backdrop (40 % opacity) + pulsing brass-tinted arrow + themed text bubble.
+  - Anchors to a target Control's global rect; auto-flips arrow direction so the bubble sits above the target when target is in the bottom 60 % of the screen, below otherwise.
+  - Re-anchors each frame (`_process` calls `_reposition`) so the coachmark tracks targets that move (e.g., wandering monsters in future hooks).
+  - Tap anywhere dismisses, marks the step seen, fires `dismissed(step_id)`.
+  - Pulse animation skipped under `Settings.reduce_motion`.
+- **Tutorial director in [`main.gd`](game/scenes/main.gd) (`_install_tutorial_director`)** — subscribes to EventBus signals so coachmarks fire when their trigger conditions hit:
+  - `tap_first_monster` → first launch with zero catches → targets the Catch nav button.
+  - `buy_first_net` → reach 100 gold + no nets owned → targets More button (Shop is inside More).
+  - `enter_battle` → first `pet_acquired` signal → targets Battle nav button.
+  - `craft_first_recipe` → first `tier_unlocked(2)` with no recipes crafted → targets More button (Crafting is inside More).
+- **Replay-tutorial button in Settings** — visible only when `TutorialState.has_any_progress()`. Calls `Main.replay_tutorial()` which resets state and re-fires the first-launch check.
+
+**Tests (314 passing, +10)**
+
+- [`test_tutorial_state.gd`](game/tests/test_tutorial_state.gd) (6): should_show defaults true, mark_seen flips it, idempotent on duplicate marks, reset clears, has_any_progress, settings.cfg round-trip.
+- [`test_coachmark.gd`](game/tests/test_coachmark.gd) (4): starts hidden, show_for makes visible + sets hint, dismiss marks step seen, tap on backdrop dismisses.
+- Full GUT suite: **314/314 passing, 3255 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes**
+
+- `equip_net` and `complete_first_tier` step ids are in `TutorialState.ALL_STEPS` but no trigger fires them yet. They're available for future iteration if playtesting flags those moments as needing explicit coachmarks. The current four cover the highest-leverage onboarding moments (Catch tab → Net unlock → Battle tab → Crafting tab), which trace the natural progression path through the first 10–20 minutes of play.
+
 ### v0.12.1 — Phase 12b: Accessibility v2 (hold-to-tap + color-blind redundancy)
 
 **Why**

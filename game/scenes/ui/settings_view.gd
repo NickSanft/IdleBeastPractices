@@ -72,6 +72,7 @@ func _ready() -> void:
 
 	_build_accessibility_section(vbox)
 	_build_language_section(vbox)
+	_build_tutorial_section(vbox)
 	_build_cloud_save_section(vbox)
 	_build_reset_progress_section(vbox)
 
@@ -320,6 +321,48 @@ func _build_language_section(parent: Container) -> void:
 	note.modulate = _PALETTE.SEPIA_MID
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(note)
+
+
+## Phase 12c — Replay tutorial button. Only visible after at least
+## one tutorial step has fired (no point showing it on a fresh save
+## that hasn't seen any tutorial yet). Resets TutorialState and
+## re-fires the first-launch check via main.gd.
+func _build_tutorial_section(parent: Container) -> void:
+	if not TutorialState.has_any_progress():
+		return
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+	parent.add_child(section)
+
+	var heading := Label.new()
+	heading.text = "Tutorial"
+	heading.add_theme_font_size_override("font_size", 18)
+	section.add_child(heading)
+
+	var btn := Button.new()
+	btn.text = "Replay tutorial"
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.pressed.connect(_on_replay_tutorial_pressed)
+	section.add_child(btn)
+
+	var blurb := Label.new()
+	blurb.text = "Resets tutorial coachmarks. They'll re-appear at their trigger conditions in this session."
+	blurb.add_theme_font_size_override("font_size", 13)
+	blurb.modulate = _PALETTE.SEPIA_MID
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(blurb)
+
+
+func _on_replay_tutorial_pressed() -> void:
+	# Walk up to Main and call replay_tutorial. Settings can't reach
+	# main.gd's class directly; find via tree.
+	var main: Node = get_tree().root.get_node_or_null("Main")
+	if main == null or not main.has_method("replay_tutorial"):
+		# Fallback: just clear the state. The next session will show
+		# tap_first_monster on its first launch check.
+		TutorialState.reset()
+		return
+	main.replay_tutorial()
 
 
 ## Cloud Save section: status indicator + sign-in button. Hidden on

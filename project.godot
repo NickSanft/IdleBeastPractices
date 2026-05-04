@@ -33,6 +33,7 @@ Narrator="*res://game/autoloads/narrator.gd"
 AdsManager="*res://game/autoloads/ads_manager.gd"
 GodotPlayGameServices="*uid://bin06y213u26g"
 CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
+TutorialState="*res://game/autoloads/tutorial_state.gd"
 
 [display]
 

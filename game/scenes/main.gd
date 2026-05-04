@@ -80,8 +80,10 @@ var _more_popup: PopupPanel
 ## signals via _install_celebrations() at startup.
 const _CELEBRATION_OVERLAY := preload("res://game/scenes/ui/celebration_overlay.tscn")
 const _TOAST := preload("res://game/scenes/ui/toast.tscn")
+const _COACHMARK := preload("res://game/scenes/ui/coachmark.tscn")
 var _celebration_overlay: CanvasLayer
 var _toast: CanvasLayer
+var _coachmark: CanvasLayer
 
 
 func _ready() -> void:
@@ -91,6 +93,7 @@ func _ready() -> void:
 	_install_global_haptic_feedback()
 	_build_ui()
 	_install_celebrations()
+	_install_tutorial_director()
 	# Phase 11d: empty-state hint buttons in Battle / Crafting can
 	# request a tab switch without reaching into Main directly.
 	EventBus.tab_switch_requested.connect(_navigate_to_tab)
@@ -433,6 +436,110 @@ func _on_toast_recipe_unlocked(recipe_id: String) -> void:
 		_toast.show_toast("New recipe unlocked")
 		return
 	_toast.show_toast("Recipe unlocked: %s" % recipe.display_name)
+
+# endregion
+
+
+# region — Phase 12c tutorial director
+
+## Mounts the coachmark and subscribes to EventBus signals so each
+## tutorial step fires when its trigger condition is met. Steps are
+## scoped to the easiest-to-target UI:
+##   - tap_first_monster:    fires after _build_ui if catches==0; targets
+##                           the catch tab button to draw the eye there.
+##   - buy_first_net:        fires when player hits 100 gold with no net
+##                           owned; targets the More button (shop is
+##                           inside More).
+##   - enter_battle:         fires on first pet_acquired; targets Battle.
+##   - craft_first_recipe:   fires when current_max_tier reaches 2 with
+##                           no recipes crafted; targets the More button.
+## Each fire calls TutorialState.mark_seen on dismissal so it doesn't
+## replay without an explicit Replay-tutorial.
+func _install_tutorial_director() -> void:
+	_coachmark = _COACHMARK.instantiate()
+	add_child(_coachmark)
+	# Defer the first-launch check so the bottom-nav has a settled
+	# rect by the time we call get_global_rect on it.
+	call_deferred("_check_tap_first_monster")
+	EventBus.currency_changed.connect(_on_currency_changed_tutorial)
+	EventBus.pet_acquired.connect(_on_pet_acquired_tutorial)
+	EventBus.tier_unlocked.connect(_on_tier_unlocked_tutorial)
+
+
+func _check_tap_first_monster() -> void:
+	if not TutorialState.should_show(TutorialState.STEP_TAP_FIRST_MONSTER):
+		return
+	if int(GameState.ledger.get("total_catches", 0)) > 0:
+		# Player has caught at least once — they've already learned this.
+		TutorialState.mark_seen(TutorialState.STEP_TAP_FIRST_MONSTER)
+		return
+	# Target the Catch nav button — points the eye at the right tab
+	# even if the player happens to be on a different tab. Won't fire
+	# while they're already on Catch (tap will dismiss it).
+	var target: Button = _nav_buttons.get("Catch", null)
+	if target == null:
+		return
+	_coachmark.show_for(target,
+			"Tap a wandering monster on the Catch screen to catch it.",
+			TutorialState.STEP_TAP_FIRST_MONSTER)
+
+
+func _on_currency_changed_tutorial(currency_id: String, _new_value: Variant) -> void:
+	if currency_id != "gold":
+		return
+	# buy_first_net trigger: 100 gold + no nets owned.
+	if not TutorialState.should_show(TutorialState.STEP_BUY_FIRST_NET):
+		return
+	if not GameState.nets_owned.is_empty():
+		TutorialState.mark_seen(TutorialState.STEP_BUY_FIRST_NET)
+		return
+	if GameState.current_gold().lt(BigNumber.from_float(100.0)):
+		return
+	var target: Button = _nav_buttons.get("More", null)
+	if target == null:
+		return
+	_coachmark.show_for(target,
+			"You can afford a Basic Net. Tap More → Shop to buy one and start auto-catching.",
+			TutorialState.STEP_BUY_FIRST_NET)
+
+
+func _on_pet_acquired_tutorial(_pet_id: String, _is_variant: bool) -> void:
+	if not TutorialState.should_show(TutorialState.STEP_ENTER_BATTLE):
+		return
+	var target: Button = _nav_buttons.get("Battle", null)
+	if target == null:
+		return
+	_coachmark.show_for(target,
+			"You earned a pet! Visit Battle to send your team into a stage.",
+			TutorialState.STEP_ENTER_BATTLE)
+
+
+func _on_tier_unlocked_tutorial(tier: int) -> void:
+	# craft_first_recipe trigger: tier 2 unlocked with no recipes
+	# crafted yet. Tier 2 is when the first net upgrade becomes
+	# available, which is the natural moment to introduce crafting.
+	if tier < 2:
+		return
+	if not TutorialState.should_show(TutorialState.STEP_CRAFT_FIRST_RECIPE):
+		return
+	if not GameState.recipes_crafted.is_empty():
+		TutorialState.mark_seen(TutorialState.STEP_CRAFT_FIRST_RECIPE)
+		return
+	var target: Button = _nav_buttons.get("More", null)
+	if target == null:
+		return
+	_coachmark.show_for(target,
+			"Tier 2 unlocked. Tap More → Crafting to forge a stronger net.",
+			TutorialState.STEP_CRAFT_FIRST_RECIPE)
+
+
+## Public hook: the Settings "Replay tutorial" button calls this to
+## reset all tutorial state and re-fire the first-launch check.
+func replay_tutorial() -> void:
+	TutorialState.reset()
+	# Re-check tap_first_monster from a clean slate. Other steps will
+	# fire when their EventBus triggers next match.
+	call_deferred("_check_tap_first_monster")
 
 # endregion
 
