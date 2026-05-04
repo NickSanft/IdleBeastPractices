@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.1 — Phase 10b: Catching screen visuals & tap juice
+
+**Why**
+
+The most-used screen in the game (Catching) was a flat default-gray Control with monsters wandering on top. After 10a's theme pass the rest of the UI looks intentional, which made the catch screen's lack of background especially visible. Phase 10b gives it depth (parallax background) and amplifies the existing tap feedback (white-flash on catch, miss-tap ripple, Android haptic).
+
+**Added**
+
+- **[`game/scenes/catching/catching_background.tscn`](game/scenes/catching/catching_background.tscn) + [`.gd`](game/scenes/catching/catching_background.gd)** — `ParallaxBackground` (CanvasLayer at `layer = -2`) with three layers:
+  - Sky: full-coverage `ColorRect` driven by a procedural ShaderMaterial (`mix(top_color, bottom_color, UV.y)`). Two color uniforms switch by tier band:
+    - Tiers 1–5: dawn (parchment-pink → vellum)
+    - Tiers 6–10: cave (dim sepia → deep brown)
+    - Tiers 11–15: dusk (purple-brass → parchment)
+    - Tiers 16–20: abyss (near-black → deep ruby)
+  - Mid silhouette: jagged-ridge `Polygon2D` at `motion_scale=0.3` with `motion_mirroring=1500px` for seamless tiling.
+  - Near ground: rolling-hill `Polygon2D` at `motion_scale=0.7`.
+  - Slow ambient horizontal scroll (`6 px/s`) so the world feels alive even when no monsters are on screen.
+  - Listens to [EventBus.tier_unlocked](game/autoloads/event_bus.gd) to repaint the sky.
+- **White-flash on catch.** [monster_instance.gd](game/scenes/catching/monster_instance.gd) `play_catch_and_despawn` now runs a brief HDR-style modulate flash (Color(2.4, 2.4, 2.4) over 0.05s) BEFORE the existing scale + alpha despawn tween. Stacks on the catch particles already there.
+- **Miss-tap ripple + soft SFX.** [catching_view.gd](game/scenes/catching/catching_view.gd) `_gui_input` now spawns a 14-particle parchment ripple at the tap location and calls `AudioManager.play_miss_tap_sfx()` when a tap registers but doesn't hit a monster. Confirms the tap was received without granting reward.
+- **Android haptic.** Catching view `_on_monster_tapped` calls `Input.vibrate_handheld(40)` gated on `OS.has_feature("mobile")` so desktop builds skip the call entirely.
+- **AudioManager miss-tap player.** [audio_manager.gd](game/autoloads/audio_manager.gd) — new `_miss_tap_player` (same source WAV, `volume_db = sfx_db - 8.0`, pitch 1.3) and `play_miss_tap_sfx()`. Self-throttling: re-entrant calls during an active play() are no-ops so rapid mistapping doesn't machine-gun.
+
+**Architecture notes**
+
+- Catching view's existing scale-punch on tap (`monster_instance._play_tap_bump`, 1.18× over 0.06+0.10s) was kept — it already shipped in Phase 5. Phase 10b is purely additive on top.
+- Background owns its scroll loop in `_process` rather than depending on a Camera2D — there is no camera in the catch view, and `motion_mirroring` handles the visual wrap as `scroll_offset.x` advances monotonically.
+- Tier palette is stored as constant arrays of (top, bottom) Colors indexed by `(current_max_tier - 1) / 5`. Adding a tier band is one constant edit each.
+
+**Tests (197 passing, +7)**
+
+- [`game/tests/test_catching_background.gd`](game/tests/test_catching_background.gd) (4 tests): scene structure (3 ParallaxLayers, layer=-2), Sky has ShaderMaterial, tier-palette swap mutates shader uniforms, ambient scroll advances `scroll_offset.x` within 0.4s.
+- [`game/tests/test_catch_flash.gd`](game/tests/test_catch_flash.gd) (3 tests): modulate brightens past tint at some point during the flash window (frame-polled to dodge headless tween-timing flakiness — see [v0.8.2](#v082-sprite-animation-polish-save-robustness) precedent), instance `queue_free`s within 0.4s of catch, 10 successive catches don't leak nodes.
+- Full GUT suite: **197/197 passing, 1304 asserts, 0 failures.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.10.0 — Phase 10a: Theme & font foundation
 
 **Why**

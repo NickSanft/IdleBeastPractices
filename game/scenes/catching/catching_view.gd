@@ -3,6 +3,7 @@ extends Control
 
 const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_instance.tscn")
 const _FLOATING_NUMBER_SCENE := preload("res://game/scenes/ui/floating_number.tscn")
+const _BACKGROUND_SCENE := preload("res://game/scenes/catching/catching_background.tscn")
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
 const _DEBUG_LOG := true
@@ -28,6 +29,10 @@ func _ready() -> void:
 	# because the Control hierarchy consumes the event before the physics
 	# layer sees it. STOP means we get _gui_input; IGNORE would miss it.
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# Phase 10b: parallax background. CanvasLayer-based; renders at layer=-2
+	# behind everything else. Owns its own gentle horizontal scroll and
+	# tier-driven sky modulation, so we don't need to drive it from here.
+	add_child(_BACKGROUND_SCENE.instantiate())
 	_spawn_root = Node2D.new()
 	_spawn_root.name = "SpawnRoot"
 	add_child(_spawn_root)
@@ -76,6 +81,10 @@ func _gui_input(event: InputEvent) -> void:
 		])
 	var hit: Node2D = _find_monster_at(click_local)
 	if hit == null:
+		# Phase 10b: miss-tap feedback — a small ripple + soft SFX so the
+		# player still feels acknowledged when they tap empty space.
+		_spawn_miss_tap_ripple(click_local)
+		AudioManager.play_miss_tap_sfx()
 		return
 	accept_event()
 	_on_monster_tapped(hit)
@@ -183,6 +192,11 @@ func _pick_random_on_screen_monster() -> Node:
 
 func _on_monster_tapped(inst: Node2D) -> void:
 	GameState.record_tap()
+	# Phase 10b: brief haptic on every tap that lands on a monster. Skipped
+	# on non-mobile platforms because Input.vibrate_handheld is a no-op there
+	# anyway, and OS.has_feature avoids the call entirely on desktop builds.
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(40)
 	# Trigger feedback now so the player sees their click registered even if
 	# this tap doesn't yet cross the catch difficulty.
 	if inst.has_method("play_tap_feedback"):
@@ -231,6 +245,34 @@ func _spawn_floating_gold(at_position: Vector2, gold: BigNumber, is_shiny: bool)
 	# `Label` exposes configure() at runtime via the floating_number script.
 	if label.has_method("configure"):
 		label.call("configure", gold.format(), is_shiny)
+
+
+## Phase 10b: spawn a one-shot ripple of particles at the tap location.
+## Confirms a miss-tap registered without granting the player anything;
+## also useful as a debugging aid for hit-rect mismatches on mobile.
+func _spawn_miss_tap_ripple(at_local: Vector2) -> void:
+	var ripple := CPUParticles2D.new()
+	ripple.position = at_local
+	ripple.emitting = false
+	ripple.one_shot = true
+	ripple.amount = 14
+	ripple.lifetime = 0.3
+	ripple.explosiveness = 1.0
+	ripple.spread = 180.0
+	ripple.initial_velocity_min = 50.0
+	ripple.initial_velocity_max = 90.0
+	ripple.gravity = Vector2.ZERO
+	ripple.scale_amount_min = 0.6
+	ripple.scale_amount_max = 1.4
+	ripple.color = Color(0.93, 0.88, 0.74, 0.85)   # parchment, semi-translucent
+	ripple.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(ripple)
+	ripple.restart()
+	# Auto-clean after the burst plus a small grace window for fade-out.
+	var grace: SceneTreeTimer = get_tree().create_timer(ripple.lifetime + 0.1)
+	grace.timeout.connect(func() -> void:
+		if is_instance_valid(ripple):
+			ripple.queue_free())
 
 
 func _on_tier_completed_shake(_tier: int) -> void:

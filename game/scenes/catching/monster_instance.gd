@@ -244,6 +244,16 @@ func play_catch_and_despawn() -> void:
 	# so the catch despawn isn't fighting them for the same property.
 	if _scale_tween != null and _scale_tween.is_valid():
 		_scale_tween.kill()
+	# Phase 10b: white-out flash before the despawn fade. Modulate is
+	# pushed past 1.0 (HDR-style) for a brief blow-out, then the existing
+	# scale punch + alpha fade plays on top. We're decommissioning the
+	# sprite anyway, so we don't need to restore the original tint.
+	var flash_tween: Tween = create_tween()
+	flash_tween.tween_property(_sprite, "modulate", Color(2.4, 2.4, 2.4, 1.0), 0.05)
+	flash_tween.tween_callback(_start_catch_despawn_tween)
+
+
+func _start_catch_despawn_tween() -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(_sprite, "scale", Vector2(float(_facing) * _RENDER_SCALE * 1.4, _RENDER_SCALE * 1.4), 0.15)

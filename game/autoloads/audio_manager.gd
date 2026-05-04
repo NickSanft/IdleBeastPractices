@@ -17,6 +17,7 @@ var _sfx_pool: Array[AudioStreamPlayer] = []
 var _sfx_pool_cursor: int = 0
 var _shiny_player: AudioStreamPlayer
 var _tier_up_player: AudioStreamPlayer
+var _miss_tap_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -135,6 +136,14 @@ func _setup_sfx_pool() -> void:
 	_tier_up_player.volume_db = Settings.sfx_db + 6.0
 	_tier_up_player.pitch_scale = 0.7
 	add_child(_tier_up_player)
+	# Phase 10b: miss-tap soft acknowledge — same source WAV, lower volume,
+	# slightly higher pitch so it reads as "registered, but no reward".
+	_miss_tap_player = AudioStreamPlayer.new()
+	_miss_tap_player.name = "MissTapPlayer"
+	_miss_tap_player.stream = stream
+	_miss_tap_player.volume_db = Settings.sfx_db - 8.0
+	_miss_tap_player.pitch_scale = 1.3
+	add_child(_miss_tap_player)
 
 
 func play_tap_sfx() -> void:
@@ -161,6 +170,8 @@ func _apply_volumes() -> void:
 		_shiny_player.volume_db = Settings.sfx_db + 4.0
 	if _tier_up_player != null:
 		_tier_up_player.volume_db = Settings.sfx_db + 6.0
+	if _miss_tap_player != null:
+		_miss_tap_player.volume_db = Settings.sfx_db - 8.0
 
 
 func play_shiny_sting() -> void:
@@ -173,6 +184,18 @@ func play_tier_up_sting() -> void:
 	if _tier_up_player != null:
 		_tier_up_player.stop()
 		_tier_up_player.play()
+
+
+## Phase 10b: tap that hit empty space. Soft so it doesn't compete with
+## the real catch SFX, but audible so the player knows the tap registered.
+func play_miss_tap_sfx() -> void:
+	if _miss_tap_player == null:
+		return
+	# Don't pre-empt itself — rapid miss-taps should layer naturally rather
+	# than each one cutting the previous off.
+	if _miss_tap_player.playing:
+		return
+	_miss_tap_player.play()
 
 
 # region — EventBus handlers
