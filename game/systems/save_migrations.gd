@@ -16,6 +16,7 @@ static func migrations() -> Array[Dictionary]:
 	return [
 		{"from": 0, "fn": Callable(SaveMigrations, "_migrate_v0_to_v1")},
 		{"from": 1, "fn": Callable(SaveMigrations, "_migrate_v1_to_v2")},
+		{"from": 2, "fn": Callable(SaveMigrations, "_migrate_v2_to_v3")},
 	]
 
 
@@ -72,6 +73,21 @@ static func _migrate_v1_to_v2(data: Dictionary) -> Dictionary:
 		if currencies is Dictionary and currencies.has("gold"):
 			gold_dict = (currencies["gold"] as Dictionary).duplicate(true)
 		out["total_gold_earned_this_run"] = gold_dict
+	return out
+
+
+## v2 → v3: Phase 12e introduces pet equipment + best-RP-this-run
+## tracker. New fields default to empty / 0 — existing v2 saves
+## just gain blank scaffolds. No data is read from prior fields.
+static func _migrate_v2_to_v3(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	out["version"] = 3
+	if not out.has("pet_equipment"):
+		out["pet_equipment"] = {}
+	if not out.has("owned_equipment"):
+		out["owned_equipment"] = []
+	if not out.has("best_rp_at_prestige"):
+		out["best_rp_at_prestige"] = 0
 	return out
 
 

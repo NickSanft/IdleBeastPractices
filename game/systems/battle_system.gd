@@ -202,16 +202,44 @@ static func _simulate_encounter(
 # region — combatant construction
 
 static func _make_combatant_from_pet(pet: PetResource, index: int, team: String) -> Dictionary:
+	# Phase 12e: apply equipment modifiers if any are equipped on
+	# this pet. GameState.pet_equipment is a dict keyed by pet_id_str
+	# with entries {"head": id, "body": id, "trinket": id}. Missing
+	# entries default to "" and contribute nothing.
+	var bonus_atk: float = 0.0
+	var bonus_def: float = 0.0
+	var bonus_hp: float = 0.0
+	var cd_reduction: int = 0
+	# GameState is an autoload so it's always present at runtime;
+	# under headless GUT it loads via the same autoload chain.
+	var pet_id_str: String = String(pet.id)
+	var equip_dict: Variant = GameState.pet_equipment.get(pet_id_str)
+	if equip_dict is Dictionary:
+		for slot_key in ["head", "body", "trinket"]:
+			var item_id_str: String = String(equip_dict.get(slot_key, ""))
+			if item_id_str == "":
+				continue
+			var item: EquipmentResource = ContentRegistry.equipment(StringName(item_id_str))
+			if item == null:
+				continue
+			bonus_atk += float(item.attack_add)
+			bonus_def += float(item.defense_add)
+			bonus_hp += float(item.hp_add)
+			cd_reduction += int(item.ability_cooldown_reduction)
+	# Cap cooldown reduction so a fully-decked pet can't drop every
+	# ability to 0-tick spam. Floor at 0 (start with normal startup).
+	var startup: int = max(0, 2 - clampi(cd_reduction, 0, 2))
+	var max_hp: float = float(pet.base_hp) + bonus_hp
 	return {
 		"team": team,
 		"index": index,
 		"id": String(pet.id),
-		"hp": pet.base_hp,
-		"max_hp": pet.base_hp,
-		"atk": pet.base_attack,
-		"def": pet.base_defense,
+		"hp": max_hp,
+		"max_hp": max_hp,
+		"atk": float(pet.base_attack) + bonus_atk,
+		"def": float(pet.base_defense) + bonus_def,
 		"ability_id": pet.ability_id,
-		"ability_cooldown": 2,           # short startup so abilities aren't t=0
+		"ability_cooldown": startup,
 		"status_effects": [],
 	}
 

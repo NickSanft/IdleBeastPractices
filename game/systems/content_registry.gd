@@ -14,6 +14,7 @@ const _UPGRADES_DIR := "res://game/data/upgrades"
 const _RECIPES_DIR := "res://game/data/recipes"
 const _DIALOGUE_DIR := "res://game/data/dialogue"
 const _BATTLE_STAGES_DIR := "res://game/data/battle_stages"
+const _EQUIPMENT_DIR := "res://game/data/equipment"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
@@ -23,6 +24,7 @@ static var _upgrades_by_id: Dictionary = {}   # StringName -> UpgradeResource
 static var _recipes_by_id: Dictionary = {}    # StringName -> CraftingRecipeResource
 static var _dialogue_by_id: Dictionary = {}   # StringName -> DialogueLineResource
 static var _battle_stages_by_id: Dictionary = {}  # StringName -> BattleStageResource
+static var _equipment_by_id: Dictionary = {}      # StringName -> EquipmentResource
 static var _initialized: bool = false
 
 
@@ -37,6 +39,7 @@ static func ensure_loaded() -> void:
 	_load_dir(_RECIPES_DIR, _recipes_by_id)
 	_load_dir(_DIALOGUE_DIR, _dialogue_by_id)
 	_load_dir(_BATTLE_STAGES_DIR, _battle_stages_by_id)
+	_load_dir(_EQUIPMENT_DIR, _equipment_by_id)
 	_initialized = true
 
 
@@ -177,6 +180,19 @@ static func battle_stages() -> Array[BattleStageResource]:
 static func battle_stage(id: StringName) -> BattleStageResource:
 	ensure_loaded()
 	return _battle_stages_by_id.get(id)
+
+
+static func equipment_items() -> Array[EquipmentResource]:
+	ensure_loaded()
+	var out: Array[EquipmentResource] = []
+	for id in _equipment_by_id.keys():
+		out.append(_equipment_by_id[id])
+	return out
+
+
+static func equipment(id: StringName) -> EquipmentResource:
+	ensure_loaded()
+	return _equipment_by_id.get(id)
 
 
 ## Returns the highest-tier stage the player has unlocked given their

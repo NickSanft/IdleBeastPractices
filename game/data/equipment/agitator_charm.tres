@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EquipmentResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/equipment_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"agitator_charm"
+display_name = "Agitator Charm"
+description = "A small bone trinket that provokes a pet's aggression."
+slot = 2
+tier = 1
+attack_add = 4.0
+defense_add = 0.0
+hp_add = 0.0
+ability_cooldown_reduction = 0

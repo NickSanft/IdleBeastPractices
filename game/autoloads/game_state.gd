@@ -19,6 +19,17 @@ var inventory: Dictionary = {}                  # {item_id (String): count (int)
 var monsters_caught: Dictionary = {}            # {monster_id: {"normal": int, "shiny": int}}
 var pets_owned: Array[String] = []
 var pet_variants_owned: Array[String] = []
+## Phase 12e — equipment slots per owned pet.
+##   pet_equipment[pet_id_str] = {"head": id_str, "body": id_str, "trinket": id_str}
+## Missing slots default to "" (no equip). Persisted via save_v3.
+## owned_equipment is the global stash of crafted-but-not-equipped
+## items + items currently equipped (the equipped ones are duplicated
+## here so unequipping doesn't need to mint anything from thin air).
+var pet_equipment: Dictionary = {}
+var owned_equipment: Array[String] = []
+## Phase 12e — best-RP-this-run tracker, frozen at prestige time so
+## the prestige_view's "vs your best" comparison has a value.
+var best_rp_at_prestige: int = 0
 var nets_owned: Array[String] = []
 var active_net: String = ""
 var upgrades_purchased: Array[Dictionary] = []  # [{"id": StringName, "level": int}]
@@ -76,6 +87,9 @@ func to_dict() -> Dictionary:
 		"recipes_crafted": recipes_crafted.duplicate(),
 		"ledger": ledger.duplicate(true),
 		"narrator_state": narrator_state.duplicate(true),
+		"pet_equipment": pet_equipment.duplicate(true),
+		"owned_equipment": owned_equipment.duplicate(),
+		"best_rp_at_prestige": best_rp_at_prestige,
 	}
 
 
@@ -102,6 +116,12 @@ func from_dict(data: Dictionary) -> void:
 	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
 	ledger = data.get("ledger", ledger).duplicate(true)
 	narrator_state = data.get("narrator_state", narrator_state).duplicate(true)
+	# Phase 12e — equipment + best-run tracker. Default to empty when
+	# loading a v2 save (the save_migrations chain takes care of
+	# version-bumping; this just supplies field-level defaults).
+	pet_equipment = (data.get("pet_equipment", {}) as Dictionary).duplicate(true)
+	owned_equipment = _to_string_array(data.get("owned_equipment", []))
+	best_rp_at_prestige = int(data.get("best_rp_at_prestige", 0))
 
 
 func _seed_first_launch() -> void:
@@ -127,6 +147,9 @@ func _reset_to_defaults() -> void:
 	prestige_count = 0
 	recipes_crafted = []
 	transient_drops_2x_remaining = 0
+	pet_equipment = {}
+	owned_equipment = []
+	best_rp_at_prestige = 0
 	ledger = {
 		"total_catches": 0,
 		"total_taps": 0,
@@ -421,11 +444,77 @@ func try_craft(recipe: CraftingRecipeResource) -> Dictionary:
 			nets_owned.append(net_id)
 			EventBus.recipe_unlocked.emit(net_id)
 		EventBus.item_crafted.emit(String(recipe.id), net_id)
+	# Phase 12e: equipment outputs auto-equip on the first eligible
+	# pet (one with an empty matching slot). Falls back to adding to
+	# owned_equipment if all pets are full or no pets are owned yet.
+	if recipe.output_equipment != null:
+		_grant_equipment(recipe.output_equipment)
+		EventBus.item_crafted.emit(String(recipe.id), String(recipe.output_equipment.id))
 	# Mark recipe as crafted-at-least-once for prereq chains.
 	var recipe_id_str: String = String(recipe.id)
 	if not recipes_crafted.has(recipe_id_str):
 		recipes_crafted.append(recipe_id_str)
 	return {"success": true, "reason": "ok"}
+
+
+## Phase 12e — auto-equip a freshly-crafted equipment item.
+## Walks the player's pets in order, picks the first one with an
+## empty slot matching this item's slot, and equips it. Falls back
+## to adding to `owned_equipment` if all pets are full (so the item
+## isn't lost; future picker UI can re-equip from the stash).
+func _grant_equipment(item: EquipmentResource) -> void:
+	var slot_key: String = _slot_key_for(item.slot)
+	for pet_id_str in pets_owned:
+		var slots: Dictionary = pet_equipment.get(pet_id_str, {})
+		if String(slots.get(slot_key, "")) == "":
+			slots[slot_key] = String(item.id)
+			pet_equipment[pet_id_str] = slots
+			# Don't append to owned_equipment when equipped — the
+			# pet_equipment dict is the source of truth for equipped
+			# items. owned_equipment is the unequipped stash only.
+			return
+	# Fallback: stash for later. Future picker can re-equip from here.
+	owned_equipment.append(String(item.id))
+
+
+func _slot_key_for(slot: int) -> String:
+	match slot:
+		0: return "head"
+		1: return "body"
+		2: return "trinket"
+		_: return "head"
+
+
+## Returns the equipment item id equipped in `slot_key` on `pet_id_str`,
+## or "" if none. Used by the Battle roster preview to show stat
+## bonuses, and by tests.
+func equipment_in_slot(pet_id_str: String, slot_key: String) -> String:
+	var slots: Variant = pet_equipment.get(pet_id_str)
+	if not (slots is Dictionary):
+		return ""
+	return String(slots.get(slot_key, ""))
+
+
+## Returns the total stat bonuses from equipment on the given pet.
+## Format: {atk: float, def: float, hp: float, cd: int}. Used by
+## Battle roster row preview ("+5 ATK · +20 HP from equipment").
+func equipment_stats_for(pet_id_str: String) -> Dictionary:
+	var totals: Dictionary = {"atk": 0.0, "def": 0.0, "hp": 0.0, "cd": 0}
+	var slots: Variant = pet_equipment.get(pet_id_str)
+	if not (slots is Dictionary):
+		return totals
+	for slot_key in ["head", "body", "trinket"]:
+		var item_id_str: String = String(slots.get(slot_key, ""))
+		if item_id_str == "":
+			continue
+		var item: EquipmentResource = ContentRegistry.equipment(StringName(item_id_str))
+		if item == null:
+			continue
+		totals["atk"] += float(item.attack_add)
+		totals["def"] += float(item.defense_add)
+		totals["hp"] += float(item.hp_add)
+		totals["cd"] += int(item.ability_cooldown_reduction)
+	return totals
 
 
 # Prestige
@@ -451,6 +540,12 @@ func perform_prestige() -> int:
 			upgrades_purchased,
 			ContentRegistry.upgrade_index())
 	var keep_first_launch: int = int(keep_ledger.get("first_launch_unix", 0))
+	# Phase 12e: equipment carries through prestige. Pets persist, so
+	# their gear should too. best_rp_at_prestige updates if this run
+	# beats the previous record.
+	var keep_pet_equipment := pet_equipment.duplicate(true)
+	var keep_owned_equipment := owned_equipment.duplicate()
+	var keep_best_rp: int = max(int(best_rp_at_prestige), rp_gain)
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -461,6 +556,9 @@ func perform_prestige() -> int:
 	ledger = keep_ledger
 	narrator_state = keep_narrator_state
 	upgrades_purchased = keep_persistent_upgrades
+	pet_equipment = keep_pet_equipment
+	owned_equipment = _to_string_array(keep_owned_equipment)
+	best_rp_at_prestige = keep_best_rp
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

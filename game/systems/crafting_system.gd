@@ -18,7 +18,7 @@ static func can_craft(
 		recipes_crafted: Array) -> Dictionary:
 	if recipe == null:
 		return {"can": false, "reason": "no_output"}
-	if recipe.output_item == null and recipe.output_net == null:
+	if recipe.output_item == null and recipe.output_net == null and recipe.output_equipment == null:
 		return {"can": false, "reason": "no_output"}
 	if int(recipe.tier_required) > int(current_max_tier):
 		return {"can": false, "reason": "tier_locked"}

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/equipment/agitator_charm.tres" id="2_eq"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_agitator_charm"
+display_name = "Carve Agitator Charm"
+description = "A bone trinket. +4 atk on the first pet without a trinket."
+inputs = [{"item_id": &"wisplet_ectoplasm", "amount": 30}]
+output_equipment = ExtResource("2_eq")
+output_amount = 1
+gold_cost = {"m": 2.0, "e": 3}
+tier_required = 1

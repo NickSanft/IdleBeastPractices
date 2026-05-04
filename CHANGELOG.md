@@ -6,6 +6,74 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.13.1 — Phase 12e: Pet equipment + prestige polish
+
+**Why**
+
+Phase 12d gave pets abilities; 12e gives them gear. Equipment provides a meta-progression layer between tier completions: craft a Brass Collar, your tank pet hits a little harder; craft a Seer's Circlet, your healer cycles abilities a tick faster. Combined with abilities, the wisplet trio becomes a small composition puzzle. Prestige polish lifts the most-celebrated event in the game out of "default Godot screen" territory.
+
+**Added — Equipment system**
+
+- **[`EquipmentResource`](game/resources/equipment_resource.gd)** — schema with `Slot { HEAD, BODY, TRINKET }`, `tier`, additive stat modifiers (`attack_add`, `defense_add`, `hp_add`), and an `ability_cooldown_reduction` capped at -2 ticks across all slots.
+- **6 starter items** in [`game/data/equipment/`](game/data/equipment/): Copper Circlet / Brass Collar / Agitator Charm (tier 1, one per slot) and Seer's Circlet / Silver Collar / Rending Fang (tier 2). Stat ratios chosen so each item carves a distinct role.
+- **`ContentRegistry.equipment(id)` + `equipment_items()`** — registry indexes the new content dir alongside monsters / pets / nets / etc.
+- **3 equipment recipes** ([`recipe_brass_collar.tres`](game/data/recipes/recipe_brass_collar.tres), [`recipe_agitator_charm.tres`](game/data/recipes/recipe_agitator_charm.tres), [`recipe_copper_circlet.tres`](game/data/recipes/recipe_copper_circlet.tres)) producing the tier-1 items. New `output_equipment` field on `CraftingRecipeResource`; `CraftingSystem.can_craft` accepts it as a valid output type.
+
+**GameState extensions**
+
+- **`pet_equipment: Dictionary`** — `pet_id_str → {head: id, body: id, trinket: id}`. Persisted via the v3 save schema.
+- **`owned_equipment: Array[String]`** — fallback stash when a freshly-crafted item has nowhere to go (e.g., all matching slots full). Future picker UI re-equips from here.
+- **`best_rp_at_prestige: int`** — frozen at the highest RP gain across runs. Used by the prestige view's "vs your best" comparison.
+- **`_grant_equipment(item)`** — auto-equip on craft: walks `pets_owned` in order, slots into the first pet with an empty matching slot, falls back to `owned_equipment` if all are full.
+- **`equipment_in_slot(pet_id, slot_key)`** + **`equipment_stats_for(pet_id)`** — read helpers used by `BattleSystem` and future UI.
+
+**BattleSystem integration**
+
+- `_make_combatant_from_pet` now applies equipment stat modifiers when building the combatant dict. The pet's base stats remain on `PetResource`; the runtime values combine base + summed equipment bonuses. `ability_cooldown_reduction` reduces the start-of-battle cooldown but is capped so a fully-decked pet can't drop every ability to 0-tick spam.
+
+**Save migration v2 → v3**
+
+- New migration in [`save_migrations.gd`](game/systems/save_migrations.gd) seeds `pet_equipment = {}`, `owned_equipment = []`, `best_rp_at_prestige = 0`. Existing v2 saves load cleanly with empty equipment scaffolds.
+- `CURRENT_VERSION` bumped to 3.
+
+**Prestige preserves equipment**
+
+- `perform_prestige()` snapshots `pet_equipment`, `owned_equipment`, and updates `best_rp_at_prestige` to `max(current, this_run_rp_gain)` before resetting other state. Pets persist through prestige so their gear should too.
+
+**Prestige view polish**
+
+- Themed brass-tinted "Projected: +N RP" header (was `Color(1.0, 0.86, 0.4)` modulate; now uses `_PALETTE.BRASS_ACCENT` via theme color override).
+- New "vs your best" sub-line under the projected RP. Three states: "First prestige run", "New record! Previous best: N RP", "Your best run: N RP".
+- Confirm button ruby-tinted (`BLOOD_RUBY` font color override) to mirror the wipe-save destructive pattern.
+- Confirmation dialog explicitly assigned `theme = main_theme.tres` per the v0.10.4 popup-theme fix.
+
+**Tests (335 passing, +10)**
+
+- [`test_equipment.gd`](game/tests/test_equipment.gd):
+  - Equipment loads via ContentRegistry.
+  - Auto-equip places first crafted item on first eligible pet; second goes to next pet.
+  - Falls back to `owned_equipment` when all matching slots are full.
+  - BattleSystem combatant dict reflects base + equipment stats; no equipment → base stats only.
+  - `equipment_stats_for` returns correct totals across multiple slots.
+  - Save migration v2 → v3 adds the three new fields with safe defaults.
+  - Prestige preserves equipped items.
+  - Prestige updates `best_rp_at_prestige` only when current run beats it.
+  - Recipe with `output_equipment` validates via `can_craft` and crafts end-to-end.
+- Full GUT suite: **335/335 passing, 3318 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes / what's deferred**
+
+- Explicit equipment picker UI (the `team_select.tscn` from DEPTH_PLAN's 12e acceptance) is **not** in 12e. Auto-equip-on-craft means players don't need a picker to *use* the system, but unequipping or reassigning gear requires one. Deferred.
+- Roster-row stat preview ("+5 ATK · +20 HP from equipment") on the Battle screen — also deferred. The combat math already applies; this is just surfacing it in UI.
+- 15-item full equipment grid (3 slots × 5 tiers) from DEPTH_PLAN — currently 6 items. The remaining 9 land as content authoring.
+- Animated RP forecast ring chart on the prestige view — a static label is shipped; the radial chart is purely cosmetic.
+
 ### v0.13.0 — Phase 12d: Pet abilities
 
 **Why**

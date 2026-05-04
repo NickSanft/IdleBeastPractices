@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EquipmentResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/equipment_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"seer_circlet"
+display_name = "Seer's Circlet"
+description = "A jewel-set band that sharpens a pet's anticipation."
+slot = 0
+tier = 2
+attack_add = 2.0
+defense_add = 1.0
+hp_add = 0.0
+ability_cooldown_reduction = 2

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/equipment/copper_circlet.tres" id="2_eq"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_copper_circlet"
+display_name = "Etch Copper Circlet"
+description = "Copper band with sigils. +1 atk, -1 ability cooldown for the first headless pet."
+inputs = [{"item_id": &"wisplet_ectoplasm", "amount": 40}]
+output_equipment = ExtResource("2_eq")
+output_amount = 1
+gold_cost = {"m": 3.0, "e": 3}
+tier_required = 1
