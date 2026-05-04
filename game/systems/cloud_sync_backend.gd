@@ -57,8 +57,9 @@ func sign_out() -> void:
 
 ## Push the given state dict to the cloud. Async — listen to
 ## `upload_complete`. The orchestrator calls this after a save commits
-## locally; the backend MUST NOT mutate `state`.
-func upload(state: Dictionary) -> void:
+## locally; the backend MUST NOT mutate `state`. Concrete impls bind
+## `state` to their plugin call; the abstract default just errors.
+func upload(_state: Dictionary) -> void:
 	push_error("CloudSyncBackend.upload: not implemented")
 	upload_complete.emit(false, "not_implemented")
 

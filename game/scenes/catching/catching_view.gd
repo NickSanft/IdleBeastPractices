@@ -354,11 +354,19 @@ func _award_tier_completion(catch_tier: int) -> void:
 		EventBus.tier_completed.emit(catch_tier)
 	if _DEBUG_LOG:
 		print("[catch] TIER %d COMPLETE — awarding pets" % catch_tier)
+	# Use the catching view's already-seeded _rng for variant rolls.
+	# v0.10.7 fix: the prior code created a NEW RandomNumberGenerator
+	# inside the loop and called randomize() each iteration. When the
+	# loop iterations all land in the same microsecond (common — three
+	# pets per tier completion), randomize()'s time-based seed is
+	# identical across iterations, making every roll the SAME random
+	# value. Result: with variant_rate=0.02, players got either all
+	# three variants (2 % chance) or none — exactly the "one pet
+	# unlocks all variants" symptom in user saves. A single shared,
+	# already-randomized RNG gives independent rolls per pet.
 	for pet in CatchingSystem.pets_to_award_for_tier(ContentRegistry.monsters(), catch_tier):
-		var rng_local := RandomNumberGenerator.new()
-		rng_local.randomize()
 		var roll_ceiling: float = 1.0 if Settings.debug_fast_pets else pet.variant_rate
-		var is_variant: bool = rng_local.randf() < roll_ceiling
+		var is_variant: bool = _rng.randf() < roll_ceiling
 		var added: bool = GameState.add_pet(pet.id, is_variant)
 		if _DEBUG_LOG:
 			print("[catch]   pet awarded: %s (variant=%s, new=%s)" % [

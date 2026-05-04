@@ -7,7 +7,11 @@
 class_name AdsBackend
 extends Node
 
+## Abstract-interface signals: emitted by concrete subclasses
+## (StubAdsBackend / AdMobBackend), connected by AdsManager.
+@warning_ignore("unused_signal")
 signal completed(reward_id: String, granted: bool)
+@warning_ignore("unused_signal")
 signal failed(reward_id: String, reason: String)
 
 

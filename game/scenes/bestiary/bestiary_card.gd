@@ -153,7 +153,6 @@ func refresh() -> void:
 	var shiny_count: int = int(entry.get("shiny", 0))
 	var seen: bool = normal_count > 0 or shiny_count > 0
 	var pet_id: String = String(monster.pet.id) if monster.pet != null else ""
-	var pet_owned: bool = pet_id != "" and GameState.pets_owned.has(pet_id)
 	var variant_owned: bool = pet_id != "" and GameState.pet_variants_owned.has(pet_id)
 
 	# Sprite vs silhouette. Use the SAME atlas region for both — the
@@ -210,6 +209,8 @@ func refresh() -> void:
 
 
 func _band_color_for_tier(tier: int) -> Color:
+	# Integer division by design: tiers 1-5 → band 0, 6-10 → 1, etc.
+	@warning_ignore("integer_division")
 	var band: int = clamp((tier - 1) / 5, 0, _BAND_COLORS.size() - 1)
 	return _BAND_COLORS[band]
 

@@ -243,7 +243,10 @@ func _build_ui() -> void:
 ## were too small to reliably hit and the tab bar was hard to scroll
 ## through. Applied across the board.
 func _apply_mobile_default_theme() -> void:
-	var theme := Theme.new()
+	# Local var renamed from `theme` to `mobile_theme` to avoid
+	# shadowing Control.theme (which is in scope here because
+	# Main extends Control).
+	var mobile_theme := Theme.new()
 
 	# Buttons: 48 dp tap target per Material's accessibility floor
 	# (text height ~22 px + 14 px top + 14 px bottom = ~50 px = 48 dp
@@ -270,16 +273,16 @@ func _apply_mobile_default_theme() -> void:
 	var btn_disabled: StyleBoxFlat = btn_normal.duplicate(true)
 	btn_disabled.bg_color = Color(0.18, 0.18, 0.20)
 
-	theme.set_stylebox("normal", "Button", btn_normal)
-	theme.set_stylebox("hover", "Button", btn_hover)
-	theme.set_stylebox("pressed", "Button", btn_pressed)
-	theme.set_stylebox("disabled", "Button", btn_disabled)
-	theme.set_font_size("font_size", "Button", 18)
+	mobile_theme.set_stylebox("normal", "Button", btn_normal)
+	mobile_theme.set_stylebox("hover", "Button", btn_hover)
+	mobile_theme.set_stylebox("pressed", "Button", btn_pressed)
+	mobile_theme.set_stylebox("disabled", "Button", btn_disabled)
+	mobile_theme.set_font_size("font_size", "Button", 18)
 
 	# Labels: bump up for phone readability. Custom-styled labels
 	# (currency_bar, peniber overlay) override per-control.
-	theme.set_font_size("font_size", "Label", 16)
-	theme.set_font_size("font_size", "RichTextLabel", 16)
+	mobile_theme.set_font_size("font_size", "Label", 16)
+	mobile_theme.set_font_size("font_size", "RichTextLabel", 16)
 
 	# CheckBox / OptionButton inherit Button styling so they get the
 	# same hit-box bump. Sliders need an explicit grabber bump.
@@ -293,10 +296,10 @@ func _apply_mobile_default_theme() -> void:
 	slider_grabber.content_margin_bottom = 8
 	slider_grabber.content_margin_left = 8
 	slider_grabber.content_margin_right = 8
-	theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
-	theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
+	mobile_theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
+	mobile_theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
 
-	get_tree().root.theme = theme
+	get_tree().root.theme = mobile_theme
 
 
 ## Wire a 20-millisecond haptic pulse to every Button press in the
@@ -405,8 +408,9 @@ func _find_tab_index(tab_name: String) -> int:
 ## active destination is a SECONDARY tab (reached via More), no
 ## primary button is pressed.
 func _set_active_nav(tab_name: String) -> void:
-	for name in _nav_buttons:
-		_nav_buttons[name].button_pressed = (name == tab_name)
+	# Iterator var renamed from `name` to avoid shadowing Node.name.
+	for nav_name in _nav_buttons:
+		_nav_buttons[nav_name].button_pressed = (nav_name == tab_name)
 
 
 ## More-button handler: opens a custom-styled PopupPanel that reads as

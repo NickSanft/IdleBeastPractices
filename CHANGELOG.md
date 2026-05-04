@@ -6,6 +6,56 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.7 — Variant RNG bug fix + GDScript warning sweep
+
+**Why**
+
+User reported the long-standing "getting one pet unlocks all variants" bug was still present after the v0.10.6 fresh-save flow. Their save showed `pet_variants_owned == pets_owned == [all three wisplets]` after a single tier-1 completion — statistically impossible at `variant_rate=0.02` if the rolls were independent (P ≈ 8 × 10⁻⁶).
+
+**Root cause**
+
+[catching_view.gd:357–362](game/scenes/catching/catching_view.gd) created a fresh `RandomNumberGenerator` inside the per-pet awarding loop:
+
+```gdscript
+for pet in CatchingSystem.pets_to_award_for_tier(...):
+    var rng_local := RandomNumberGenerator.new()
+    rng_local.randomize()           # ← time-based seed
+    is_variant = rng_local.randf() < pet.variant_rate
+    ...
+```
+
+When the three loop iterations all execute within the same microsecond (no I/O between them, three pets per tier), `randomize()`'s time-based seed is identical for every iteration, every `randf()` returns the same value, and the pets roll variant/not-variant in lockstep. Symptom: `variant_rate=0.02` produces "all three variants" exactly 2 % of the time and "no variants" the remaining 98 %, instead of independent 0.02 chances per pet.
+
+**Fix**
+
+Replaced the per-iteration RNG with the catching view's existing `_rng` member (randomized once in `_ready`). Three sequential `_rng.randf()` calls produce three independent draws.
+
+**Tests (244 passing, +3)**
+
+- [`game/tests/test_variant_rolls.gd`](game/tests/test_variant_rolls.gd) — 3 tests:
+  - With `Settings.debug_fast_pets=true`, all three wisplet variants land in `pet_variants_owned` (sanity baseline).
+  - Same `_rng.seed` reproduces the same `pet_variants_owned` outcome — proves rolls go through `_rng`, which the buggy version's fresh randomized RNGs would have ignored.
+  - Sweeping 50 seeds produces ≥ 2 distinct outcomes — confirms the seed actually drives variation, ruling out a regression where the loop ignores `_rng` again.
+
+**GDScript warning sweep**
+
+While diagnosing, the user shared the editor's startup warnings. Cleaned up all eight:
+
+- **[`game/systems/ads_backend.gd`](game/systems/ads_backend.gd)** — `@warning_ignore("unused_signal")` on `completed`/`failed`. They're abstract-interface signals emitted by concrete subclasses.
+- **[`game/systems/cloud_sync_backend.gd`](game/systems/cloud_sync_backend.gd)** — renamed unused param `state` → `_state` in the abstract `upload()`. Concrete subclasses keep `state` (the abstract default just errors).
+- **[`game/scenes/catching/catching_background.gd`](game/scenes/catching/catching_background.gd)**, **[`battle_map.gd`](game/scenes/battle/battle_map.gd)**, **[`bestiary_card.gd`](game/scenes/bestiary/bestiary_card.gd)** — `@warning_ignore("integer_division")` on the three tier-band `(tier - 1) / 5` lookups. Integer division is the desired behavior (tiers 1-5 → band 0, etc.); the warning was just flagging the truncation.
+- **[`bestiary_card.gd`](game/scenes/bestiary/bestiary_card.gd)** — removed unused `pet_owned` local. The card UI only needs `variant_owned` (Variant pill); base-pet ownership state isn't surfaced on the card.
+- **[`game/scenes/main.gd`](game/scenes/main.gd)** — renamed local `theme` → `mobile_theme` in `_apply_mobile_default_theme()` to avoid shadowing `Control.theme` (Main extends Control, so the property is in scope).
+- **[`game/scenes/main.gd`](game/scenes/main.gd)** — renamed for-iterator `name` → `nav_name` in `_set_active_nav()` to avoid shadowing `Node.name`.
+
+Editor startup is now warning-clean.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite: **244/244 passing, ~3113 asserts, 0 warnings, 0 failures.**
+- Three exports left to CI.
+
 ### v0.10.6 — Wipe-save feature + pet acquisition diagnosis
 
 **Why**

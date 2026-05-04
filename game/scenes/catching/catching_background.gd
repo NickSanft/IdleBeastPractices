@@ -159,6 +159,9 @@ func _current_tier() -> int:
 func _apply_tier_palette(tier: int) -> void:
 	if _sky_material == null:
 		return
+	# Tier-band index is deliberately integer division: tiers 1-5 → 0,
+	# 6-10 → 1, etc. Decimal truncation is the desired behaviour.
+	@warning_ignore("integer_division")
 	var band: int = clamp((tier - 1) / 5, 0, _SKY_TOP_BY_BAND.size() - 1)
 	_sky_material.set_shader_parameter("top_color", _SKY_TOP_BY_BAND[band])
 	_sky_material.set_shader_parameter("bottom_color", _SKY_BOTTOM_BY_BAND[band])
