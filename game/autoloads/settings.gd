@@ -50,6 +50,16 @@ func set_music_db(db: float) -> void:
 	save_to_disk()
 
 
+## Phase 12a — master volume slider, finally wired into the UI. Was
+## persisted but had no setter or UI control. AudioServer's Master bus
+## reads `audio_master_db` directly via the audio_settings_changed
+## listener in [AudioManager].
+func set_master_db(db: float) -> void:
+	audio_master_db = clampf(db, MIN_DB, MAX_DB)
+	audio_settings_changed.emit()
+	save_to_disk()
+
+
 func set_sfx_db(db: float) -> void:
 	sfx_db = clampf(db, MIN_DB, MAX_DB)
 	audio_settings_changed.emit()

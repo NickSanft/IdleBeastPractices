@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.12.0 — Phase 12a: Quality-of-life bundle
+
+**Why**
+
+Phase 11 closed the celebration / accessibility / production-hygiene gaps; Phase 12a tackles the per-screen friction the audit flagged. Bulk crafting (single-craft was tedious), inventory icons (the "most default-Godot-feeling" screen left after Phase 10), net comparison (no signal whether an upgrade was worth the gold), Settings expansion (master volume slider was persisted but never exposed). Item 17 from the suggestion list — long-press menus — landed in inventory only; broader long-press wiring deferred to a follow-up so 12a stays scoped.
+
+**Added — Inventory cards (item 15)**
+
+- **[`ItemResource.rarity: Rarity`](game/resources/item_resource.gd)** — new `@export` enum with COMMON / UNCOMMON / RARE / EPIC. Defaults to COMMON so existing items render unchanged; per-item overrides land later as content is authored.
+- **[`game/scenes/ui/inventory_card.tscn`](game/scenes/ui/inventory_card.tscn) + [`.gd`](game/scenes/ui/inventory_card.gd)** — themed PanelContainer with icon (or "?" fallback), name, count, and a per-card StyleBoxFlat override for the rarity-tinted border (brass / sage / dusk / ruby).
+- **Rewritten [`inventory_panel.gd`](game/scenes/ui/inventory_panel.gd)** — `GridContainer` of cards instead of flat VBox of Labels. Column count adapts to viewport: 3 / 4 / 5 across [<480, 480–999, ≥1000] px. Items sort by rarity descending then by display name, so rare drops surface at the top of the list. Empty state preserved.
+
+**Added — Bulk crafting (item 4)**
+
+- **[`crafting_view.gd `_on_craft_n_pressed`](game/scenes/crafting/crafting_view.gd)** — wraps `try_craft` in a count-bounded loop; stops early on first failure; one `_refresh` at the end so the UI doesn't flicker through intermediate states.
+- **`_max_craftable(recipe)`** — computes the cap for the "Max" button from the per-input material floor and the gold floor (via BigNumber.divide → float). Conservative: returns 0 if both are 0.
+- Recipe cards now render three buttons (`Craft` / `x5` / `Max`) instead of a single Craft. Auto-craft scheduler (the optional `auto_craft_enabled` toggle from the plan) deferred — bulk buttons solve the most-painful friction without that complexity.
+
+**Added — Inventory long-press → "Sell all" (item 17, partial)**
+
+- Inline long-press in `inventory_card.gd`: holds for ≥ 0.5 s emit `card_long_pressed(item_id)`. Polls in `_process` so the long-press fires mid-hold without the user lifting first.
+- `inventory_panel.gd` builds a themed PopupPanel with a "Sell all" button on long-press. Sells the entire stack at the item's `sell_value × count`, applies via `GameState.add_gold`. Future hooks for "Use as ingredient" / "Pin to top" left as TODO comments.
+- Long-press wiring on **recipes / pets / bestiary** deferred — the inventory case is the highest-traffic; the others can land in 12a-followup.
+
+**Added — Net comparison (item 16)**
+
+- **[`net_shop.gd `_format_stat_delta`](game/scenes/ui/net_shop.gd)** — for unowned, comparable nets, renders a BBCode delta line like `vs Basic Net: +1 spawn_max · +0.30 catches/s · targets tier 2` with sage-green positives and ruby-tinted negatives. Hidden when no net is equipped or when the candidate IS the equipped net (no point comparing to itself).
+
+**Added — Settings expansion (item 18)**
+
+- **Master volume slider** — `Settings.audio_master_db` had been persisted in `settings.cfg` since Phase 0 but had no setter or UI. New `set_master_db()` + slider, and [`AudioManager._apply_volumes`](game/autoloads/audio_manager.gd) now writes the value through to `AudioServer`'s Master bus on every `audio_settings_changed` signal.
+- **Language picker** — placeholder `OptionButton` with one entry ("English"). Note explains additional languages will arrive with the localization phase. Structural placeholder so the UI rotation is in place.
+- **Replay tutorial button** — deferred to 12c (the FTUE / tutorial phase). Adding it now would require stubbing TutorialState which is out of scope here.
+
+**Tests (296 passing, +14)**
+
+- [`test_inventory_card.gd`](game/tests/test_inventory_card.gd) (5 tests): bind displays name + count, "?" glyph fallback when no sprite, rarity colors differ across tiers, short-press emits `card_tapped`, long-press emits `card_long_pressed`.
+- [`test_bulk_crafting.gd`](game/tests/test_bulk_crafting.gd) (5 tests): Craft 5 consumes 5× materials, stops early on material exhaustion, `_max_craftable` caps at material floor, caps at gold floor, returns 0 when materials are 0.
+- [`test_net_comparison.gd`](game/tests/test_net_comparison.gd) (4 tests): no delta when no equipped net, no delta when target is owned, no delta vs self, delta surfaces for unowned upgrade.
+- Full GUT suite: **296/296 passing, 3216 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Out of scope / deferred from 12a**
+
+- Auto-craft scheduler (optional toggle gated behind first prestige).
+- Long-press menus on pets / recipes / bestiary cards.
+- Replay-tutorial button (waits on 12c).
+
 ### v0.11.4 — Phase 11e: Short-session affordance + welcome-back robustness
 
 **Why**

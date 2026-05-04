@@ -161,7 +161,14 @@ func play_tap_sfx() -> void:
 
 ## Re-applies the current Settings.* dB values to every player. Called when
 ## sliders change, but also safe to call any time.
+##
+## v0.12.0 (Phase 12a): also applies `Settings.audio_master_db` to
+## the AudioServer's Master bus so the master-volume slider in
+## Settings actually does something.
 func _apply_volumes() -> void:
+	var master_idx: int = AudioServer.get_bus_index("Master")
+	if master_idx >= 0:
+		AudioServer.set_bus_volume_db(master_idx, Settings.audio_master_db)
 	if _music_player != null:
 		_music_player.volume_db = Settings.music_db
 	for p in _sfx_pool:

@@ -166,11 +166,34 @@ func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(status_label)
 
-	var btn := Button.new()
-	btn.text = "Craft"
-	btn.disabled = not bool(status["can"])
-	btn.pressed.connect(func() -> void: _on_craft_pressed(recipe))
-	hbox.add_child(btn)
+	# Phase 12a: bulk crafting buttons. Craft 1 / 5 / Max — Max
+	# computes the cap from material + gold floors at click time.
+	# Disabled buttons grey out via the theme but keep their layout
+	# slot so the row width stays consistent across recipe states.
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 4)
+	hbox.add_child(btn_row)
+
+	var btn_one := Button.new()
+	btn_one.text = "Craft"
+	btn_one.disabled = not bool(status["can"])
+	btn_one.pressed.connect(func() -> void: _on_craft_n_pressed(recipe, 1))
+	btn_row.add_child(btn_one)
+
+	var btn_five := Button.new()
+	btn_five.text = "x5"
+	btn_five.disabled = not bool(status["can"])
+	btn_five.pressed.connect(func() -> void: _on_craft_n_pressed(recipe, 5))
+	btn_row.add_child(btn_five)
+
+	var btn_max := Button.new()
+	btn_max.text = "Max"
+	btn_max.disabled = not bool(status["can"])
+	btn_max.pressed.connect(func() -> void:
+		var cap: int = _max_craftable(recipe)
+		if cap > 0:
+			_on_craft_n_pressed(recipe, cap))
+	btn_row.add_child(btn_max)
 	return card
 
 
@@ -199,8 +222,58 @@ func _format_inputs_line(recipe: CraftingRecipeResource) -> String:
 
 
 func _on_craft_pressed(recipe: CraftingRecipeResource) -> void:
-	var result: Dictionary = GameState.try_craft(recipe)
-	# Phase 5 polish will toast the result; for now refresh visually.
-	if not bool(result["success"]):
-		print("[craft] failed: %s reason=%s" % [String(recipe.id), String(result["reason"])])
+	# Backwards-compat shim — still exists in case other call sites
+	# reference it. New callers go through _on_craft_n_pressed.
+	_on_craft_n_pressed(recipe, 1)
+
+
+## Phase 12a — bulk craft. Loops `try_craft` up to `count` times,
+## stopping early if a craft fails (insufficient materials/gold).
+## A single `_refresh` at the end keeps the UI from flickering
+## through N intermediate states.
+func _on_craft_n_pressed(recipe: CraftingRecipeResource, count: int) -> void:
+	var crafted: int = 0
+	for i in count:
+		var result: Dictionary = GameState.try_craft(recipe)
+		if not bool(result["success"]):
+			if crafted == 0:
+				print("[craft] failed: %s reason=%s" % [String(recipe.id), String(result["reason"])])
+			break
+		crafted += 1
+	if crafted > 1:
+		print("[craft] bulk: %s × %d" % [String(recipe.id), crafted])
 	_refresh()
+
+
+## Returns the max number of times this recipe can be crafted given
+## current materials + gold. Used by the "Max" button to compute the
+## cap once at click time. Returns 0 if any material or gold floor is
+## unmet.
+func _max_craftable(recipe: CraftingRecipeResource) -> int:
+	# `cap` named to avoid shadowing the global `floor()` builtin.
+	var cap: int = -1
+	for entry in recipe.inputs:
+		if not (entry is Dictionary):
+			continue
+		var item_id_str: String = String(entry.get("item_id", ""))
+		var needed: int = int(entry.get("amount", 0))
+		if item_id_str == "" or needed <= 0:
+			continue
+		var have: int = int(GameState.inventory.get(item_id_str, 0))
+		@warning_ignore("integer_division")
+		var support: int = have / needed
+		if cap < 0 or support < cap:
+			cap = support
+	# Gold cap — divide current gold by recipe's gold cost.
+	var cost := BigNumber.from_dict(recipe.gold_cost)
+	if not cost.is_zero():
+		var have_g: BigNumber = GameState.current_gold()
+		# BigNumber doesn't support div-to-int directly; round-trip via
+		# float. Safe for typical gold scales (< 1e15) which the bulk-
+		# crafting use case lives well within.
+		var gold_support: int = int(floor(have_g.divide(cost).to_float()))
+		if cap < 0 or gold_support < cap:
+			cap = gold_support
+	if cap < 0:
+		return 0
+	return max(0, cap)

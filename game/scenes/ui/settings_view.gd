@@ -5,8 +5,10 @@ extends PanelContainer
 
 const _PALETTE := preload("res://game/resources/palette_colors.gd")
 
+var _master_slider: HSlider
 var _music_slider: HSlider
 var _sfx_slider: HSlider
+var _master_value_label: Label
 var _music_value_label: Label
 var _sfx_value_label: Label
 var _cloud_status_label: Label
@@ -36,6 +38,20 @@ func _ready() -> void:
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(heading)
 
+	# Phase 12a: Master volume slider — the audio_master_db field has
+	# always existed in Settings + the cfg, but had no setter and no
+	# UI control. AudioManager._apply_volumes now writes the value
+	# through to AudioServer's Master bus on every audio_settings_
+	# changed signal.
+	_master_slider = _build_volume_slider(
+			vbox,
+			"Master",
+			Settings.audio_master_db,
+			func(v: float) -> void:
+				Settings.set_master_db(v)
+				_master_value_label.text = _format_db(v))
+	_master_value_label = _master_slider.get_meta("value_label")
+
 	_music_slider = _build_volume_slider(
 			vbox,
 			"Music",
@@ -55,6 +71,7 @@ func _ready() -> void:
 	_sfx_value_label = _sfx_slider.get_meta("value_label")
 
 	_build_accessibility_section(vbox)
+	_build_language_section(vbox)
 	_build_cloud_save_section(vbox)
 	_build_reset_progress_section(vbox)
 
@@ -201,6 +218,39 @@ func _build_accessibility_section(parent: Container) -> void:
 		Settings.set_font_scale(v)
 		font_value.text = "%.0f%%" % (Settings.font_scale * 100.0))
 	section.add_child(font_slider)
+
+
+## Phase 12a — Language picker. Shipped with one entry ("English")
+## as a placeholder; the structure is in place so future locale
+## work can drop in additional languages by adding entries here +
+## wiring TranslationServer.set_locale on selection.
+func _build_language_section(parent: Container) -> void:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+	parent.add_child(section)
+
+	var heading := Label.new()
+	heading.text = "Language"
+	heading.add_theme_font_size_override("font_size", 18)
+	section.add_child(heading)
+
+	var picker := OptionButton.new()
+	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	picker.add_item("English", 0)
+	picker.selected = 0
+	# Placeholder hook — real locale switching ships with the
+	# localization phase (currently out of scope per IMPLEMENTATION_
+	# PLAN §13). For now the picker is selectable but always English.
+	picker.item_selected.connect(func(_idx: int) -> void:
+		print("[settings] language picker tapped — single locale shipped"))
+	section.add_child(picker)
+
+	var note := Label.new()
+	note.text = "Additional languages will arrive in a future update."
+	note.add_theme_font_size_override("font_size", 13)
+	note.modulate = _PALETTE.SEPIA_MID
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(note)
 
 
 ## Cloud Save section: status indicator + sign-in button. Hidden on
