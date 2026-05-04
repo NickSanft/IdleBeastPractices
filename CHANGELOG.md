@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.11.0 — Phase 11a: Celebration tier (state-change feedback hierarchy)
+
+**Why**
+
+Two parallel research/audit passes (industry research on Android idle-game UX + a 70-finding audit of the live codebase) converged on the same #1 issue: state-change feedback was at v0.5-prototype level despite Phase 10 polish. Tier completions, first pets, first shinies, stage clears, and even **prestige** — the largest progression event in the game — fired with no celebration. Per Wayline's juice essays and Yarahmadi's casual-game UX writeup, feedback intensity should be roughly logarithmic in event rarity. The current game inverted that.
+
+Phase 11a builds the missing T2/T4 layer of the feedback spectrum.
+
+**Added**
+
+- **[`game/scenes/ui/celebration_overlay.tscn`](game/scenes/ui/celebration_overlay.tscn) + [`.gd`](game/scenes/ui/celebration_overlay.gd)** — full-screen Tier-4 celebration modal:
+  - `CanvasLayer` at layer=80 (above narrator overlay).
+  - Centered themed `PanelContainer` card with title + optional sprite + body + "Tap anywhere to dismiss" hint.
+  - Fade-in + scale-up tween (0.92 → 1.0, cubic-ease-out, 0.25 s).
+  - 0.25 s **input lock** at start so a player tapping rapidly doesn't dismiss the overlay before noticing it appeared.
+  - Both backdrop and card accept tap-to-dismiss — no hunting for the right pixel.
+  - `dismissed` signal fires after fade-out completes (consumers like the bestiary modal pattern can chain on it).
+  - `Settings.reduce_motion` consulted defensively — when wired in 11b, motion-reduced users get instant show/hide.
+
+- **[`game/scenes/ui/toast.tscn`](game/scenes/ui/toast.tscn) + [`.gd`](game/scenes/ui/toast.gd)** — slide-down Tier-2 toast queue:
+  - Top-anchored banner that slides in from above the viewport, holds, slides back out.
+  - Internal queue: rapid `show_toast` calls play one-after-another instead of clipping each other.
+  - `queue_size()` exposed for tests.
+  - 0.5 s minimum duration floor so a `show_toast(text, 0)` still has a visible window.
+  - `Settings.reduce_motion` consulted defensively as above.
+
+- **EventBus dispatch in [`main.gd`](game/scenes/main.gd) (`_install_celebrations`)** — the tier-spectrum routing:
+  - **Tier 4 (overlay):** `tier_completed`, `first_shiny_caught`, `prestige_triggered`, `battle_ended` (won).
+  - **Tier 2 (toast):** `pet_acquired`, `recipe_unlocked`.
+  - Tier-1 events (currency_changed, item_gained, monster_caught) intentionally not surfaced here — they're already covered by per-screen feedback (floating numbers, particles, audio stings); over-celebrating the loop fatigues the player.
+  - `tier_completed` overlay body lists the actual pet names earned (via `CatchingSystem.pets_to_award_for_tier`).
+  - `first_shiny_caught` overlay shows the species sprite alongside the title.
+  - `prestige_triggered` overlay reports both RP gained and prestige cycle number.
+
+**Tests (265 passing, +14)**
+
+- [`game/tests/test_celebration_overlay.gd`](game/tests/test_celebration_overlay.gd) (8): starts hidden, becomes visible on `show_celebration`, sprite rect toggles correctly with/without sprite, dismiss + fade-out hides the overlay, subsequent `show_celebration` replaces the previous, **input lock blocks immediate dismissal** (regression for the rapid-tap dismiss case), `dismissed` signal fires.
+- [`game/tests/test_toast.gd`](game/tests/test_toast.gd) (6): show_toast marks showing, label reflects text, queue grows when multiple toasts fire, auto-dismisses after duration, queued toast runs after first finishes, duration is floored to a 0.5 s minimum.
+- Full GUT suite: **265/265 passing, 3170 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes**
+
+- The actual tier-4 events still need their original handlers to fire properly (catching_view._award_tier_completion, battle_view._finish_stage, prestige_view._on_prestige_confirmed, etc.) — Phase 11a only ADDS celebration on top of those existing emit sites. No regressions to underlying gameplay.
+- Future polish: Phase 11b wires `Settings.reduce_motion` into the overlay's tween paths and exposes the toggle in the Settings tab.
+
 ### v0.10.8 — Phase 10e.2: Multi-encounter battle stages
 
 **Why**

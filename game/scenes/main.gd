@@ -76,6 +76,13 @@ var _more_button: Button
 ## thereafter. Replaces the v0.9.0 system PopupMenu.
 var _more_popup: PopupPanel
 
+## Phase 11a — celebration / toast subsystems. Wired into EventBus
+## signals via _install_celebrations() at startup.
+const _CELEBRATION_OVERLAY := preload("res://game/scenes/ui/celebration_overlay.tscn")
+const _TOAST := preload("res://game/scenes/ui/toast.tscn")
+var _celebration_overlay: CanvasLayer
+var _toast: CanvasLayer
+
 
 func _ready() -> void:
 	get_tree().root.close_requested.connect(_on_close_requested)
@@ -83,6 +90,7 @@ func _ready() -> void:
 	_apply_mobile_default_theme()
 	_install_global_haptic_feedback()
 	_build_ui()
+	_install_celebrations()
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
 	GameState.reconcile_pet_awards()
@@ -319,6 +327,93 @@ func _apply_mobile_default_theme() -> void:
 func _install_global_haptic_feedback() -> void:
 	get_tree().node_added.connect(_maybe_wire_haptic_to)
 	call_deferred("_walk_and_wire_haptics", self)
+
+
+# region — Phase 11a celebrations
+
+## Mounts the celebration overlay + toast, then routes EventBus
+## signals to them. Tier-spectrum dispatch:
+##
+##   T4 (full-screen overlay):
+##     - tier_completed
+##     - first_shiny_caught
+##     - prestige_triggered
+##     - battle_ended (won)
+##
+##   T2 (toast):
+##     - pet_acquired
+##     - recipe_unlocked
+##
+## Smaller events (currency_changed, item_gained, monster_caught) are
+## already covered by per-screen feedback (floating numbers, particles,
+## audio stings). Surfacing those here would over-celebrate the loop.
+func _install_celebrations() -> void:
+	_celebration_overlay = _CELEBRATION_OVERLAY.instantiate()
+	add_child(_celebration_overlay)
+	_toast = _TOAST.instantiate()
+	add_child(_toast)
+	EventBus.tier_completed.connect(_on_celebrate_tier_completed)
+	EventBus.first_shiny_caught.connect(_on_celebrate_first_shiny)
+	EventBus.prestige_triggered.connect(_on_celebrate_prestige)
+	EventBus.battle_ended.connect(_on_celebrate_battle_ended)
+	EventBus.pet_acquired.connect(_on_toast_pet_acquired)
+	EventBus.recipe_unlocked.connect(_on_toast_recipe_unlocked)
+
+
+func _on_celebrate_tier_completed(tier: int) -> void:
+	var pets := CatchingSystem.pets_to_award_for_tier(ContentRegistry.monsters(), tier)
+	var pet_names: Array[String] = []
+	for p in pets:
+		pet_names.append(p.display_name)
+	var body: String
+	if pet_names.is_empty():
+		body = "You've cleared every species at this tier."
+	elif pet_names.size() == 1:
+		body = "Joining your roster: %s." % pet_names[0]
+	else:
+		body = "Joining your roster: %s." % ", ".join(pet_names)
+	_celebration_overlay.show_celebration("Tier %d Complete!" % tier, body)
+
+
+func _on_celebrate_first_shiny(monster_id: String) -> void:
+	var monster: MonsterResource = ContentRegistry.monster(StringName(monster_id))
+	var sprite: Texture2D = monster.sprite if monster != null else null
+	var body: String = "A %s, no less." % (monster.display_name if monster != null else "specimen")
+	_celebration_overlay.show_celebration("First Shiny!", body, sprite)
+
+
+func _on_celebrate_prestige(rp_gained: int, prestige_count: int) -> void:
+	var title: String = "Prestige #%d" % prestige_count
+	var body: String = "You earned %d Rancher Points and reset the run." % rp_gained
+	_celebration_overlay.show_celebration(title, body)
+
+
+func _on_celebrate_battle_ended(_battle_id: String, won: bool, rewards: Dictionary) -> void:
+	if not won:
+		return   # losses use the BattleView's own POST screen
+	var rp: int = int(rewards.get("rancher_points", 0))
+	var body: String = "+%d Rancher Points." % rp if rp > 0 else "All encounters cleared."
+	_celebration_overlay.show_celebration("Stage Cleared!", body)
+
+
+func _on_toast_pet_acquired(pet_id: String, is_variant: bool) -> void:
+	var pet: PetResource = ContentRegistry.pet(StringName(pet_id))
+	if pet == null:
+		return
+	var prefix: String = "Variant " if is_variant else ""
+	_toast.show_toast("%spet acquired: %s" % [prefix, pet.display_name])
+
+
+func _on_toast_recipe_unlocked(recipe_id: String) -> void:
+	var recipe: CraftingRecipeResource = ContentRegistry.recipe(StringName(recipe_id))
+	if recipe == null:
+		# Fallback: show a generic message rather than swallowing the
+		# event silently.
+		_toast.show_toast("New recipe unlocked")
+		return
+	_toast.show_toast("Recipe unlocked: %s" % recipe.display_name)
+
+# endregion
 
 
 func _walk_and_wire_haptics(node: Node) -> void:
