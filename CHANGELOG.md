@@ -6,6 +6,65 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.3 — Phase 10d: Bestiary cards
+
+**Why**
+
+[bestiary_view.tscn](game/scenes/bestiary/bestiary_view.tscn) shipped in Phase 4 as a `VBoxContainer` of inline panels — readable but not browseable. Phase 10d converts it into a Pokédex-style grid of `bestiary_card` instances with a four-state slot machine (LOCKED → SEEN → CAPTURED → PERFECTED), tier-banded ribbons, ShaderMaterial silhouettes for unseen species, and a tappable detail modal.
+
+**Added**
+
+- **[`game/scenes/bestiary/bestiary_card.tscn`](game/scenes/bestiary/bestiary_card.tscn) + [`.gd`](game/scenes/bestiary/bestiary_card.gd)** — reusable card component:
+  - Themed `PanelContainer` (clip_contents=true) with a 6 px tier-band ribbon at top: tiers 1–5 brass, 6–10 silver, 11–15 gold, 16–20 obsidian.
+  - Sprite cell that flips between a normal-tinted `TextureRect` (seen) and a silhouette `ShaderMaterial` over the same texture (locked). Shader samples the source alpha and outputs near-black RGB, so silhouettes work on top of the existing recolor placeholders without per-species art.
+  - Name / count / four pill row (Seen ◇ · Normal ✦ · Shiny ✧ · Variant ⬢) summarising completion at a glance.
+  - **Perfected state** (all four slots filled) overrides the panel's `StyleBoxFlat` per-card to paint a brass border — change is local, doesn't leak back to the theme.
+  - Public `slot_state()` returning the LOCKED/SEEN/CAPTURED/PERFECTED enum so tests can inspect the state machine without scraping label text.
+  - `_gui_input` emits a `card_tapped(monster_id)` signal on left-click or touch.
+
+- **[`game/scenes/bestiary/bestiary_card_detail.tscn`](game/scenes/bestiary/bestiary_card_detail.tscn) + [`.gd`](game/scenes/bestiary/bestiary_card_detail.gd)** — `PopupPanel` that opens on card tap:
+  - Big sprite at 4× display scale (or silhouette for locked species).
+  - Name + tier header.
+  - Flavor text (autowrapped).
+  - Stats block: catches, shinies, drop info, pet status (locked / owned / variant).
+  - Best-effort hook for Peniber's first-catch quote — no-ops cleanly when the Narrator doesn't expose `first_catch_line_for(monster_id)`. Future Narrator API can light it up without changing the modal.
+  - Close button + tap-outside-to-dismiss via `exclusive = true`.
+
+- **Rewritten [bestiary_view.gd](game/scenes/bestiary/bestiary_view.gd)** — `GridContainer` of cards instead of `VBoxContainer` of inline panels:
+  - Column count adapts to viewport width: 1 col under 480 px, 2 cols 480–900, 4 cols above 900. The bestiary view's `resized` signal re-applies on rotation / window resize.
+  - One card per registered monster, sorted by tier then id (matching the prior view's order).
+  - Catch-related EventBus signals call `card.refresh()` in place; only `game_loaded` triggers a full rebuild (the registry might have shifted).
+  - Single shared `bestiary_card_detail` instance kept as a child; `popup_centered` opens it for the tapped card. Closing it preserves the underlying scroll position because PopupPanel is a sibling, not a router.
+
+**Backwards-compat**
+
+- `_list` is still the cards-container member name (now `GridContainer` instead of `VBoxContainer`); the existing test suite reads it by that name. Tests updated for the new layout (pairwise `Rect2.intersects` overlap check; silhouette ShaderMaterial check replacing the prior "?" Label assertion).
+
+**Tests (221 passing, +9)**
+
+- [`game/tests/test_bestiary_card.gd`](game/tests/test_bestiary_card.gd) (8 tests):
+  - LOCKED state when monster is unseen.
+  - CAPTURED on first catch (verifying the state machine doesn't loop through SEEN as an intermediate).
+  - PERFECTED after normal + shiny + variant pet are all owned.
+  - Locked card paints a `ShaderMaterial` silhouette on the sprite.
+  - Seen card clears the silhouette material.
+  - Tier-band ribbon colors differ between bands (skipped gracefully if the content seed has no tier-6+ monsters).
+  - Perfected card overrides the panel `StyleBoxFlat`; locked card does not.
+  - `card_tapped` signal fires with the right monster id on click — using an Array capture because GDScript 4 lambdas capture outer locals by value.
+
+- [`game/tests/test_bestiary_view.gd`](game/tests/test_bestiary_view.gd) updated:
+  - Replaced "expect a `?` placeholder Label" with "expect at least one TextureRect carrying a ShaderMaterial silhouette".
+  - Replaced the y-position non-overlap invariant with a pairwise `Rect2.intersects` check that's correct for any layout (the GridContainer breaks the old single-column assumption).
+  - All other assertions (card count, name swap, count display, clip_contents) preserved.
+
+- Full GUT suite: **221/221 passing, 3060 asserts, 0 failures.** Assert count jumped because the new pairwise non-overlap test does ~1770 pairs across the full registry.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.10.2 — Phase 10c: Currency bar redesign
 
 **Why**
