@@ -56,6 +56,12 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# v0.11.1 (Phase 11b): reduce_motion users get a static background.
+	# Continuous parallax drift at the bottom of the visual hierarchy
+	# is exactly the kind of "nothing's wrong but my eyes are tracking
+	# motion" effect motion-sensitive players ask to disable.
+	if Settings.reduce_motion:
+		return
 	_scroll_x += _SCROLL_SPEED_PX_PER_SEC * delta
 	# Wrap manually so floating-point precision doesn't drift over a long
 	# session. ParallaxLayer's motion_mirroring handles the visual wrap;

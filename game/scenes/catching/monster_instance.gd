@@ -220,6 +220,11 @@ func _play_tap_bump() -> void:
 	# facing left stays facing left through the bump.
 	if _sprite == null:
 		return
+	# v0.11.1 (Phase 11b): reduce_motion users get particles only — the
+	# scale punch fires on every tap and is the highest-frequency
+	# animation in the game.
+	if Settings.reduce_motion:
+		return
 	if _scale_tween != null and _scale_tween.is_valid():
 		_scale_tween.kill()
 	var base: Vector2 = Vector2(float(_facing) * _RENDER_SCALE, _RENDER_SCALE)

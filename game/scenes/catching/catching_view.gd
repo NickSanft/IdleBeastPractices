@@ -192,10 +192,11 @@ func _pick_random_on_screen_monster() -> Node:
 
 func _on_monster_tapped(inst: Node2D) -> void:
 	GameState.record_tap()
-	# Phase 10b: brief haptic on every tap that lands on a monster. Skipped
-	# on non-mobile platforms because Input.vibrate_handheld is a no-op there
-	# anyway, and OS.has_feature avoids the call entirely on desktop builds.
-	if OS.has_feature("mobile"):
+	# Phase 10b: brief haptic on every tap that lands on a monster.
+	# v0.11.1 — gated on Settings.haptics_enabled in addition to the
+	# mobile-platform check, so users who turn haptics off in Settings
+	# get a fully silent (vibrationally) catch.
+	if OS.has_feature("mobile") and Settings.haptics_enabled:
 		Input.vibrate_handheld(40)
 	# Trigger feedback now so the player sees their click registered even if
 	# this tap doesn't yet cross the catch difficulty.
@@ -286,8 +287,14 @@ func _on_first_shiny_shake(_monster_id: String) -> void:
 ## Brief positional jitter on the spawn root — gives a tactile feel to
 ## tier-ups and first-shiny moments without disturbing the UI layout
 ## (Control children sit on the catching_view, not on _spawn_root).
+##
+## v0.11.1 (Phase 11b) honours `Settings.reduce_motion` — players who
+## flag motion sensitivity get the celebration without the screen
+## kicking around them.
 func _shake_spawn_root(intensity: float, duration: float) -> void:
 	if _spawn_root == null:
+		return
+	if Settings.reduce_motion:
 		return
 	var tween: Tween = create_tween()
 	tween.set_trans(Tween.TRANS_SINE)

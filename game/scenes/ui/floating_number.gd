@@ -13,9 +13,12 @@ func _ready() -> void:
 	add_theme_font_size_override("font_size", 18)
 	z_index = 50
 	pivot_offset = size * 0.5
+	# v0.11.1 (Phase 11b): reduce_motion users see the number for a
+	# brief beat then it fades — no upward drift.
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(self, "position:y", position.y - _DRIFT_PIXELS, _DURATION)
+	if not Settings.reduce_motion:
+		tween.tween_property(self, "position:y", position.y - _DRIFT_PIXELS, _DURATION)
 	tween.tween_property(self, "modulate:a", 0.0, _DURATION).set_delay(_DURATION * 0.4)
 	tween.chain().tween_callback(queue_free)
 

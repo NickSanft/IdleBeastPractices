@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.11.1 — Phase 11b: Accessibility section (reduce motion + haptics + font scale)
+
+**Why**
+
+The audit found `Settings.reduce_motion` and `Settings.font_scale` were declared in the autoload and persisted to `settings.cfg`, but **no code in the project ever read them**. The infrastructure existed; the wiring didn't. Phase 11b lights it up — adds an Accessibility section to the Settings UI, plumbs the flags through the highest-traffic animation sites and the haptic hooks, and ensures live changes apply without a scene reload.
+
+**Added**
+
+- **`Settings.set_reduce_motion(bool)` / `set_font_scale(float)` / `set_haptics_enabled(bool)`** — typed setters in [`game/autoloads/settings.gd`](game/autoloads/settings.gd) that clamp, dedupe, persist, and emit `accessibility_settings_changed` for live UI re-application.
+- **`Settings.haptics_enabled: bool`** — new persisted flag (default true) covering the global button-haptic hook + the per-tap haptic in catching_view.
+- **`Settings.FONT_SCALE_MIN/MAX` (0.85 / 1.5)** — clamp range chosen so all themed Labels stay readable without overflowing their containers (notably the 110-px currency_chip panel) at the upper end.
+- **Accessibility section in [`settings_view.gd`](game/scenes/ui/settings_view.gd)** — checkbox toggles for "Reduce motion" + "Haptic feedback", and an HSlider for "Text size" (85 % – 150 %, live percentage readout).
+
+**Wired**
+
+`reduce_motion` now gates animation at:
+- [catching_view.gd `_shake_spawn_root`](game/scenes/catching/catching_view.gd) — tier-up + first-shiny screen jitter.
+- [monster_instance.gd `_play_tap_bump`](game/scenes/catching/monster_instance.gd) — the highest-frequency animation in the game (every tap).
+- [floating_number.gd `_ready`](game/scenes/ui/floating_number.gd) — number drift; alpha fade still plays so the gain registers.
+- [catching_background.gd `_process`](game/scenes/catching/catching_background.gd) — ambient parallax scroll (the "nothing's wrong but my eyes are tracking motion" effect motion-sensitive players ask to disable).
+- [combatant.gd `_step_idle_bob`, `play_attack_lunge`, `_play_defeated_fade`](game/scenes/battle/combatant.gd) — battle screen bob, attack-lunge translation (state machine still flips through ATTACK_LUNGE so the contract holds), defeated-fade rotation (alpha fade still plays so defeat reads).
+- [celebration_overlay](game/scenes/ui/celebration_overlay.gd) and [toast](game/scenes/ui/toast.gd) — defensive hooks added in 11a now actually consult the live `Settings.reduce_motion`.
+
+`haptics_enabled` now gates:
+- [main.gd `_on_any_button_pressed`](game/scenes/main.gd) — global Button haptic.
+- [catching_view.gd `_on_monster_tapped`](game/scenes/catching/catching_view.gd) — per-tap catch haptic.
+
+`font_scale` is applied to the mobile-default theme's `Button` / `Label` / `RichTextLabel` font sizes when the theme is built. `accessibility_settings_changed` triggers a `_apply_mobile_default_theme` re-call, so a slider drag reflects on every theme-styled Label without leaving the Settings screen.
+
+**Documented limitation**
+
+Inline `add_theme_font_size_override` calls on individual labels (battle_view status label, prestige heading, narrator_overlay, etc.) are NOT scaled by `font_scale` — they bypass the theme. Theme-level scaling reaches the bulk of default-styled labels (catching roster, currency chip values, bestiary cards, button text on the bottom nav, all the inventory / crafting / shop list rows), which is the most important text. Selectively scaling per-label overrides would touch ~80 sites; deferred to a follow-up if vision-impaired playtesting flags specific overrides as problems.
+
+**Tests (273 passing, +8)**
+
+- [`game/tests/test_accessibility_settings.gd`](game/tests/test_accessibility_settings.gd) — 8 tests:
+  - `set_reduce_motion` emits `accessibility_settings_changed`.
+  - Setter is idempotent — setting to current value does not fire signal.
+  - `set_font_scale` clamps below FONT_SCALE_MIN and above FONT_SCALE_MAX.
+  - `set_haptics_enabled` round-trips through `settings.cfg`.
+  - `floating_number` skips drift when `reduce_motion` is on.
+  - `floating_number` drifts normally when `reduce_motion` is off (regression — protects against the gate getting stuck on).
+  - `combatant` idle bob is static when `reduce_motion` is on.
+  - `combatant` attack lunge returns immediately when `reduce_motion` is on.
+- Test isolation: `before_each` in `test_catching_background.gd` and `test_combatant.gd`, plus `after_each` in `test_accessibility_settings.gd`, reset Settings state. Without these, the new `reduce_motion` gates leak state across test files in unpredictable order — caught and fixed mid-iteration.
+- Full GUT suite: **273/273 passing, 3181 asserts, 0 warnings.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.11.0 — Phase 11a: Celebration tier (state-change feedback hierarchy)
 
 **Why**

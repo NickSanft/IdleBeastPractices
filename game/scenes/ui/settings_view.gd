@@ -54,6 +54,7 @@ func _ready() -> void:
 				_sfx_value_label.text = _format_db(v))
 	_sfx_value_label = _sfx_slider.get_meta("value_label")
 
+	_build_accessibility_section(vbox)
 	_build_cloud_save_section(vbox)
 	_build_reset_progress_section(vbox)
 
@@ -117,6 +118,89 @@ func _on_wipe_confirmed() -> void:
 		push_warning("Wipe save: SaveManager.clear_save returned false")
 		return
 	print("[settings] save wiped; GameState reset to defaults")
+
+
+## Phase 11b — Accessibility section: reduce-motion toggle, haptics
+## toggle, font-scale slider. Each control writes through Settings,
+## which persists to settings.cfg and emits accessibility_settings_
+## changed so any subscribing UI can refresh without a scene reload.
+func _build_accessibility_section(parent: Container) -> void:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 8)
+	parent.add_child(section)
+
+	var heading := Label.new()
+	heading.text = "Accessibility"
+	heading.add_theme_font_size_override("font_size", 18)
+	section.add_child(heading)
+
+	# Reduce motion toggle. When on, animation-heavy effects (catching
+	# screen shake, monster bumps, floating numbers, combatant lunges,
+	# parallax scroll) skip their tweens and snap to final state.
+	var motion_row := HBoxContainer.new()
+	motion_row.add_theme_constant_override("separation", 12)
+	section.add_child(motion_row)
+	var motion_check := CheckBox.new()
+	motion_check.button_pressed = Settings.reduce_motion
+	motion_check.toggled.connect(func(on: bool) -> void:
+		Settings.set_reduce_motion(on))
+	motion_row.add_child(motion_check)
+	var motion_label := Label.new()
+	motion_label.text = "Reduce motion"
+	motion_label.add_theme_font_size_override("font_size", 16)
+	motion_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	motion_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	motion_row.add_child(motion_label)
+
+	var motion_blurb := Label.new()
+	motion_blurb.text = "Skips screen shake, sprite bumps, floating gold drift, combatant bobs, and parallax scrolling. Use if motion makes you queasy."
+	motion_blurb.add_theme_font_size_override("font_size", 13)
+	motion_blurb.modulate = _PALETTE.SEPIA_MID
+	motion_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(motion_blurb)
+
+	# Haptics toggle. Defaults true; turning off skips
+	# Input.vibrate_handheld() calls in the global button handler and
+	# the per-tap catch handler.
+	var hap_row := HBoxContainer.new()
+	hap_row.add_theme_constant_override("separation", 12)
+	section.add_child(hap_row)
+	var hap_check := CheckBox.new()
+	hap_check.button_pressed = Settings.haptics_enabled
+	hap_check.toggled.connect(func(on: bool) -> void:
+		Settings.set_haptics_enabled(on))
+	hap_row.add_child(hap_check)
+	var hap_label := Label.new()
+	hap_label.text = "Haptic feedback"
+	hap_label.add_theme_font_size_override("font_size", 16)
+	hap_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hap_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hap_row.add_child(hap_label)
+
+	# Font scale slider.
+	var font_header := HBoxContainer.new()
+	section.add_child(font_header)
+	var font_name := Label.new()
+	font_name.text = "Text size"
+	font_name.add_theme_font_size_override("font_size", 16)
+	font_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	font_header.add_child(font_name)
+	var font_value := Label.new()
+	font_value.text = "%.0f%%" % (Settings.font_scale * 100.0)
+	font_value.add_theme_font_size_override("font_size", 14)
+	font_value.modulate = _PALETTE.SEPIA_MID
+	font_header.add_child(font_value)
+
+	var font_slider := HSlider.new()
+	font_slider.min_value = Settings.FONT_SCALE_MIN
+	font_slider.max_value = Settings.FONT_SCALE_MAX
+	font_slider.step = 0.05
+	font_slider.value = Settings.font_scale
+	font_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	font_slider.value_changed.connect(func(v: float) -> void:
+		Settings.set_font_scale(v)
+		font_value.text = "%.0f%%" % (Settings.font_scale * 100.0))
+	section.add_child(font_slider)
 
 
 ## Cloud Save section: status indicator + sign-in button. Hidden on

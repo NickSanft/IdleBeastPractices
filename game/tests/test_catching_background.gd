@@ -9,6 +9,12 @@ extends GutTest
 const _SCENE := preload("res://game/scenes/catching/catching_background.tscn")
 
 
+func before_each() -> void:
+	# Reset Settings.reduce_motion so state leaked from
+	# test_accessibility_settings doesn't disable scroll here.
+	Settings.reduce_motion = false
+
+
 func test_instantiates_with_three_parallax_layers() -> void:
 	var bg: ParallaxBackground = _SCENE.instantiate()
 	add_child_autofree(bg)

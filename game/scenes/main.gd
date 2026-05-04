@@ -254,7 +254,17 @@ func _apply_mobile_default_theme() -> void:
 	# Local var renamed from `theme` to `mobile_theme` to avoid
 	# shadowing Control.theme (which is in scope here because
 	# Main extends Control).
+	#
+	# v0.11.1 (Phase 11b): applies Settings.font_scale to the base
+	# font sizes. Players can boost text up to 150 % via the
+	# accessibility slider for vision support. Inline font_size
+	# overrides on individual labels are NOT scaled — that's a
+	# documented limitation; theme-level scaling reaches the bulk of
+	# default-styled labels and the bottom-nav, which is the most
+	# important text. Subscribes to Settings for live re-application.
 	var mobile_theme := Theme.new()
+	if not Settings.accessibility_settings_changed.is_connected(_on_accessibility_settings_changed):
+		Settings.accessibility_settings_changed.connect(_on_accessibility_settings_changed)
 
 	# Buttons: 48 dp tap target per Material's accessibility floor
 	# (text height ~22 px + 14 px top + 14 px bottom = ~50 px = 48 dp
@@ -285,12 +295,14 @@ func _apply_mobile_default_theme() -> void:
 	mobile_theme.set_stylebox("hover", "Button", btn_hover)
 	mobile_theme.set_stylebox("pressed", "Button", btn_pressed)
 	mobile_theme.set_stylebox("disabled", "Button", btn_disabled)
-	mobile_theme.set_font_size("font_size", "Button", 18)
+	# Font sizes scale with Settings.font_scale (Phase 11b).
+	var scale: float = Settings.font_scale
+	mobile_theme.set_font_size("font_size", "Button", int(round(18.0 * scale)))
 
 	# Labels: bump up for phone readability. Custom-styled labels
 	# (currency_bar, peniber overlay) override per-control.
-	mobile_theme.set_font_size("font_size", "Label", 16)
-	mobile_theme.set_font_size("font_size", "RichTextLabel", 16)
+	mobile_theme.set_font_size("font_size", "Label", int(round(16.0 * scale)))
+	mobile_theme.set_font_size("font_size", "RichTextLabel", int(round(16.0 * scale)))
 
 	# CheckBox / OptionButton inherit Button styling so they get the
 	# same hit-box bump. Sliders need an explicit grabber bump.
@@ -308,6 +320,15 @@ func _apply_mobile_default_theme() -> void:
 	mobile_theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
 
 	get_tree().root.theme = mobile_theme
+
+
+## Phase 11b — Settings.accessibility_settings_changed handler.
+## Currently re-applies the mobile theme so font_scale changes take
+## effect immediately on the open scene without requiring a reload.
+## reduce_motion and haptics_enabled are read at the call site for
+## each animation/haptic, so they don't need a re-apply step.
+func _on_accessibility_settings_changed() -> void:
+	_apply_mobile_default_theme()
 
 
 ## Wire a 20-millisecond haptic pulse to every Button press in the
@@ -432,6 +453,12 @@ func _maybe_wire_haptic_to(node: Node) -> void:
 
 
 func _on_any_button_pressed() -> void:
+	# v0.11.1 (Phase 11b): respect the user's haptics preference. The
+	# OS-level haptic-disable still wins (vibrate_handheld is a no-op
+	# when the system has haptics off), but the in-app toggle gives
+	# users finer control without leaving the game.
+	if not Settings.haptics_enabled:
+		return
 	Input.vibrate_handheld(20)
 
 

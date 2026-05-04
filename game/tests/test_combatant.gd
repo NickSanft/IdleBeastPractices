@@ -9,6 +9,12 @@ const _COMBATANT := preload("res://game/scenes/battle/combatant.tscn")
 const _COMBATANT_SCRIPT := preload("res://game/scenes/battle/combatant.gd")
 
 
+func before_each() -> void:
+	# Reset Settings.reduce_motion so leaked state from
+	# test_accessibility_settings doesn't bypass tween-driven assertions.
+	Settings.reduce_motion = false
+
+
 func _new_combatant(start: Vector2 = Vector2(-50, 200), engagement: Vector2 = Vector2(200, 200), team: String = "player", facing: int = 1) -> Node2D:
 	var c: Node2D = _COMBATANT.instantiate()
 	# IMPORTANT: setup() must be called BEFORE add_child — combatant's

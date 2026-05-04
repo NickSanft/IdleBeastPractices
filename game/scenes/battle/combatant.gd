@@ -111,6 +111,12 @@ func _step_walk_in(delta: float) -> void:
 
 
 func _step_idle_bob(delta: float) -> void:
+	# v0.11.1 (Phase 11b): reduce_motion users see static combatants
+	# at engagement_pos. They're still visually distinct from
+	# defeated combatants (which are faded + tilted).
+	if Settings.reduce_motion:
+		position = engagement_pos
+		return
 	_bob_phase += delta * _IDLE_BOB_HZ
 	# A trig bob keeps idle combatants visually distinct from defeated
 	# ones (which are static + faded).
@@ -120,8 +126,19 @@ func _step_idle_bob(delta: float) -> void:
 ## Public: BattleMap calls this when a frame names this combatant as
 ## the actor. Plays a quick lunge toward the target's screen position
 ## then returns to engagement_pos. No-op if already defeated.
+##
+## v0.11.1 (Phase 11b): reduce_motion players skip the position
+## tween. The brief hurt-flash on the target still fires, so the
+## "X attacked Y" beat reads through color rather than position.
 func play_attack_lunge(target_pos: Vector2) -> void:
 	if state == State.DEFEATED_FADE or _defeated:
+		return
+	if Settings.reduce_motion:
+		# Still set state briefly so the state machine reflects "this
+		# combatant just acted" — useful for debug + tests — but skip
+		# the visible motion.
+		state = State.ATTACK_LUNGE
+		_on_lunge_complete()
 		return
 	var dir: Vector2 = (target_pos - engagement_pos).normalized()
 	if dir == Vector2.ZERO:
@@ -175,12 +192,15 @@ func _play_defeated_fade() -> void:
 		_hp_bar.visible = false
 	if _sprite == null:
 		return
+	# v0.11.1 (Phase 11b): reduce_motion skips the topple rotation.
+	# Pure alpha fade still conveys defeat without the rotational
+	# motion that triggers vestibular issues for some players.
 	var t := create_tween()
 	t.set_parallel(true)
 	t.tween_property(_sprite, "modulate:a", 0.0, 0.45)
-	# Topple in the direction of the opposing team.
-	var tilt: float = deg_to_rad(70.0) * float(-facing)
-	t.tween_property(_sprite, "rotation", tilt, 0.45)
+	if not Settings.reduce_motion:
+		var tilt: float = deg_to_rad(70.0) * float(-facing)
+		t.tween_property(_sprite, "rotation", tilt, 0.45)
 
 
 ## True once the defeated-fade tween starts. Tests + battle_view
