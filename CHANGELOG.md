@@ -6,6 +6,55 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.13.0 — Phase 12d: Pet abilities
+
+**Why**
+
+`PetResource.ability_id` had been wired since Phase 2, `BattleSystem._act` already queried `AbilityRegistry.get_ability(id)`, and the BattleLog supported ability frames — but only three abilities (`strike`, `shield`, `heal`) shipped. Battle was effectively "highest-ATK wins" because every pet defaulted to plain attacks. Phase 12d adds five new ability templates plus the status-effect plumbing they need (bleed DOT, taunt-aware targeting), turning team selection into a genuine choice.
+
+**Added — 5 new abilities in [`AbilityRegistry`](game/systems/ability_registry.gd)**
+
+- **`taunt`** — applies `taunted` status to caster for 5 ticks. Enemy basic attacks (and `_pick_lowest_hp`-driven ability targeting) preferentially route to taunted enemies via the new `pick_target_with_taunt` helper. 10-tick cooldown.
+- **`rend`** — applies `bleed` status (5 dmg / tick × 4 ticks) to lowest-HP enemy. `BattleSystem._tick_statuses` now applies the bleed damage before decrementing duration. 8-tick cooldown.
+- **`smite`** — 2.5× damage on the **highest-HP** enemy. Inverts `strike`'s target selection so the role is "focus-fire on the tankiest enemy" rather than "finish the squishy one." Uses new `_pick_highest_hp` picker. 12-tick cooldown.
+- **`cleanse`** — strips `bleed` from all allies (positive statuses like `def_buff` and `taunted` survive). Counter to enemy DOT teams. 14-tick cooldown.
+- **`burst`** — 0.6× damage AOE to all living enemies. Multi-target alternative to strike. 10-tick cooldown.
+
+**BattleSystem extensions**
+
+- `_tick_statuses` applies per-tick effects (currently `bleed`) before decrementing `ticks_remaining`. Existing passive statuses (`def_buff`, `taunted`) read elsewhere are unchanged.
+- `_act`'s basic-attack target selection routes through `AbilityRegistry.pick_target_with_taunt(enemies)` instead of the local `_pick_lowest_hp(team)`. Taunt now actually redirects targeting end-to-end.
+
+**Pet ability assignments**
+
+- `green_wisplet_pet`: `strike` → **`heal`** (defensive support).
+- `red_wisplet_pet`: `strike` → **`smite`** (focus-fire damage).
+- `blue_wisplet_pet`: **`shield`** (kept — already a tank role).
+
+The wisplet roster now plays as a tank/damage/healer trio: send all three into a Wisplet Hollows stage and the team shape feels intentional. Previously they all played identically.
+
+**Tests (~324 passing, +10)**
+
+- [`test_abilities.gd`](game/tests/test_abilities.gd) — coverage per ability:
+  - taunt applies status, redirects targeting (taunted enemy picked over lower-HP non-taunted), falls back to lowest-HP without taunt.
+  - rend applies bleed; 4 ticks of bleed deal exactly `5 × 4 = 20` damage; bleed expires after duration.
+  - smite picks highest-HP enemy; damage uses 2.5× multiplier (bound-checked under variance).
+  - cleanse strips bleed from allies; def_buff and other positive statuses survive.
+  - burst hits all living enemies; skips already-dead.
+  - Determinism: same RNG seed produces byte-identical damage rolls for smite + burst.
+- Existing `test_battle_system.gd`, `test_battle_stage.gd`, `test_battle_view.gd` still pass — the new behavior layers on top of the existing simulator without breaking determinism contracts.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes**
+
+- Combatant visuals for the new abilities currently fall back to the standard attack-lunge animation. Distinguishable visuals (aura flash for buffs, ground glyph for AOE, beam for heal targeting) are listed in DEPTH_PLAN's 12d acceptance and remain a follow-up — the gameplay-side work is what makes the ability variety meaningful; visuals are polish.
+- Tier 2+ pets don't yet have `.tres` files, so the new abilities are accessible only via the wisplet trio for now. Future tier-2-pet content can pull from the new pool.
+
 ### v0.12.2 — Phase 12c: FTUE / Tutorial coachmarks
 
 **Why**

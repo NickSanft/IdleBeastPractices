@@ -13,4 +13,4 @@ variant_rate = 0.02
 base_attack = 12.0
 base_defense = 6.0
 base_hp = 60.0
-ability_id = &"strike"
+ability_id = &"heal"

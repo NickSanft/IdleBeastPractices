@@ -13,4 +13,4 @@ variant_rate = 0.02
 base_attack = 16.0
 base_defense = 4.0
 base_hp = 50.0
-ability_id = &"strike"
+ability_id = &"smite"

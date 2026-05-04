@@ -245,6 +245,13 @@ static func _tick_statuses(team: Array) -> void:
 		for s in c["status_effects"]:
 			if not (s is Dictionary):
 				continue
+			# Phase 12d: apply per-tick effects BEFORE decrementing
+			# the duration. bleed deals magnitude damage each tick;
+			# def_buff and taunted are passive (consulted elsewhere).
+			if s.get("type", "") == "bleed":
+				var dmg: int = int(s.get("magnitude", 0))
+				if dmg > 0 and float(c["hp"]) > 0.0:
+					c["hp"] = max(0.0, float(c["hp"]) - float(dmg))
 			s["ticks_remaining"] = int(s["ticks_remaining"]) - 1
 			if s["ticks_remaining"] > 0:
 				kept.append(s)
@@ -266,8 +273,10 @@ static func _act(
 			for f in produced:
 				frames.append(f)
 			return
-	# Basic attack on lowest-HP enemy.
-	var target: Dictionary = _pick_lowest_hp(enemies)
+	# Basic attack on lowest-HP enemy, but route through the taunt-
+	# aware picker so a taunting enemy redirects all targeting onto
+	# itself for the duration of its taunted status.
+	var target: Dictionary = AbilityRegistry.pick_target_with_taunt(enemies)
 	if target.is_empty():
 		return
 	var variance: float = rng.randf_range(0.85, 1.15)
