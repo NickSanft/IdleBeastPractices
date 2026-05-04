@@ -45,3 +45,26 @@ func write(data: String) -> bool:
 
 func exists() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
+
+
+## Delete user://save.json (and any stale .tmp from an interrupted
+## prior write). Idempotent: returns true if the file is gone after
+## the call, regardless of whether anything was deleted.
+func clear() -> bool:
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		push_error("LocalFileBackend.clear: failed to open user:// directory")
+		return false
+	# Wipe the temp file too — a crash mid-write could have left one
+	# behind, and re-saving would surprise-restore it via the rename
+	# step in write().
+	var tmp_name: String = TMP_PATH.get_file()
+	if dir.file_exists(tmp_name):
+		dir.remove(tmp_name)
+	var save_name: String = SAVE_PATH.get_file()
+	if dir.file_exists(save_name):
+		var err := dir.remove(save_name)
+		if err != OK:
+			push_error("LocalFileBackend.clear: remove failed (err=%d)" % err)
+			return false
+	return not exists()

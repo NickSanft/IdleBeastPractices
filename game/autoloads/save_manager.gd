@@ -39,3 +39,27 @@ func save(state: Dictionary) -> void:
 	var json_str := JSON.stringify(to_write)
 	if backend.write(json_str):
 		EventBus.game_saved.emit()
+
+
+## Reset save state to first-launch defaults.
+##
+## Steps:
+##   1. Delete the persisted save (LocalFileBackend wipes both
+##      user://save.json and the .tmp from any interrupted prior write).
+##   2. Reset GameState in-memory to its defaults via from_dict({}).
+##   3. Persist the empty defaults so a quit-without-saving doesn't
+##      restore the prior data via OS swap.
+##   4. Emit `game_loaded` so subscribers (currency_bar, bestiary view,
+##      narrator overlay state, etc.) refresh from the new state.
+##
+## Returns true on success. The caller is responsible for confirming
+## with the user — this method does not prompt.
+func clear_save() -> bool:
+	if not backend.clear():
+		return false
+	GameState.from_dict({})
+	# Persist the cleared state immediately so a hard quit before
+	# the next save tick can't surface the prior save.
+	save(GameState.to_dict())
+	EventBus.game_loaded.emit()
+	return true

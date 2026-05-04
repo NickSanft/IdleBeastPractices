@@ -3,12 +3,15 @@
 ## so AudioManager re-applies the dB values to every player.
 extends PanelContainer
 
+const _PALETTE := preload("res://game/resources/palette_colors.gd")
+
 var _music_slider: HSlider
 var _sfx_slider: HSlider
 var _music_value_label: Label
 var _sfx_value_label: Label
 var _cloud_status_label: Label
 var _cloud_button: Button
+var _wipe_confirm: ConfirmationDialog
 
 
 func _ready() -> void:
@@ -52,11 +55,68 @@ func _ready() -> void:
 	_sfx_value_label = _sfx_slider.get_meta("value_label")
 
 	_build_cloud_save_section(vbox)
+	_build_reset_progress_section(vbox)
 
 	# Spacer at the bottom so the sliders sit at the top of the panel.
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(spacer)
+
+
+## Reset Progress section: a single destructive button that wipes the
+## save file (and in-memory state) after a confirmation dialog. Useful
+## for testing fresh-start flows and as an emergency reset for players
+## whose state has somehow gotten wedged.
+func _build_reset_progress_section(parent: Container) -> void:
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 6)
+	parent.add_child(section)
+
+	var heading := Label.new()
+	heading.text = "Reset Progress"
+	heading.add_theme_font_size_override("font_size", 18)
+	section.add_child(heading)
+
+	var blurb := Label.new()
+	blurb.text = "Wipe all saved progress: gold, items, pets, upgrades, prestige, ledger. This cannot be undone."
+	blurb.add_theme_font_size_override("font_size", 14)
+	blurb.modulate = _PALETTE.SEPIA_MID
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(blurb)
+
+	var btn := Button.new()
+	btn.text = "Wipe save data…"
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Tint the label red as a destructive cue. Theme-driven Button
+	# colors are kept; this is just an extra signal on top.
+	btn.add_theme_color_override("font_color", _PALETTE.BLOOD_RUBY)
+	btn.add_theme_color_override("font_hover_color", _PALETTE.BLOOD_RUBY)
+	btn.pressed.connect(_on_wipe_pressed)
+	section.add_child(btn)
+
+
+func _on_wipe_pressed() -> void:
+	if _wipe_confirm == null:
+		_wipe_confirm = ConfirmationDialog.new()
+		_wipe_confirm.title = "Wipe save data?"
+		_wipe_confirm.dialog_text = "This will permanently erase all progress (gold, items, pets, upgrades, prestige, ledger).\n\nAre you sure?"
+		_wipe_confirm.ok_button_text = "Wipe progress"
+		_wipe_confirm.cancel_button_text = "Cancel"
+		# ConfirmationDialog is a Window subtype — assign the theme so
+		# its label + buttons paint with the parchment/brass UI rather
+		# than the dark mobile-default theme on get_tree().root.
+		_wipe_confirm.theme = preload("res://game/resources/main_theme.tres")
+		_wipe_confirm.confirmed.connect(_on_wipe_confirmed)
+		add_child(_wipe_confirm)
+	_wipe_confirm.popup_centered(Vector2(420, 200))
+
+
+func _on_wipe_confirmed() -> void:
+	var ok: bool = SaveManager.clear_save()
+	if not ok:
+		push_warning("Wipe save: SaveManager.clear_save returned false")
+		return
+	print("[settings] save wiped; GameState reset to defaults")
 
 
 ## Cloud Save section: status indicator + sign-in button. Hidden on

@@ -22,3 +22,12 @@ func write(_data: String) -> bool:
 func exists() -> bool:
 	push_error("SaveBackend.exists() not implemented")
 	return false
+
+
+## Permanently remove the persisted save. Returns true if the backend
+## successfully cleared its store (or there was nothing to clear).
+## Implementations: LocalFileBackend deletes the on-disk JSON;
+## CloudBackend (Phase 7) is expected to clear the remote object too.
+func clear() -> bool:
+	push_error("SaveBackend.clear() not implemented")
+	return false

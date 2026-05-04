@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.6 — Wipe-save feature + pet acquisition diagnosis
+
+**Why**
+
+User report: "I can't get pets anymore — might be a save migration." Inspecting the live `save.json` showed `tiers_completed=[1]`, `current_max_tier=2`, no tier-2 monster catches, and `recipes_crafted=[]`. **Not a migration bug** — the player is stuck behind the v0.9.4-flagged tier-2 net craft gate: `basic_net.targets_tiers=[1]` so tier-2 monsters can't spawn (auto-catch *or* tap), and tier-2 monster catches are required to advance toward the next pet award. The unstick is to craft `recipe_tier2_net` (50 wisplet ectoplasm + 5 K gold), which the player already has materials for.
+
+While here, the user also asked for a wipe-save feature with confirmation — useful both for testing fresh-start flows and as an emergency reset for any future save wedge.
+
+**Added**
+
+- **[`SaveBackend.clear()`](game/systems/save_backend.gd)** — abstract method on the storage backend interface. Phase-7 `CloudBackend` will need to wipe its remote object too.
+- **[`LocalFileBackend.clear()`](game/systems/local_file_backend.gd)** — deletes `user://save.json` AND the `.tmp` from any interrupted prior write (so a re-save's atomic rename can't surface the leftover stale data). Idempotent: returns true if the save is gone after the call, regardless of whether anything was deleted.
+- **[`SaveManager.clear_save()`](game/autoloads/save_manager.gd)** — coordinated wipe:
+  1. `backend.clear()` — wipe disk.
+  2. `GameState.from_dict({})` — reset in-memory to first-launch defaults.
+  3. `SaveManager.save(GameState.to_dict())` — persist the cleared defaults so a hard quit before the next save tick can't restore the prior data via OS swap.
+  4. Emit `EventBus.game_loaded` so subscribers (currency_bar, bestiary view, narrator state) refresh.
+- **Reset Progress section in [`settings_view.gd`](game/scenes/ui/settings_view.gd)** — a destructive button under Cloud Save with a `BLOOD_RUBY`-tinted label, blurb, and a `ConfirmationDialog` ("Wipe save data? This will permanently erase all progress…"). The dialog gets `theme = main_theme.tres` explicitly per the v0.10.4 fix so its label + buttons paint with parchment/brass instead of the dark-gray root theme.
+
+**Tests (241 passing, +6)**
+
+- [`game/tests/test_save_clear.gd`](game/tests/test_save_clear.gd) (6 tests):
+  - `LocalFileBackend.clear()` removes the save file.
+  - `clear()` is idempotent (succeeds when there's nothing to clear).
+  - `SaveManager.clear_save()` resets currencies / prestige_count / pets_owned / tiers_completed.
+  - `clear_save()` persists the cleared state to disk so a hard quit doesn't restore the prior data.
+  - `clear_save()` emits `EventBus.game_loaded` synchronously.
+  - `clear_save()` works when there's no save on disk yet.
+- Full GUT suite: **241/241 passing, 3106 asserts, 0 failures.**
+
+**Notes**
+
+- The pet-acquisition gate is a known limitation flagged in v0.9.4's headless simulation. Players who progress past tier 1 *must* craft the tier-2 net before they can grind toward the tier-2 pet awards. Surface UI for the gate (e.g. an empty-spawn-pool hint on the catching view) is out of scope here; future polish.
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.10.5 — Phase 10e.1: Battle map foundation
 
 **Why**
