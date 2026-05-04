@@ -79,8 +79,12 @@ func _format_summary(summary: Dictionary) -> String:
 
 
 func _on_confirmed() -> void:
-	# Claim with no ad: emit the base summary.
-	claimed.emit(_summary)
+	# v0.11.4 (Phase 11e fix for F48): rewards are pre-applied by
+	# main._apply_offline_progress before this dialog opens, so
+	# tapping Claim no longer needs to re-emit. Just hide.
+	# (The signal is preserved for the 2x ad path which DOES need
+	# to add another summary's worth on top of the pre-applied base.)
+	pass
 
 
 func _on_custom_action(action: StringName) -> void:
@@ -99,26 +103,15 @@ func _on_rewarded_completed(reward_id: String, granted: bool) -> void:
 		return
 	_ad_in_flight = false
 	if granted:
-		# Double the summary's monetary rewards before emitting.
-		var doubled: Dictionary = _summary.duplicate(true)
-		var gold: BigNumber = doubled.get("gold_gained", BigNumber.zero())
-		doubled["gold_gained"] = gold.multiply_float(2.0)
-		var items: Dictionary = doubled.get("items_gained", {})
-		var doubled_items: Dictionary = {}
-		for k in items.keys():
-			doubled_items[k] = int(items[k]) * 2
-		doubled["items_gained"] = doubled_items
-		var catches: Dictionary = doubled.get("catches_by_species", {})
-		var doubled_catches: Dictionary = {}
-		for k in catches.keys():
-			var entry: Dictionary = catches[k]
-			doubled_catches[k] = {
-				"normal": int(entry.get("normal", 0)) * 2,
-				"shiny": int(entry.get("shiny", 0)) * 2,
-			}
-		doubled["catches_by_species"] = doubled_catches
+		# v0.11.4 (Phase 11e fix for F48): the base summary was already
+		# applied by main._apply_offline_progress before this dialog
+		# opened. To deliver "2x rewards", emit the ORIGINAL summary so
+		# the claim handler applies it AGAIN — total then equals 2x.
+		# (Pre-fix, this path emitted a doubled summary which, combined
+		# with pre-application, would have produced 3x; pre-application
+		# didn't exist before, so the doubled-emit was correct then.)
 		EventBus.rewarded_video_completed.emit(reward_id, true)
-		claimed.emit(doubled)
+		claimed.emit(_summary)
 		hide()
 	else:
 		EventBus.rewarded_video_completed.emit(reward_id, false)

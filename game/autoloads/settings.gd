@@ -31,6 +31,13 @@ var font_scale: float = 1.0
 ## see no change.
 var haptics_enabled: bool = true
 
+## Phase 11e — persisted battle speed selector index. Idle players
+## tend to set 4x once and want it to stick across sessions; before
+## persistence, every Battle entry reset to 1x (the audit's F42
+## medium-severity finding). Range: [0..2] mapping to [1x, 2x, 4x]
+## per battle_view._SPEED_OPTIONS.
+var battle_speed_index: int = 0
+
 # Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
 # Default off so production builds use the real catch threshold (25) and
 # real variant_rate per pet. F2 flips it on for hand-testing.
@@ -74,6 +81,16 @@ func set_haptics_enabled(value: bool) -> void:
 	save_to_disk()
 
 
+func set_battle_speed_index(value: int) -> void:
+	# Clamp to the valid range. battle_view._SPEED_OPTIONS has 3
+	# entries; if it grows, this clamp grows with it.
+	var clamped: int = clampi(value, 0, 2)
+	if battle_speed_index == clamped:
+		return
+	battle_speed_index = clamped
+	save_to_disk()
+
+
 func _ready() -> void:
 	load_from_disk()
 
@@ -90,6 +107,7 @@ func load_from_disk() -> void:
 	reduce_motion = cfg.get_value("accessibility", "reduce_motion", reduce_motion)
 	font_scale = cfg.get_value("accessibility", "font_scale", font_scale)
 	haptics_enabled = cfg.get_value("accessibility", "haptics_enabled", haptics_enabled)
+	battle_speed_index = cfg.get_value("gameplay", "battle_speed_index", battle_speed_index)
 
 
 func save_to_disk() -> void:
@@ -100,4 +118,5 @@ func save_to_disk() -> void:
 	cfg.set_value("accessibility", "reduce_motion", reduce_motion)
 	cfg.set_value("accessibility", "font_scale", font_scale)
 	cfg.set_value("accessibility", "haptics_enabled", haptics_enabled)
+	cfg.set_value("gameplay", "battle_speed_index", battle_speed_index)
 	cfg.save(SETTINGS_PATH)

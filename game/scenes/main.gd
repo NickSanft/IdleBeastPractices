@@ -639,6 +639,14 @@ func _apply_offline_progress(loaded: Dictionary) -> void:
 			GameState.multiplier(&"gold_mult"),
 			GameState.multiplier(&"shiny_rate"))
 	EventBus.offline_progress_calculated.emit(summary)
+	# v0.11.4 (Phase 11e fix for F48): apply rewards IMMEDIATELY before
+	# showing the welcome-back dialog. Pre-fix, a force-quit at the
+	# dialog (or process-killed mid-presentation) lost the offline
+	# progress entirely. Now the rewards land in GameState and persist
+	# via the next save tick regardless of whether the player taps
+	# Claim. The dialog becomes a confirmation/summary; the 2x ad path
+	# adds ANOTHER summary's worth on top via the existing handler.
+	_on_welcome_back_claimed(summary)
 	_show_welcome_back(summary)
 
 

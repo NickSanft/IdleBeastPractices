@@ -101,6 +101,9 @@ func _ready() -> void:
 	EventBus.game_loaded.connect(_render_idle)
 	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
 	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
+	# Phase 11e: persist battle speed across sessions. Idle players
+	# tend to set 4x once and never want it reset.
+	_speed_index = clampi(int(Settings.battle_speed_index), 0, _SPEED_OPTIONS.size() - 1)
 	set_process(false)
 	_render_idle()
 
@@ -195,6 +198,8 @@ func _on_action_pressed() -> void:
 
 func _cycle_speed() -> void:
 	_speed_index = (_speed_index + 1) % _SPEED_OPTIONS.size()
+	# Phase 11e: persist immediately so the next session inherits.
+	Settings.set_battle_speed_index(_speed_index)
 	_update_action_button_text()
 
 

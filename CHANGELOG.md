@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.11.4 — Phase 11e: Short-session affordance + welcome-back robustness
+
+**Why**
+
+Three audit findings combined: F42 (battle speed resets to 1× every entry), F47 (welcome-back 2× ad missed the rolled-up `shinies_caught` counter), F48 (force-quit at the welcome-back dialog loses offline progress entirely).
+
+**Added**
+
+- **`Settings.battle_speed_index: int` (persisted)** + `set_battle_speed_index(value)` setter. Loaded from `settings.cfg` `[gameplay] battle_speed_index`. Defaults 0 (1× speed) so existing players see no change.
+
+**Wired**
+
+- **[`battle_view.gd `_ready`](game/scenes/battle/battle_view.gd)** — initializes `_speed_index` from `Settings.battle_speed_index`, clamped to the valid range. The 4× setting now sticks across sessions.
+- **[`battle_view.gd `_cycle_speed`](game/scenes/battle/battle_view.gd)** — calls `Settings.set_battle_speed_index(_speed_index)` on every tap so the persisted value tracks the live one immediately.
+
+**Fixed (welcome-back)**
+
+- **F48 (force-quit at dialog loses progress)** — [main.gd `_apply_offline_progress`](game/scenes/main.gd) now applies the offline rewards via `_on_welcome_back_claimed(summary)` IMMEDIATELY before showing the dialog. The dialog becomes a confirmation/summary; the rewards land in GameState and persist via the next save tick regardless of whether the player taps Claim or force-quits. The "Claim" button's confirm handler is now a no-op (rewards already credited).
+- **F47 (2× ad missed shinies_caught counter)** — [welcome_back_dialog.gd `_on_rewarded_completed`](game/scenes/ui/welcome_back_dialog.gd) used to build a "doubled summary" by walking nested fields, but missed the top-level `shinies_caught` rollup. Removing the doubling logic entirely (since rewards are now pre-applied at compute time) made this a non-bug. The 2× path now emits the ORIGINAL summary so the claim handler applies it AGAIN, yielding 2× total — simpler than the manual-doubling approach and forecloses similar "missed a field" bugs.
+
+**Tests (282 passing, +5)**
+
+- [`game/tests/test_persistent_battle_speed.gd`](game/tests/test_persistent_battle_speed.gd) — 5 tests:
+  - `set_battle_speed_index` clamps below 0 and above 2.
+  - Setter is idempotent at the current value.
+  - `battle_view._ready` initializes `_speed_index` from `Settings.battle_speed_index`.
+  - `_cycle_speed` writes through `Settings.set_battle_speed_index` on every tick (covers the wrap from 2 → 0).
+  - `battle_speed_index` round-trips through `settings.cfg`.
+- Full GUT suite: **282/282 passing, 3194 asserts.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Notes / what's left**
+
+- The audit's "Claim All" idea (one-button absorbs offline + daily + queued progress) is **not** implemented here; with offline already pre-applied at launch, the welcome-back dialog effectively IS claim-all. A daily-login bonus is a separate design item — deferred until the broader retention loop gets attention.
+- Audit F65/F66 (spawn bounds overlap with currency bar / nav) not addressed in 11e — small layout fixes pending broader playtest feedback.
+
 ### v0.11.3 — Phase 11d: Progression visibility
 
 **Why**
