@@ -6,6 +6,67 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.8 — Phase 10e.2: Multi-encounter battle stages
+
+**Why**
+
+Phase 10e.1 shipped the side-scrolling battle map but the underlying flow was still "one battle = one encounter". Phase 10e.2 turns each Fight into a stage: a 1-N sequence of encounters the player team must clear in succession. Pet HP carries between encounters; team wipe ends the stage early. Stage rewards (RP) sum across encounters and credit once on stage completion.
+
+**Added**
+
+- **[`game/resources/encounter_resource.gd`](game/resources/encounter_resource.gd)** — `EncounterResource` schema. Each encounter is `monster_ids: Array[StringName]` (up to 3 monsters spawning simultaneously) plus an optional `narrator_line_id` for a Peniber line on encounter start.
+- **[`game/resources/battle_stage_resource.gd`](game/resources/battle_stage_resource.gd)** — `BattleStageResource` schema: `id`, `display_name`, `tier`, `encounters: Array[EncounterResource]`, `narrator_stage_clear_id`, `bonus_rp_on_clear`. The view picks a stage via `ContentRegistry.default_stage_for_tier(player_tier)` — highest-tier stage the player has unlocked.
+- **Two seed stages** in [`game/data/battle_stages/`](game/data/battle_stages/):
+  - `wisplet_hollows.tres` (tier 1): 1 wisplet → 2 wisplets → 3 wisplets, ramping difficulty within a single stage.
+  - `centiphantom_drifts.tres` (tier 2): same shape with the centiphantom roster.
+- **[`ContentRegistry.battle_stages()`](game/systems/content_registry.gd) + `battle_stage(id)` + `default_stage_for_tier(tier)`** — registry now indexes `game/data/battle_stages/*.tres` alongside monsters/items/etc.
+
+**BattleSystem refactor**
+
+- New static `BattleSystem.simulate_stage(seed, pets, stage, rp_mult) -> StageLog`. Drives an internal `_simulate_encounter` per encounter, threading the player team's HP through so survivors retain damage between waves. Single shared RNG carries state across encounters so a tweak to encounter 1 deterministically shifts encounter 2's variance.
+- `BattleSystem.simulate(...)` (single-encounter API) is preserved unchanged — refactored to call `_simulate_encounter` internally. Existing test_battle_system suite still passes 8/8.
+- StageLog shape: `{stage_id, seed, winner, last_encounter_index, encounters: Array[BattleLog], rewards: {rancher_points}}`. Frame-level data is one BattleLog per encounter; UI replays them in sequence.
+
+**BattleView state machine**
+
+- Added `BETWEEN_ENCOUNTERS` state. Flow: `IDLE → BATTLING (encounter 0) → BETWEEN_ENCOUNTERS (0.7s pause + enemy fade-out) → BATTLING (encounter 1) → … → POST`.
+- IDLE now surfaces stage info: stage name, tier, encounter count.
+- `_begin_encounter(index)` spawns fresh enemy combatants for the encounter (player team persists across encounters so HP carries visually). Optional Peniber line via the encounter's `narrator_line_id`.
+- `_finish_encounter_replay` decides "next encounter" vs "stage end" based on the just-finished encounter's winner. Team wipe in encounter N skips encounters N+1..end.
+- `_finish_stage` credits the stage's summed RP once (not per-encounter), fires the `narrator_stage_clear_id` line on victory, emits `EventBus.battle_ended`.
+- `_fast_forward_replay` extended to walk through ALL remaining encounters in one pass when the rewarded-video skip lands.
+
+**Visual transition between encounters**
+
+- Old enemy combatants fade out via tween before queue_free (`modulate:a → 0` over 0.2s). The despawn tween is tracked in a `_despawn_tweens` array so `_teardown_battle_map` can kill it before freeing the combatant out from under the tween's callback (avoids Godot's "lambda capture was freed" warning during scene transitions).
+
+**Tests (252 passing, +7)**
+
+- [`game/tests/test_battle_stage.gd`](game/tests/test_battle_stage.gd) (7 tests):
+  - Same seed → identical StageLog (per-encounter frame counts match).
+  - Different seeds can diverge in at least one encounter's frame count.
+  - Player win emits summed RP (`rewards.rancher_points > 0`).
+  - Team wipe terminates the stage early; `last_encounter_index < stage.encounters.size()`.
+  - Team wipe emits no rewards.
+  - Existing `simulate()` single-encounter contract unchanged (regression check).
+  - StageLog echoes the source stage's id for telemetry.
+- [`game/tests/test_battle_view.gd`](game/tests/test_battle_view.gd) updated:
+  - `_start_battle` → `_start_stage` (renamed to reflect stage semantics).
+  - The first-encounter spawn assertion accepts 1–3 enemies (was hardcoded 3 under the old single-encounter view).
+  - Determinism test uses `_setup_battle_map_with_player_team()` + `_spawn_enemy_team()` mirroring the new live flow.
+- Full GUT suite: **252/252 passing, ~3142 asserts, 0 failures.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Known limitations**
+
+- Stage selection UI is implicit (`default_stage_for_tier` auto-picks). Explicit stage picker + team_select left for follow-up polish.
+- Visual between-encounter motion is a fade; the camera-scroll / ground-scroll polish from POLISH_PLAN's 10e.2 description is deferred. The 0.7-second pause + enemy fade reads as "next wave coming" without needing parallax scrolling. If the camera scroll is wanted, it's a small additive tween in battle_map.
+
 ### v0.10.7 — Variant RNG bug fix + GDScript warning sweep
 
 **Why**

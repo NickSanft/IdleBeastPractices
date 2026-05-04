@@ -13,6 +13,7 @@ const _PETS_DIR := "res://game/data/pets"
 const _UPGRADES_DIR := "res://game/data/upgrades"
 const _RECIPES_DIR := "res://game/data/recipes"
 const _DIALOGUE_DIR := "res://game/data/dialogue"
+const _BATTLE_STAGES_DIR := "res://game/data/battle_stages"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
@@ -21,6 +22,7 @@ static var _pets_by_id: Dictionary = {}       # StringName -> PetResource
 static var _upgrades_by_id: Dictionary = {}   # StringName -> UpgradeResource
 static var _recipes_by_id: Dictionary = {}    # StringName -> CraftingRecipeResource
 static var _dialogue_by_id: Dictionary = {}   # StringName -> DialogueLineResource
+static var _battle_stages_by_id: Dictionary = {}  # StringName -> BattleStageResource
 static var _initialized: bool = false
 
 
@@ -34,6 +36,7 @@ static func ensure_loaded() -> void:
 	_load_dir(_UPGRADES_DIR, _upgrades_by_id)
 	_load_dir(_RECIPES_DIR, _recipes_by_id)
 	_load_dir(_DIALOGUE_DIR, _dialogue_by_id)
+	_load_dir(_BATTLE_STAGES_DIR, _battle_stages_by_id)
 	_initialized = true
 
 
@@ -161,3 +164,31 @@ static func dialogue_lines() -> Array[DialogueLineResource]:
 static func dialogue_line(id: StringName) -> DialogueLineResource:
 	ensure_loaded()
 	return _dialogue_by_id.get(id)
+
+
+static func battle_stages() -> Array[BattleStageResource]:
+	ensure_loaded()
+	var out: Array[BattleStageResource] = []
+	for id in _battle_stages_by_id.keys():
+		out.append(_battle_stages_by_id[id])
+	return out
+
+
+static func battle_stage(id: StringName) -> BattleStageResource:
+	ensure_loaded()
+	return _battle_stages_by_id.get(id)
+
+
+## Returns the highest-tier stage the player has unlocked given their
+## `current_max_tier`, or null if none are available. Used by the
+## BattleView's auto-pick fallback when no explicit stage is selected.
+static func default_stage_for_tier(player_tier: int) -> BattleStageResource:
+	ensure_loaded()
+	var best: BattleStageResource = null
+	for id in _battle_stages_by_id.keys():
+		var stage: BattleStageResource = _battle_stages_by_id[id]
+		if stage.tier > player_tier:
+			continue
+		if best == null or stage.tier > best.tier:
+			best = stage
+	return best

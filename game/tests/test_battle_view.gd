@@ -37,19 +37,22 @@ func test_idle_with_pets_enables_fight_button() -> void:
 
 
 func test_battle_setup_spawns_one_combatant_per_team_member() -> void:
-	# Grant a pet and start a battle. The map's Combatants layer
-	# should hold exactly len(player_team) + len(enemy_team) children.
+	# Grant a pet and start a stage. The map's Combatants layer should
+	# hold one combatant per player slot + one per enemy in the FIRST
+	# encounter (which the wisplet_hollows seed stages as a single
+	# wisplet, ramping to 3 by encounter 3).
 	GameState.add_pet(&"green_wisplet_pet", false)
 	var view: PanelContainer = _BATTLE_VIEW.instantiate()
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	view._start_battle()
+	view._start_stage()
 	await wait_frames(2)
 	var p_count: int = view._player_combatants.size()
 	var e_count: int = view._enemy_combatants.size()
 	assert_gt(p_count, 0, "player team must have at least one combatant")
-	assert_eq(e_count, 3, "enemy team should be 3 by default")
+	assert_gt(e_count, 0, "first encounter must spawn at least one enemy")
+	assert_lte(e_count, 3, "encounter spawns clamp to 3 enemies max")
 	assert_not_null(view._battle_map, "battle_map must be instantiated under the SubViewport")
 
 
@@ -59,7 +62,7 @@ func test_player_and_enemy_face_opposing_directions() -> void:
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	view._start_battle()
+	view._start_stage()
 	await wait_frames(2)
 	var p: Node2D = view._player_combatants[0]
 	var e: Node2D = view._enemy_combatants[0]
@@ -94,7 +97,11 @@ func test_two_replays_of_same_log_produce_identical_defeat_sequence() -> void:
 	view_a._player_team_summary = view_a._summarize_pets(pets)
 	view_a._enemy_team_summary = view_a._summarize_monsters(enemies)
 	view_a._state = view_a._State.BATTLING
-	view_a._render_battle()
+	# v0.10.8: post-stage refactor, the per-encounter setup splits into
+	# player-team (one-time) + enemy-team (per encounter). Mirror the
+	# live _begin_encounter call sequence.
+	view_a._setup_battle_map_with_player_team()
+	view_a._spawn_enemy_team()
 	await wait_frames(1)
 	var seq_a: Array = _walk_defeat_sequence(view_a, log_a)
 
@@ -106,7 +113,8 @@ func test_two_replays_of_same_log_produce_identical_defeat_sequence() -> void:
 	view_b._player_team_summary = view_b._summarize_pets(pets)
 	view_b._enemy_team_summary = view_b._summarize_monsters(enemies)
 	view_b._state = view_b._State.BATTLING
-	view_b._render_battle()
+	view_b._setup_battle_map_with_player_team()
+	view_b._spawn_enemy_team()
 	await wait_frames(1)
 	var seq_b: Array = _walk_defeat_sequence(view_b, log_b)
 
@@ -135,7 +143,7 @@ func test_finish_replay_transitions_to_post() -> void:
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	view._start_battle()
+	view._start_stage()
 	await wait_frames(2)
 	view._fast_forward_replay()
 	assert_eq(view._state, view._State.POST,
@@ -149,7 +157,7 @@ func test_idle_after_post_tears_down_battle_map() -> void:
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	view._start_battle()
+	view._start_stage()
 	await wait_frames(2)
 	view._fast_forward_replay()
 	view._render_idle()

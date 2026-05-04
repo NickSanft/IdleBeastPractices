@@ -1,18 +1,20 @@
 ## Battle tab: roster, fight button, frame-replay.
 ##
 ## State machine:
-##   IDLE     - show pet roster + Fight button (or "no pets" message)
-##   BATTLING - replay BattleLog frames at configurable speed
-##   POST     - show result + Continue button
+##   IDLE                - show pet roster + stage info + Fight button
+##                         (or "no pets" message)
+##   BATTLING            - replay current encounter's BattleLog frames
+##                         at configurable speed
+##   BETWEEN_ENCOUNTERS  - despawn old enemy combatants, spawn next
+##                         encounter's enemies, brief 0.6s pause
+##   POST                - show stage result + Continue button
 ##
-## v0.10.5 (Phase 10e.1): visual layer rewritten. The IDLE roster and
-## POST result text still live in `_content_box`, but BATTLING swaps
-## that content for a SubViewport hosting `battle_map` — pets walk in
-## from the left, enemies from the right, lunge-attack each other,
-## and fade on KO. Determinism is unchanged: `BattleSystem.simulate`
-## produces the BattleLog before any visuals touch the screen, and
-## `_apply_replay_frame` interprets each frame as a combatant lunge +
-## target damage. Same seed → identical visual sequence.
+## v0.10.5 (Phase 10e.1): single-encounter visual rewrite.
+## v0.10.8 (Phase 10e.2): multi-encounter stages. Each "Fight" runs a
+## sequence of 1-N encounters from a [BattleStageResource]. Pet HP
+## carries between encounters; team wipe ends the stage early. Stage
+## rewards (RP) are summed across encounters and credited once on
+## stage completion.
 extends PanelContainer
 
 const _BATTLE_MAP := preload("res://game/scenes/battle/battle_map.tscn")
@@ -22,8 +24,9 @@ const _PALETTE := preload("res://game/resources/palette_colors.gd")
 const _TICK_SECONDS_PER_FRAME := 0.25  # game-tick duration
 const _MAX_PETS_IN_FIGHT := 3
 const _SPEED_OPTIONS: Array[float] = [1.0, 2.0, 4.0]
+const _BETWEEN_ENCOUNTERS_SECS := 0.7
 
-enum _State { IDLE, BATTLING, POST }
+enum _State { IDLE, BATTLING, BETWEEN_ENCOUNTERS, POST }
 
 var _state: int = _State.IDLE
 var _root_vbox: VBoxContainer
@@ -32,23 +35,33 @@ var _content_panel: PanelContainer
 var _content_box: VBoxContainer
 var _action_button: Button
 var _speed_index: int = 0
-var _battle_log: Dictionary
+
+# Phase 10e.2 — stage state.
+var _active_stage: BattleStageResource
+var _stage_log: Dictionary
+var _current_encounter_index: int = 0
+var _between_timer: float = 0.0
+
+# Per-encounter playback state.
+var _battle_log: Dictionary    # current encounter's BattleLog
 var _replay_frame_index: int = 0
 var _replay_accumulator: float = 0.0
 var _player_team_summary: Array = []   # per-pet display info (id + name + sprite + tint + max_hp)
-var _enemy_team_summary: Array = []
+var _enemy_team_summary: Array = []    # for the CURRENT encounter
 var _action_log_label: Label
-var _skip_button: Button   # rewarded-video instant-finish; visible during BATTLING only
+var _skip_button: Button
 
 # Phase 10e.1: SubViewport-hosted map + combatants. Only populated
-# while _state == BATTLING (or POST).
+# while _state in {BATTLING, BETWEEN_ENCOUNTERS, POST}.
 var _viewport_container: SubViewportContainer
 var _viewport: SubViewport
 var _battle_map: Node2D
-## Index `_player_combatants[i]` is the combatant for slot i on the
-## player side; same for enemies. Synced 1:1 with team_summary indices.
 var _player_combatants: Array[Node2D] = []
 var _enemy_combatants: Array[Node2D] = []
+## In-flight despawn tweens. Killed in _teardown_battle_map so their
+## queue_free callbacks don't fire on already-freed combatants
+## (which would trigger Godot's "lambda capture was freed" warning).
+var _despawn_tweens: Array[Tween] = []
 
 
 func _ready() -> void:
@@ -116,7 +129,33 @@ func _render_idle() -> void:
 		_action_button.text = "Fight"
 		_action_button.disabled = true
 		return
-	_status_label.text = "Roster"
+	# Phase 10e.2: surface the active stage so the player can see what
+	# they're walking into. ContentRegistry picks the highest-tier
+	# stage their current_max_tier unlocks.
+	var stage: BattleStageResource = ContentRegistry.default_stage_for_tier(GameState.current_max_tier)
+	if stage == null:
+		_status_label.text = "No stage available"
+		_action_button.text = "Fight"
+		_action_button.disabled = true
+		var note := Label.new()
+		note.text = "No battle stages are unlocked yet. Complete a tier to unlock one."
+		note.modulate = _PALETTE.SEPIA_MID
+		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_content_box.add_child(note)
+		return
+	_active_stage = stage
+	_status_label.text = "Stage: %s" % stage.display_name
+	var subtitle := Label.new()
+	subtitle.text = "Tier %d  •  %d encounters" % [stage.tier, stage.encounters.size()]
+	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.modulate = _PALETTE.SEPIA_MID
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_content_box.add_child(subtitle)
+
+	var roster_heading := Label.new()
+	roster_heading.text = "Roster"
+	roster_heading.add_theme_font_size_override("font_size", 18)
+	_content_box.add_child(roster_heading)
 	for pet in pets.slice(0, _MAX_PETS_IN_FIGHT):
 		var row := Label.new()
 		row.text = "  %s  —  ATK %d / DEF %d / HP %d  (%s)" % [
@@ -139,7 +178,7 @@ func _render_idle() -> void:
 
 func _on_action_pressed() -> void:
 	if _state == _State.IDLE:
-		_start_battle()
+		_start_stage()
 	elif _state == _State.BATTLING:
 		_cycle_speed()
 	elif _state == _State.POST:
@@ -156,54 +195,77 @@ func _update_action_button_text() -> void:
 		_action_button.text = "Speed: %dx" % int(_SPEED_OPTIONS[_speed_index])
 	elif _state == _State.POST:
 		_action_button.text = "Continue"
+	elif _state == _State.BETWEEN_ENCOUNTERS:
+		_action_button.text = "Advancing…"
 	else:
 		_action_button.text = "Fight"
 
 
-func _start_battle() -> void:
+# region — Phase 10e.2: stage orchestration
+
+## Kicks off the active stage. Builds the StageLog up front (BattleSystem
+## simulates everything deterministically), then plays back encounter 0.
+## Subsequent encounters are queued via _begin_encounter as the previous
+## one's frames exhaust.
+func _start_stage() -> void:
 	var pets: Array[PetResource] = GameState.owned_pets().slice(0, _MAX_PETS_IN_FIGHT)
 	if pets.is_empty():
 		return
-	var enemies: Array[MonsterResource] = _generate_enemy_team()
-	if enemies.is_empty():
+	if _active_stage == null:
+		return
+	if _active_stage.encounters.is_empty():
+		push_warning("BattleView._start_stage: stage %s has no encounters" % String(_active_stage.id))
 		return
 	var battle_seed: int = int(Time.get_unix_time_from_system()) ^ Engine.get_process_frames()
 	var rp_mult: float = GameState.multiplier(&"rp_mult")
-	_battle_log = BattleSystem.simulate(battle_seed, pets, enemies, rp_mult)
+	_stage_log = BattleSystem.simulate_stage(battle_seed, pets, _active_stage, rp_mult)
 	EventBus.battle_started.emit(str(battle_seed))
 	_player_team_summary = _summarize_pets(pets)
-	_enemy_team_summary = _summarize_monsters(enemies)
-	_state = _State.BATTLING
-	_replay_frame_index = 0
-	_replay_accumulator = 0.0
-	_render_battle()
-	_update_action_button_text()
+	_setup_battle_map_with_player_team()
+
 	if _skip_button != null:
 		_skip_button.visible = true
 		_skip_button.disabled = not AdsManager.is_available()
+
+	_current_encounter_index = 0
+	_begin_encounter(0)
+
+
+## Begin playback of encounter `index` from the StageLog. Spawns the
+## encounter's enemy combatants and resets the per-encounter replay
+## state. The player team is NOT respawned — combatants persist across
+## encounters so HP carries visibly.
+func _begin_encounter(index: int) -> void:
+	var encounter_logs: Array = _stage_log.get("encounters", [])
+	if index < 0 or index >= encounter_logs.size():
+		_finish_stage()
+		return
+	_battle_log = encounter_logs[index]
+	_current_encounter_index = index
+	_replay_frame_index = 0
+	_replay_accumulator = 0.0
+
+	var encounter: EncounterResource = _active_stage.encounters[index]
+	var enemy_monsters: Array[MonsterResource] = []
+	for mid in encounter.monster_ids:
+		var m: MonsterResource = ContentRegistry.monster(mid)
+		if m != null:
+			enemy_monsters.append(m)
+	_enemy_team_summary = _summarize_monsters(enemy_monsters)
+	_spawn_enemy_team()
+
+	_status_label.text = "%s — Encounter %d / %d" % [
+			_active_stage.display_name, index + 1, encounter_logs.size(),
+	]
+	_state = _State.BATTLING
+	_update_action_button_text()
+	# Optional Peniber line for this encounter.
+	if encounter.narrator_line_id != &"" and Narrator.has_method("try_speak"):
+		Narrator.try_speak(encounter.narrator_line_id)
 	set_process(true)
 
 
-func _generate_enemy_team() -> Array[MonsterResource]:
-	# 3 monsters of the player's current_max_tier (or tier 1 if higher tier has no content).
-	var pool := ContentRegistry.monsters()
-	var target_tier: int = max(1, GameState.current_max_tier)
-	var candidates: Array[MonsterResource] = []
-	for m in pool:
-		if m.tier == target_tier:
-			candidates.append(m)
-	if candidates.is_empty():
-		# Fall back to tier 1.
-		for m in pool:
-			if m.tier == 1:
-				candidates.append(m)
-	if candidates.is_empty():
-		return []
-	# Take 3 (with replacement if pool is smaller).
-	var team: Array[MonsterResource] = []
-	for i in 3:
-		team.append(candidates[i % candidates.size()])
-	return team
+# endregion
 
 
 func _summarize_pets(pets: Array[PetResource]) -> Array:
@@ -245,24 +307,10 @@ func _summarize_monsters(monsters: Array[MonsterResource]) -> Array:
 
 # region — Phase 10e.1 visual rendering
 
-func _render_battle() -> void:
-	_clear_content()
-	_status_label.text = "Battle: tick %d / %d" % [int(_battle_log["ticks"]), 600]
-	_setup_battle_map()
-	_action_log_label = Label.new()
-	_action_log_label.text = ""
-	_action_log_label.add_theme_font_size_override("font_size", 14)
-	_action_log_label.modulate = _PALETTE.SEPIA_MID
-	_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_content_box.add_child(_action_log_label)
 
-
-## Build (or rebuild) the SubViewport + battle_map subtree, hand it
-## one combatant per team_summary entry. Idempotent: tearing the
-## subtree down before rebuild lets _start_battle reuse the same
-## machinery for re-fights without leaking nodes.
-func _setup_battle_map() -> void:
+## Build the SubViewport + battle_map subtree and spawn the player team.
+## Enemy team is spawned per-encounter via _spawn_enemy_team.
+func _setup_battle_map_with_player_team() -> void:
 	_teardown_battle_map()
 	_viewport_container = SubViewportContainer.new()
 	_viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -282,12 +330,28 @@ func _setup_battle_map() -> void:
 	_viewport.add_child(_battle_map)
 	_battle_map.apply_tier_palette(int(GameState.current_max_tier))
 
+	_action_log_label = Label.new()
+	_action_log_label.text = ""
+	_action_log_label.add_theme_font_size_override("font_size", 14)
+	_action_log_label.modulate = _PALETTE.SEPIA_MID
+	_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_content_box.add_child(_action_log_label)
+
 	_player_combatants = _spawn_team("player", _player_team_summary)
+
+
+## Spawn fresh enemy combatants for the current encounter. Old enemy
+## combatants must be despawned BEFORE this is called (handled by
+## _begin_between_encounters).
+func _spawn_enemy_team() -> void:
 	_enemy_combatants = _spawn_team("enemy", _enemy_team_summary)
 
 
 func _spawn_team(team: String, summary: Array) -> Array[Node2D]:
 	var out: Array[Node2D] = []
+	if _battle_map == null:
+		return out
 	var layer: Node2D = _battle_map.combatants_layer()
 	for i in summary.size():
 		var entry: Dictionary = summary[i]
@@ -307,6 +371,14 @@ func _spawn_team(team: String, summary: Array) -> Array[Node2D]:
 
 
 func _teardown_battle_map() -> void:
+	# Kill any in-flight despawn tweens before freeing combatants —
+	# otherwise the tween's queue_free callback fires after its
+	# captured combatant is already gone, which Godot reports as
+	# "lambda capture was freed".
+	for t in _despawn_tweens:
+		if t != null and t.is_valid():
+			t.kill()
+	_despawn_tweens.clear()
 	if _viewport_container != null and is_instance_valid(_viewport_container):
 		_viewport_container.queue_free()
 	_viewport_container = null
@@ -316,12 +388,36 @@ func _teardown_battle_map() -> void:
 	_enemy_combatants.clear()
 
 
+## Despawn enemy combatants only — used between encounters. Player
+## combatants persist (HP carries via _battle_log frames already
+## applied; subsequent encounters reference the same indices).
+func _despawn_enemy_combatants() -> void:
+	for c in _enemy_combatants:
+		if is_instance_valid(c):
+			# Tween a quick fade-out before queue_free so the transition
+			# reads as a deliberate beat rather than an instant pop.
+			# The tween is tracked so _teardown_battle_map can kill it
+			# before freeing combatants out from under it.
+			var t := create_tween()
+			_despawn_tweens.append(t)
+			t.tween_property(c, "modulate:a", 0.0, 0.2)
+			t.tween_callback(func() -> void:
+				if is_instance_valid(c):
+					c.queue_free())
+	_enemy_combatants.clear()
+
+
 # endregion
 
 
 func _process(delta: float) -> void:
-	if _state != _State.BATTLING:
-		return
+	if _state == _State.BATTLING:
+		_step_battling(delta)
+	elif _state == _State.BETWEEN_ENCOUNTERS:
+		_step_between_encounters(delta)
+
+
+func _step_battling(delta: float) -> void:
 	var speed: float = _SPEED_OPTIONS[_speed_index]
 	_replay_accumulator += delta * speed
 	while _replay_accumulator >= _TICK_SECONDS_PER_FRAME and _replay_frame_index < _battle_log["frames"].size():
@@ -329,7 +425,14 @@ func _process(delta: float) -> void:
 		_replay_frame_index += 1
 		_replay_accumulator -= _TICK_SECONDS_PER_FRAME
 	if _replay_frame_index >= _battle_log["frames"].size():
-		_finish_replay()
+		_finish_encounter_replay()
+
+
+func _step_between_encounters(delta: float) -> void:
+	_between_timer += delta * _SPEED_OPTIONS[_speed_index]
+	if _between_timer >= _BETWEEN_ENCOUNTERS_SECS:
+		_between_timer = 0.0
+		_begin_encounter(_current_encounter_index + 1)
 
 
 func _apply_replay_frame(frame: Dictionary) -> void:
@@ -337,15 +440,11 @@ func _apply_replay_frame(frame: Dictionary) -> void:
 	var target_id: String = String(frame.get("target", ""))
 	var actor: Node2D = _combatant_for(actor_id)
 	var target: Node2D = _combatant_for(target_id)
-	# Visuals: actor lunges, target takes damage. Either may be null
-	# if the frame addresses a slot that isn't populated (defensive
-	# against malformed frames).
 	if actor != null and target != null and actor.has_method("play_attack_lunge"):
 		actor.play_attack_lunge(target.position)
 	if target != null and target.has_method("apply_damage"):
 		var hp_remaining: int = int(frame.get("hp_remaining", 0))
 		target.apply_damage(hp_remaining)
-	# Action log
 	if _action_log_label != null:
 		var action: String = String(frame.get("action", ""))
 		var damage: int = int(frame.get("damage", 0))
@@ -357,8 +456,6 @@ func _apply_replay_frame(frame: Dictionary) -> void:
 		_action_log_label.text = line
 
 
-## Maps a frame's "team_index" string to the spawned combatant. Returns
-## null on malformed strings or out-of-range indices.
 func _combatant_for(id: String) -> Node2D:
 	var parts: PackedStringArray = id.split("_")
 	if parts.size() < 2:
@@ -371,24 +468,50 @@ func _combatant_for(id: String) -> Node2D:
 	return pool[index]
 
 
-func _finish_replay() -> void:
+## Called when the current encounter's frames are exhausted. Decides
+## whether to roll into the next encounter (if one exists and the
+## player team won this encounter) or to terminate the stage.
+func _finish_encounter_replay() -> void:
+	var encounter_winner: String = String(_battle_log.get("winner", "draw"))
+	var encounter_logs: Array = _stage_log.get("encounters", [])
+	var has_next: bool = _current_encounter_index + 1 < encounter_logs.size()
+	if encounter_winner == "player" and has_next:
+		_begin_between_encounters()
+		return
+	# Either the team wiped or this was the final encounter — finalize.
+	_finish_stage()
+
+
+func _begin_between_encounters() -> void:
+	_state = _State.BETWEEN_ENCOUNTERS
+	_between_timer = 0.0
+	_despawn_enemy_combatants()
+	if _action_log_label != null:
+		_action_log_label.text = "Advancing to encounter %d…" % (_current_encounter_index + 2)
+	_update_action_button_text()
+
+
+func _finish_stage() -> void:
 	_state = _State.POST
 	set_process(false)
 	if _skip_button != null:
 		_skip_button.visible = false
-	var winner: String = String(_battle_log.get("winner", "draw"))
-	var ticks: int = int(_battle_log.get("ticks", 0))
+	var winner: String = String(_stage_log.get("winner", "draw"))
+	var rewards: Dictionary = _stage_log.get("rewards", {})
+	var rp: int = int(rewards.get("rancher_points", 0))
 	if winner == "player":
-		var rewards: Dictionary = _battle_log.get("rewards", {})
-		var rp: int = int(rewards.get("rancher_points", 0))
-		_status_label.text = "Victory in %d ticks  •  +%d RP" % [ticks, rp]
+		_status_label.text = "Stage cleared  •  +%d RP" % rp
 		if rp > 0:
 			GameState.add_rancher_points(rp, "battle")
-	elif winner == "enemy":
-		_status_label.text = "Defeat in %d ticks" % ticks
+		# Optional Peniber stage-cleared line.
+		if _active_stage != null and _active_stage.narrator_stage_clear_id != &"" and Narrator.has_method("try_speak"):
+			Narrator.try_speak(_active_stage.narrator_stage_clear_id)
 	else:
-		_status_label.text = "Drawn at the tick cap (%d)" % ticks
-	EventBus.battle_ended.emit(str(_battle_log.get("seed", 0)), winner == "player", _battle_log.get("rewards", {}))
+		_status_label.text = "Stage failed at encounter %d" % (_current_encounter_index + 1)
+	EventBus.battle_ended.emit(
+			str(_stage_log.get("seed", 0)),
+			winner == "player",
+			rewards)
 	_action_button.text = "Continue"
 
 
@@ -421,14 +544,35 @@ func _on_rewarded_failed(reward_id: String, _reason: String) -> void:
 		_skip_button.disabled = false
 
 
+## Skip the rest of the stage — apply every remaining frame across all
+## remaining encounters in one pass. Used by the rewarded-video skip.
 func _fast_forward_replay() -> void:
-	# Apply every remaining frame in one pass so the visuals + log land on the
-	# final state, then transition to POST via _finish_replay().
-	var frames: Array = _battle_log.get("frames", [])
-	while _replay_frame_index < frames.size():
-		_apply_replay_frame(frames[_replay_frame_index])
+	var encounter_logs: Array = _stage_log.get("encounters", [])
+	# Finish the current encounter's frames first.
+	while _replay_frame_index < _battle_log["frames"].size():
+		_apply_replay_frame(_battle_log["frames"][_replay_frame_index])
 		_replay_frame_index += 1
-	_finish_replay()
+	# If the player won, fast-forward through any remaining encounters.
+	while String(_battle_log.get("winner", "")) == "player" \
+			and _current_encounter_index + 1 < encounter_logs.size():
+		# Despawn old enemies + spawn the next encounter without the
+		# transition delay.
+		_despawn_enemy_combatants()
+		_current_encounter_index += 1
+		_battle_log = encounter_logs[_current_encounter_index]
+		var enc_resource: EncounterResource = _active_stage.encounters[_current_encounter_index]
+		var enemy_monsters: Array[MonsterResource] = []
+		for mid in enc_resource.monster_ids:
+			var m: MonsterResource = ContentRegistry.monster(mid)
+			if m != null:
+				enemy_monsters.append(m)
+		_enemy_team_summary = _summarize_monsters(enemy_monsters)
+		_spawn_enemy_team()
+		_replay_frame_index = 0
+		while _replay_frame_index < _battle_log["frames"].size():
+			_apply_replay_frame(_battle_log["frames"][_replay_frame_index])
+			_replay_frame_index += 1
+	_finish_stage()
 
 
 func _clear_content() -> void:

@@ -43,6 +43,112 @@ static func simulate(
 	for i in player_pets.size():
 		player_team.append(_make_combatant_from_pet(player_pets[i], i, "player"))
 
+	return _simulate_encounter(rng, player_team, enemy_monsters, rp_mult, battle_seed)
+
+
+## Phase 10e.2 — multi-encounter stage simulation.
+##
+## Drives `_simulate_encounter` for each encounter in the stage, threading
+## the player team's HP through so survivors retain damage between waves.
+## Stage ends early when the player team wipes (later encounters return
+## an empty BattleLog with winner="enemy" so the UI can render a
+## consistent "stage failed" view without indexing into nothing).
+##
+## Returns a StageLog:
+##   {
+##     stage_id: StringName,
+##     seed: int,
+##     winner: "player" | "enemy" | "draw",
+##     last_encounter_index: int,           # 0-based, last one simulated
+##     encounters: Array[BattleLog],        # one per stage encounter
+##     rewards: {rancher_points: int},      # SUM of per-encounter RP
+##                                          # plus stage.bonus_rp_on_clear
+##                                          # if winner == "player"
+##   }
+##
+## Determinism: same (seed, stage, player_pets) → byte-identical StageLog.
+## RNG state carries between encounters (single rng instance) so a tweak
+## to encounter 1's pet team meaningfully shifts encounter 2's variance.
+static func simulate_stage(
+		battle_seed: int,
+		player_pets: Array[PetResource],
+		stage: BattleStageResource,
+		rp_mult: float = 1.0) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = battle_seed
+
+	var player_team: Array = []
+	for i in player_pets.size():
+		player_team.append(_make_combatant_from_pet(player_pets[i], i, "player"))
+
+	var encounter_logs: Array[Dictionary] = []
+	var stage_winner: String = "player"
+	var rp_total: int = 0
+	var last_index: int = -1
+
+	for enc_index in stage.encounters.size():
+		last_index = enc_index
+		var encounter: EncounterResource = stage.encounters[enc_index]
+		# Resolve monster ids via the registry. Skip-and-warn on lookup
+		# failures so a bad stage entry doesn't crash a live battle.
+		var enemy_monsters: Array[MonsterResource] = []
+		for mid in encounter.monster_ids:
+			var m: MonsterResource = ContentRegistry.monster(mid)
+			if m == null:
+				push_warning("BattleSystem.simulate_stage: unknown monster_id %s in stage %s encounter %d" % [
+					String(mid), String(stage.id), enc_index,
+				])
+				continue
+			enemy_monsters.append(m)
+		if enemy_monsters.is_empty():
+			# Treat an empty wave as auto-win — keeps the stage moving.
+			encounter_logs.append({
+				"seed": battle_seed,
+				"winner": "player",
+				"ticks": 0,
+				"frames": [] as Array[Dictionary],
+				"rewards": {},
+			})
+			continue
+
+		# Per-encounter seed embeds the encounter index so the rng's
+		# internal state shifts deterministically even if two encounters
+		# share an identical enemy lineup.
+		var enc_log: Dictionary = _simulate_encounter(
+				rng, player_team, enemy_monsters, rp_mult, battle_seed)
+		encounter_logs.append(enc_log)
+		var enc_rewards: Dictionary = enc_log.get("rewards", {})
+		rp_total += int(enc_rewards.get("rancher_points", 0))
+
+		if String(enc_log.get("winner", "")) != "player":
+			stage_winner = "enemy"
+			break
+
+	var stage_rewards: Dictionary = {}
+	if stage_winner == "player":
+		rp_total += max(0, int(stage.bonus_rp_on_clear))
+		rp_total = int(floor(float(rp_total) * rp_mult))
+		stage_rewards["rancher_points"] = max(0, rp_total)
+
+	return {
+		"stage_id": stage.id,
+		"seed": battle_seed,
+		"winner": stage_winner,
+		"last_encounter_index": last_index,
+		"encounters": encounter_logs,
+		"rewards": stage_rewards,
+	}
+
+
+## Internal: run a single encounter using a pre-built player_team and
+## enemy_monsters list. Mutates `player_team` in place so HP carries
+## across calls.
+static func _simulate_encounter(
+		rng: RandomNumberGenerator,
+		player_team: Array,
+		enemy_monsters: Array[MonsterResource],
+		rp_mult: float,
+		battle_seed: int) -> Dictionary:
 	var enemy_team: Array = []
 	for i in enemy_monsters.size():
 		enemy_team.append(_make_combatant_from_monster(enemy_monsters[i], i, "enemy"))
@@ -52,11 +158,9 @@ static func simulate(
 	var ticks_elapsed: int = TICK_CAP
 
 	for tick in range(TICK_CAP):
-		# 1. Tick statuses + cooldowns.
 		_tick_statuses(player_team)
 		_tick_statuses(enemy_team)
 
-		# 2. Each living combatant acts (player first, then enemy).
 		for c in player_team:
 			if float(c["hp"]) <= 0.0:
 				continue
