@@ -6,6 +6,73 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.5 — Phase 10e.1: Battle map foundation
+
+**Why**
+
+[battle_view.gd](game/scenes/battle/battle_view.gd) shipped in Phase 2 as a stack of `ProgressBar` HP bars driven by replay frames — the math worked, but the screen didn't *feel* like a battle. Phase 10e.1 keeps the deterministic `BattleSystem` simulator unchanged and replaces the visual layer with a side-scrolling stage: pets walk in from the left, monsters from the right, exchange attack lunges synced to BattleLog frames, and fade on KO. Same seed → same visual sequence.
+
+**Added**
+
+- **[`game/scenes/battle/combatant.tscn`](game/scenes/battle/combatant.tscn) + [`.gd`](game/scenes/battle/combatant.gd)** — sprite controller with explicit state machine:
+  - `WALK_IN` → slides at 240 px/s from off-screen toward `engagement_pos`.
+  - `IDLE_AT_ENGAGEMENT` → trig bob at 1.4 Hz, 2 px amplitude. Distinct from `DEFEATED_FADE`, which is static.
+  - `ATTACK_LUNGE` → tween toward target (28 px reach, 0.08 s out / 0.12 s back), then auto-returns to idle.
+  - `HURT_FLASH` → HDR-style modulate flash on `apply_damage`, fades back to the per-monster tint.
+  - `DEFEATED_FADE` → alpha-fade + topple rotation toward the opposing team (45 % seconds). Absorbing state — subsequent `apply_damage` / `play_attack_lunge` calls are silently ignored.
+  - HP bar is a `ProgressBar` child positioned 52 px above the sprite, color-coded by team (sage green for player, blood ruby for enemy). Hidden on defeat.
+
+- **[`game/scenes/battle/battle_map.tscn`](game/scenes/battle/battle_map.tscn) + [`.gd`](game/scenes/battle/battle_map.gd)** — Node2D root hosting the stage:
+  - `ColorRect` sky with the same `mix(top, bottom, UV.y)` gradient shader as [catching_background](game/scenes/catching/catching_background.gd), so battle and catch screens read as the same world. Tier-band palette: 1–5 dawn, 6–10 cave, 11–15 dusk, 16–20 abyss.
+  - Distant `Polygon2D` ridge silhouette for depth.
+  - `Polygon2D` ground band + brass highlight strip at y=460.
+  - `Camera2D` centered on the 720×520 viewport.
+  - `Combatants` Node2D layer that battle_view spawns combatants under.
+  - Public `engagement_pos(team, index)` / `start_pos(team, index)` / `facing_for_team(team)` helpers so battle_view doesn't need to know layout magic numbers.
+
+- **Rewritten [`battle_view.gd`](game/scenes/battle/battle_view.gd)** — keeps the IDLE / BATTLING / POST state machine + speed selector + skip-ad button + reward plumbing. Replaces the HP bar stack with a `SubViewportContainer` → `SubViewport` → `BattleMap` subtree:
+  - `_setup_battle_map` builds the SubViewport on `_start_battle`, spawns one combatant per team summary entry into `battle_map.combatants_layer()`, drives sky color from `current_max_tier`.
+  - `_apply_replay_frame` interprets each frame as `actor.play_attack_lunge(target.position)` + `target.apply_damage(hp_remaining)`. Action log line preserved.
+  - `_render_idle` tears down the SubViewport so the IDLE roster shows the original text-list preview without leaking nodes.
+  - `_summarize_pets` falls back through `pet.source_monster_id → ContentRegistry.monster(...).sprite` when a pet has no sprite of its own — important because the current Phase 5 content seed only has wisplet/centiphantom art.
+
+**Determinism preserved**
+
+- `BattleSystem.simulate` is unchanged; the same BattleLog still drops out for the same seed + teams.
+- The visual layer interprets each frame as a one-shot lunge + damage, with no time-dependent state of its own that affects subsequent frames. Two replays of the same log produce the same defeat sequence — covered by `test_two_replays_of_same_log_produce_identical_defeat_sequence`.
+
+**Tests (235 passing, +14)**
+
+- [`game/tests/test_combatant.gd`](game/tests/test_combatant.gd) (7 tests):
+  - Initial state is `WALK_IN`; position is still off-screen at frame 1 (defends against the combatant teleporting straight to engagement).
+  - Walks to engagement within 1.4 s; transitions to `IDLE_AT_ENGAGEMENT`.
+  - `play_attack_lunge` flips state to `ATTACK_LUNGE`, returns to idle after the tween.
+  - `apply_damage(60)` updates `hp` field and `_hp_bar.value`.
+  - `apply_damage(0)` marks defeated and transitions to `DEFEATED_FADE`.
+  - Defeated combatant ignores subsequent `apply_damage` and `play_attack_lunge`.
+  - Facing -1 negates `_sprite.scale.x` so enemies render mirrored.
+
+- [`game/tests/test_battle_view.gd`](game/tests/test_battle_view.gd) (7 tests):
+  - Fight button disabled when no pets owned; enabled with a pet.
+  - `_start_battle` spawns one combatant per team summary entry, instantiates `_battle_map`.
+  - Player team faces +1, enemy team faces -1.
+  - **Determinism contract:** two BattleViews fed identical BattleLog frames produce the same combatant defeat sequence (target ids in frame order, deduped).
+  - `_fast_forward_replay` transitions to POST.
+  - `_render_idle` tears down `_battle_map` and clears combatant arrays.
+
+- Full GUT suite: **235/235 passing, ~3088 asserts, 0 failures.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
+**Known limitations / scope guard**
+
+- 10e.1 is the foundation. Phase 10e.2 (multi-encounter stages, team selection, stage rewards) is a separate milestone — combatant + battle_map already support multiple sequential calls but the view still treats one battle = one encounter.
+- Sprite art is still the Phase 5 placeholder set (wisplet / centiphantom recolors). Tier-3+ pets fall through to their source-monster sprite, which means several of the late-tier "pets" visually look like the wisplet line. This is intentional per the polish-plan asset-gap warning; commissioned art is out of scope.
+
 ### v0.10.4 — Theme fixes for popups + RichTextLabel default color
 
 **Why**

@@ -4,7 +4,20 @@
 ##   IDLE     - show pet roster + Fight button (or "no pets" message)
 ##   BATTLING - replay BattleLog frames at configurable speed
 ##   POST     - show result + Continue button
+##
+## v0.10.5 (Phase 10e.1): visual layer rewritten. The IDLE roster and
+## POST result text still live in `_content_box`, but BATTLING swaps
+## that content for a SubViewport hosting `battle_map` — pets walk in
+## from the left, enemies from the right, lunge-attack each other,
+## and fade on KO. Determinism is unchanged: `BattleSystem.simulate`
+## produces the BattleLog before any visuals touch the screen, and
+## `_apply_replay_frame` interprets each frame as a combatant lunge +
+## target damage. Same seed → identical visual sequence.
 extends PanelContainer
+
+const _BATTLE_MAP := preload("res://game/scenes/battle/battle_map.tscn")
+const _COMBATANT := preload("res://game/scenes/battle/combatant.tscn")
+const _PALETTE := preload("res://game/resources/palette_colors.gd")
 
 const _TICK_SECONDS_PER_FRAME := 0.25  # game-tick duration
 const _MAX_PETS_IN_FIGHT := 3
@@ -22,16 +35,20 @@ var _speed_index: int = 0
 var _battle_log: Dictionary
 var _replay_frame_index: int = 0
 var _replay_accumulator: float = 0.0
-var _player_team_summary: Array = []   # per-pet display info
+var _player_team_summary: Array = []   # per-pet display info (id + name + sprite + tint + max_hp)
 var _enemy_team_summary: Array = []
-var _player_hp: Array[float] = []
-var _player_max_hp: Array[float] = []
-var _enemy_hp: Array[float] = []
-var _enemy_max_hp: Array[float] = []
-var _player_bars: Array[ProgressBar] = []
-var _enemy_bars: Array[ProgressBar] = []
 var _action_log_label: Label
 var _skip_button: Button   # rewarded-video instant-finish; visible during BATTLING only
+
+# Phase 10e.1: SubViewport-hosted map + combatants. Only populated
+# while _state == BATTLING (or POST).
+var _viewport_container: SubViewportContainer
+var _viewport: SubViewport
+var _battle_map: Node2D
+## Index `_player_combatants[i]` is the combatant for slot i on the
+## player side; same for enemies. Synced 1:1 with team_summary indices.
+var _player_combatants: Array[Node2D] = []
+var _enemy_combatants: Array[Node2D] = []
 
 
 func _ready() -> void:
@@ -87,6 +104,7 @@ func _render_idle() -> void:
 		_skip_button.visible = false
 		_skip_button.disabled = false
 	_clear_content()
+	_teardown_battle_map()
 	var pets: Array[PetResource] = GameState.owned_pets()
 	if pets.is_empty():
 		var label := Label.new()
@@ -153,8 +171,8 @@ func _start_battle() -> void:
 	var rp_mult: float = GameState.multiplier(&"rp_mult")
 	_battle_log = BattleSystem.simulate(battle_seed, pets, enemies, rp_mult)
 	EventBus.battle_started.emit(str(battle_seed))
-	_player_team_summary = _summarize_team(pets, "player")
-	_enemy_team_summary = _summarize_monsters(enemies, "enemy")
+	_player_team_summary = _summarize_pets(pets)
+	_enemy_team_summary = _summarize_monsters(enemies)
 	_state = _State.BATTLING
 	_replay_frame_index = 0
 	_replay_accumulator = 0.0
@@ -188,77 +206,117 @@ func _generate_enemy_team() -> Array[MonsterResource]:
 	return team
 
 
-func _summarize_team(pets: Array[PetResource], team: String) -> Array:
+func _summarize_pets(pets: Array[PetResource]) -> Array:
+	# Per-pet display info threaded into the combatant on spawn.
+	# `sprite` is best-effort: PetResource doesn't always carry its own
+	# sprite; fall back to the originating monster's sprite via
+	# source_monster_id when needed.
 	var out: Array = []
-	_player_hp = []
-	_player_max_hp = []
-	for i in pets.size():
-		var p: PetResource = pets[i]
-		out.append({"id": String(p.id), "display_name": p.display_name})
-		if team == "player":
-			_player_hp.append(p.base_hp)
-			_player_max_hp.append(p.base_hp)
+	for p in pets:
+		var tex: Texture2D = p.sprite
+		if tex == null and p.source_monster_id != StringName(""):
+			var src: MonsterResource = ContentRegistry.monster(p.source_monster_id)
+			if src != null:
+				tex = src.sprite
+		out.append({
+			"id": String(p.id),
+			"display_name": p.display_name,
+			"sprite": tex,
+			"tint": Color.WHITE,
+			"max_hp": p.base_hp,
+		})
 	return out
 
 
-func _summarize_monsters(monsters: Array[MonsterResource], _team: String) -> Array:
+func _summarize_monsters(monsters: Array[MonsterResource]) -> Array:
 	var out: Array = []
-	_enemy_hp = []
-	_enemy_max_hp = []
-	for i in monsters.size():
-		var m: MonsterResource = monsters[i]
-		out.append({"id": String(m.id), "display_name": m.display_name})
+	for m in monsters:
 		var tier: int = max(1, m.tier)
 		var hp: float = float(20 * tier + 10)
-		_enemy_hp.append(hp)
-		_enemy_max_hp.append(hp)
+		out.append({
+			"id": String(m.id),
+			"display_name": m.display_name,
+			"sprite": m.sprite,
+			"tint": m.tint,
+			"max_hp": hp,
+		})
 	return out
 
+
+# region — Phase 10e.1 visual rendering
 
 func _render_battle() -> void:
 	_clear_content()
 	_status_label.text = "Battle: tick %d / %d" % [int(_battle_log["ticks"]), 600]
-	_player_bars = _build_team_section("Your pets", _player_team_summary, _player_hp, _player_max_hp, false)
-	_enemy_bars = _build_team_section("Enemies", _enemy_team_summary, _enemy_hp, _enemy_max_hp, true)
+	_setup_battle_map()
 	_action_log_label = Label.new()
 	_action_log_label.text = ""
 	_action_log_label.add_theme_font_size_override("font_size", 14)
-	_action_log_label.modulate = Color(0.9, 0.9, 0.9)
+	_action_log_label.modulate = _PALETTE.SEPIA_MID
 	_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_content_box.add_child(_action_log_label)
 
 
-func _build_team_section(
-		title: String,
-		team: Array,
-		hp: Array[float],
-		max_hp: Array[float],
-		is_enemy: bool) -> Array[ProgressBar]:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
-	_content_box.add_child(box)
-	var heading := Label.new()
-	heading.text = title
-	heading.add_theme_font_size_override("font_size", 18)
-	box.add_child(heading)
-	var bars: Array[ProgressBar] = []
-	for i in team.size():
-		var row := HBoxContainer.new()
-		var name_label := Label.new()
-		name_label.text = team[i]["display_name"]
-		name_label.custom_minimum_size = Vector2(160, 0)
-		row.add_child(name_label)
-		var bar := ProgressBar.new()
-		bar.min_value = 0
-		bar.max_value = max_hp[i]
-		bar.value = hp[i]
-		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		bar.modulate = Color(0.85, 0.4, 0.45) if is_enemy else Color(0.45, 0.85, 0.55)
-		row.add_child(bar)
-		bars.append(bar)
-		box.add_child(row)
-	return bars
+## Build (or rebuild) the SubViewport + battle_map subtree, hand it
+## one combatant per team_summary entry. Idempotent: tearing the
+## subtree down before rebuild lets _start_battle reuse the same
+## machinery for re-fights without leaking nodes.
+func _setup_battle_map() -> void:
+	_teardown_battle_map()
+	_viewport_container = SubViewportContainer.new()
+	_viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_viewport_container.stretch = true
+	_content_box.add_child(_viewport_container)
+
+	_viewport = SubViewport.new()
+	_viewport.size = Vector2i(720, 520)
+	_viewport.transparent_bg = true
+	_viewport.handle_input_locally = false
+	_viewport.disable_3d = true
+	_viewport.gui_disable_input = true
+	_viewport_container.add_child(_viewport)
+
+	_battle_map = _BATTLE_MAP.instantiate()
+	_viewport.add_child(_battle_map)
+	_battle_map.apply_tier_palette(int(GameState.current_max_tier))
+
+	_player_combatants = _spawn_team("player", _player_team_summary)
+	_enemy_combatants = _spawn_team("enemy", _enemy_team_summary)
+
+
+func _spawn_team(team: String, summary: Array) -> Array[Node2D]:
+	var out: Array[Node2D] = []
+	var layer: Node2D = _battle_map.combatants_layer()
+	for i in summary.size():
+		var entry: Dictionary = summary[i]
+		var c: Node2D = _COMBATANT.instantiate()
+		c.setup(
+				team,
+				i,
+				float(entry["max_hp"]),
+				_battle_map.engagement_pos(team, i),
+				_battle_map.start_pos(team, i),
+				_battle_map.facing_for_team(team),
+				entry.get("sprite", null) as Texture2D,
+				entry.get("tint", Color.WHITE) as Color)
+		layer.add_child(c)
+		out.append(c)
+	return out
+
+
+func _teardown_battle_map() -> void:
+	if _viewport_container != null and is_instance_valid(_viewport_container):
+		_viewport_container.queue_free()
+	_viewport_container = null
+	_viewport = null
+	_battle_map = null
+	_player_combatants.clear()
+	_enemy_combatants.clear()
+
+
+# endregion
 
 
 func _process(delta: float) -> void:
@@ -275,28 +333,42 @@ func _process(delta: float) -> void:
 
 
 func _apply_replay_frame(frame: Dictionary) -> void:
-	var target: String = String(frame.get("target", ""))
-	var hp_remaining: int = int(frame.get("hp_remaining", 0))
-	var parts: PackedStringArray = target.split("_")
-	if parts.size() < 2:
-		return
-	var team: String = parts[0]
-	var index: int = int(parts[1])
-	var bars: Array[ProgressBar] = _player_bars if team == "player" else _enemy_bars
-	if index < 0 or index >= bars.size():
-		return
-	bars[index].value = max(0, hp_remaining)
+	var actor_id: String = String(frame.get("actor", ""))
+	var target_id: String = String(frame.get("target", ""))
+	var actor: Node2D = _combatant_for(actor_id)
+	var target: Node2D = _combatant_for(target_id)
+	# Visuals: actor lunges, target takes damage. Either may be null
+	# if the frame addresses a slot that isn't populated (defensive
+	# against malformed frames).
+	if actor != null and target != null and actor.has_method("play_attack_lunge"):
+		actor.play_attack_lunge(target.position)
+	if target != null and target.has_method("apply_damage"):
+		var hp_remaining: int = int(frame.get("hp_remaining", 0))
+		target.apply_damage(hp_remaining)
 	# Action log
 	if _action_log_label != null:
-		var actor: String = String(frame.get("actor", ""))
 		var action: String = String(frame.get("action", ""))
 		var damage: int = int(frame.get("damage", 0))
 		var line: String
 		if action.begins_with("ability:"):
-			line = "%s used %s — %d" % [actor, action.substr(8), -damage if damage < 0 else damage]
+			line = "%s used %s — %d" % [actor_id, action.substr(8), -damage if damage < 0 else damage]
 		else:
-			line = "%s hit %s for %d" % [actor, target, damage]
+			line = "%s hit %s for %d" % [actor_id, target_id, damage]
 		_action_log_label.text = line
+
+
+## Maps a frame's "team_index" string to the spawned combatant. Returns
+## null on malformed strings or out-of-range indices.
+func _combatant_for(id: String) -> Node2D:
+	var parts: PackedStringArray = id.split("_")
+	if parts.size() < 2:
+		return null
+	var team: String = parts[0]
+	var index: int = int(parts[1])
+	var pool: Array[Node2D] = _player_combatants if team == "player" else _enemy_combatants
+	if index < 0 or index >= pool.size():
+		return null
+	return pool[index]
 
 
 func _finish_replay() -> void:
@@ -350,7 +422,7 @@ func _on_rewarded_failed(reward_id: String, _reason: String) -> void:
 
 
 func _fast_forward_replay() -> void:
-	# Apply every remaining frame in one pass so the bars + log land on the
+	# Apply every remaining frame in one pass so the visuals + log land on the
 	# final state, then transition to POST via _finish_replay().
 	var frames: Array = _battle_log.get("frames", [])
 	while _replay_frame_index < frames.size():
