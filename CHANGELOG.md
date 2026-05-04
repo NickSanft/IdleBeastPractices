@@ -6,6 +6,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.10.2 — Phase 10c: Currency bar redesign
+
+**Why**
+
+[currency_bar.tscn](game/scenes/ui/currency_bar.tscn) shipped in Phase 1 as two color-tinted Labels in an HBox. After Phase 10a's theme pass it was the most prominent piece of vestigial UI on the screen — a thin strip with no weight. Phase 10c replaces it with three themed chips that surface gold / rancher points / prestige as legible cards, and adds tweened number changes so a currency gain feels like an event rather than a repaint.
+
+**Added**
+
+- **[`game/scenes/ui/currency_chip.tscn`](game/scenes/ui/currency_chip.tscn) + [`.gd`](game/scenes/ui/currency_chip.gd)** — reusable single-currency display:
+  - Themed `PanelContainer` (parchment fill, brass border via the Phase 10a theme).
+  - 4 px brass accent stripe along the left edge — keys each chip to its currency without fighting the theme.
+  - 32 px icon + value Label + an optional next-milestone `ProgressBar`.
+  - Two value flavors: `set_int_value(value, animate=true, duration=0.4)` and `set_big_value(value, animate=true, duration=0.4)`. Both tween via Cubic-EaseOut; BigNumbers are interpolated through `from + (to - from) * t` using BigNumber.subtract / multiply_float / add.
+  - First-paint guards: BigNumber chip with no prior value snaps instead of tweening from null. Bar asks for `animate=false` on its initial `_refresh_all` so a saved game's gold doesn't run a 0 → loaded jackpot at startup.
+  - `set_progress_fraction(-1)` hides the bar; range `[0..1]` clamps and reveals.
+- **Rewritten [currency_bar.gd](game/scenes/ui/currency_bar.gd)** — composes three chips:
+  - **Gold** — always visible. Brass accent. ProgressBar tracks progress through the current decade (`(mantissa - 1.0) / 9.0`). Tooltip shows `mantissa × 10^exponent  (formatted)`.
+  - **Rancher Points** — hidden until `current_rancher_points() > 0` for the first time, then sticky.
+  - **Prestige** — hidden until `prestige_count > 0`, then sticky.
+  - `_exit_tree` disconnects from `EventBus.currency_changed`, `prestige_triggered`, and `game_loaded` so re-instantiating the bar (test suites, scene swaps) doesn't accumulate ghost connections.
+- **Long-press / hover tooltips** — chips set `tooltip_text` so Godot's auto-tooltip fires on mouse hover and on Android touch-and-hold. Gold tooltip exposes the underlying BigNumber breakdown (`1.234 × 10^5  (123.4K)`); RP and Prestige tooltips give plain-English context.
+
+**Tests (212 passing, +15)**
+
+- [`game/tests/test_currency_chip.gd`](game/tests/test_currency_chip.gd) (7 tests):
+  - Snap behaviour with `animate=false`.
+  - Mid-tween sample for int values; final-value landing after the tween window.
+  - First-paint snap for BigNumber values.
+  - Final-value landing after BigNumber tween.
+  - Progress bar visibility toggling on negative / clamped fractions.
+  - `configure()` re-applies label prefix on a live chip.
+- [`game/tests/test_currency_bar.gd`](game/tests/test_currency_bar.gd) (8 tests):
+  - All three chips present.
+  - Gold chip always visible.
+  - RP / Prestige chips hidden at zero, surface after the relevant EventBus signal.
+  - Progress bar tracks gold's mantissa-within-decade.
+  - **Signal-leak regression test:** instantiate-and-destroy the bar three times; the `EventBus.currency_changed` connection count must return to its initial value, catching the easy-to-introduce bug where a re-mounted bar accumulates ghost handlers.
+- Full GUT suite: **212/212 passing, 1328 asserts, 0 failures.**
+
+**Pre-push checklist**
+
+- `--check-only` exits 0.
+- Full GUT suite green.
+- Three exports left to CI.
+
 ### v0.10.1 — Phase 10b: Catching screen visuals & tap juice
 
 **Why**
