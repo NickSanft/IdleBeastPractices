@@ -27,6 +27,7 @@ func _ready() -> void:
 	EventBus.item_crafted.connect(_on_crafted)
 	EventBus.game_loaded.connect(_refresh)
 	EventBus.game_saved.connect(_refresh)
+	EventBus.achievement_unlocked.connect(_on_achievement_unlocked)
 	_refresh()
 
 
@@ -58,6 +59,11 @@ func _on_prestige(_rp: int, _count: int) -> void:
 
 
 func _on_crafted(_recipe_id: String, _output_id: String) -> void:
+	if visible:
+		_refresh()
+
+
+func _on_achievement_unlocked(_id: String) -> void:
 	if visible:
 		_refresh()
 
@@ -104,6 +110,91 @@ func _refresh() -> void:
 	]
 	for row in rows:
 		_list.add_child(_build_row(row[0], row[1]))
+
+	_list.add_child(_spacer(16))
+	_build_achievements_section()
+
+
+## Phase 12f — achievement grid: 4-column tiles, locked entries shown
+## as silhouettes, unlocked ones display the sprite + name. Tooltip
+## (Godot Tooltip API not exposed for Controls in this codebase yet)
+## could surface the description; for now description sits below.
+func _build_achievements_section() -> void:
+	var defs := ContentRegistry.achievements()
+	if defs.is_empty():
+		return
+	# Stable display order: locked first not-yet-by-tier? Simpler: tier asc,
+	# then id asc. That keeps grid stable regardless of unlock-state churn.
+	defs.sort_custom(func(a, b):
+		if a.tier != b.tier:
+			return a.tier < b.tier
+		return String(a.id) < String(b.id))
+
+	var summary: Dictionary = Achievements.progress_summary()
+	var heading := Label.new()
+	heading.text = "Achievements (%d / %d)" % [int(summary.get("unlocked", 0)), int(summary.get("total", 0))]
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.add_theme_font_size_override("font_size", 20)
+	_list.add_child(heading)
+	_list.add_child(_spacer(6))
+
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	_list.add_child(grid)
+
+	for ach in defs:
+		grid.add_child(_build_achievement_tile(ach))
+
+
+func _build_achievement_tile(ach: AchievementResource) -> Control:
+	var unlocked: bool = GameState.achievements_unlocked.has(String(ach.id))
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 84)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Slightly dim locked tiles so the grid reads like a checklist at a glance.
+	if not unlocked:
+		card.modulate = Color(1.0, 1.0, 1.0, 0.45)
+
+	var margins := MarginContainer.new()
+	margins.add_theme_constant_override("margin_left", 6)
+	margins.add_theme_constant_override("margin_right", 6)
+	margins.add_theme_constant_override("margin_top", 6)
+	margins.add_theme_constant_override("margin_bottom", 6)
+	card.add_child(margins)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 2)
+	margins.add_child(vbox)
+
+	var name_label := Label.new()
+	name_label.text = ach.display_name if unlocked else "?????"
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_font_size_override("font_size", 12)
+	name_label.modulate = _tier_color(ach.tier)
+	vbox.add_child(name_label)
+
+	var desc_label := Label.new()
+	desc_label.text = ach.description if unlocked else "Locked"
+	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc_label.add_theme_font_size_override("font_size", 10)
+	desc_label.modulate = Color(0.85, 0.85, 0.85)
+	vbox.add_child(desc_label)
+	return card
+
+
+func _tier_color(tier: int) -> Color:
+	# Bronze / Silver / Gold tinting — reuses the parchment palette so
+	# the tiles still look at home in the ledger.
+	match tier:
+		AchievementResource.Tier.BRONZE: return Color(0.78, 0.55, 0.33)
+		AchievementResource.Tier.SILVER: return Color(0.85, 0.85, 0.92)
+		AchievementResource.Tier.GOLD:   return Color(1.0, 0.92, 0.55)
+	return Color.WHITE
 
 
 func _build_row(label_text: String, value_text: String) -> Control:

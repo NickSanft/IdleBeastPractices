@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AchievementResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/achievement_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tap_50000"
+display_name = "Dedicated"
+description = "Tap 50,000 times."
+tier = 2
+source = 0
+ledger_field = &"total_taps"
+threshold = 50000
+rp_reward = 250
+gold_reward = {"m": 0.0, "e": 0}

@@ -30,6 +30,11 @@ var owned_equipment: Array[String] = []
 ## Phase 12e — best-RP-this-run tracker, frozen at prestige time so
 ## the prestige_view's "vs your best" comparison has a value.
 var best_rp_at_prestige: int = 0
+
+## Phase 12f — achievement ids the player has unlocked. Persisted
+## via save_v4. The Achievements autoload consults this dict to skip
+## re-firing already-unlocked achievements.
+var achievements_unlocked: Dictionary = {}
 var nets_owned: Array[String] = []
 var active_net: String = ""
 var upgrades_purchased: Array[Dictionary] = []  # [{"id": StringName, "level": int}]
@@ -90,6 +95,7 @@ func to_dict() -> Dictionary:
 		"pet_equipment": pet_equipment.duplicate(true),
 		"owned_equipment": owned_equipment.duplicate(),
 		"best_rp_at_prestige": best_rp_at_prestige,
+		"achievements_unlocked": achievements_unlocked.duplicate(true),
 	}
 
 
@@ -122,6 +128,7 @@ func from_dict(data: Dictionary) -> void:
 	pet_equipment = (data.get("pet_equipment", {}) as Dictionary).duplicate(true)
 	owned_equipment = _to_string_array(data.get("owned_equipment", []))
 	best_rp_at_prestige = int(data.get("best_rp_at_prestige", 0))
+	achievements_unlocked = (data.get("achievements_unlocked", {}) as Dictionary).duplicate(true)
 
 
 func _seed_first_launch() -> void:
@@ -150,6 +157,7 @@ func _reset_to_defaults() -> void:
 	pet_equipment = {}
 	owned_equipment = []
 	best_rp_at_prestige = 0
+	achievements_unlocked = {}
 	ledger = {
 		"total_catches": 0,
 		"total_taps": 0,
@@ -546,6 +554,9 @@ func perform_prestige() -> int:
 	var keep_pet_equipment := pet_equipment.duplicate(true)
 	var keep_owned_equipment := owned_equipment.duplicate()
 	var keep_best_rp: int = max(int(best_rp_at_prestige), rp_gain)
+	# Phase 12f — achievements persist across prestige (they're meta-
+	# progression rewards, not run rewards).
+	var keep_achievements := achievements_unlocked.duplicate(true)
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -559,6 +570,7 @@ func perform_prestige() -> int:
 	pet_equipment = keep_pet_equipment
 	owned_equipment = _to_string_array(keep_owned_equipment)
 	best_rp_at_prestige = keep_best_rp
+	achievements_unlocked = keep_achievements
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

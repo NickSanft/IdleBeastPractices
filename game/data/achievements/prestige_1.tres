@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AchievementResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/achievement_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"prestige_1"
+display_name = "Reset and Begin"
+description = "Prestige once."
+tier = 0
+source = 1
+ledger_field = &""
+threshold = 1
+rp_reward = 0
+gold_reward = {"m": 0.0, "e": 0}

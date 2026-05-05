@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://bdhnc06jsfpgk"
+
+[deps]
+
+files=["res://tests/sim/output/difficulty_curve.t.translation", "res://tests/sim/output/difficulty_curve.event.translation", "res://tests/sim/output/difficulty_curve.event.translation", "res://tests/sim/output/difficulty_curve.gold.translation", "res://tests/sim/output/difficulty_curve.rp.translation", "res://tests/sim/output/difficulty_curve.total.translation", "res://tests/sim/output/difficulty_curve.max.translation", "res://tests/sim/output/difficulty_curve.prestige.translation", "res://tests/sim/output/difficulty_curve.active.translation"]
+
+source_file="res://tests/sim/output/difficulty_curve.csv"
+dest_files=["res://tests/sim/output/difficulty_curve.t.translation", "res://tests/sim/output/difficulty_curve.event.translation", "res://tests/sim/output/difficulty_curve.event.translation", "res://tests/sim/output/difficulty_curve.gold.translation", "res://tests/sim/output/difficulty_curve.rp.translation", "res://tests/sim/output/difficulty_curve.total.translation", "res://tests/sim/output/difficulty_curve.max.translation", "res://tests/sim/output/difficulty_curve.prestige.translation", "res://tests/sim/output/difficulty_curve.active.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

@@ -17,6 +17,7 @@ static func migrations() -> Array[Dictionary]:
 		{"from": 0, "fn": Callable(SaveMigrations, "_migrate_v0_to_v1")},
 		{"from": 1, "fn": Callable(SaveMigrations, "_migrate_v1_to_v2")},
 		{"from": 2, "fn": Callable(SaveMigrations, "_migrate_v2_to_v3")},
+		{"from": 3, "fn": Callable(SaveMigrations, "_migrate_v3_to_v4")},
 	]
 
 
@@ -88,6 +89,17 @@ static func _migrate_v2_to_v3(data: Dictionary) -> Dictionary:
 		out["owned_equipment"] = []
 	if not out.has("best_rp_at_prestige"):
 		out["best_rp_at_prestige"] = 0
+	return out
+
+
+## v3 → v4: Phase 12f introduces persistent achievement-unlock tracking.
+## New saves get an empty dict; achievements are awarded as the player
+## crosses thresholds during play.
+static func _migrate_v3_to_v4(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	out["version"] = 4
+	if not out.has("achievements_unlocked"):
+		out["achievements_unlocked"] = {}
 	return out
 
 

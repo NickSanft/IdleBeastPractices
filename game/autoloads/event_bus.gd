@@ -62,6 +62,13 @@ extends Node
 @warning_ignore("unused_signal") signal rewarded_video_completed(reward_id: String, granted: bool)
 # endregion
 
+# region — Achievements
+# Phase 12f — fired when a previously-locked achievement crosses its
+# trigger threshold. Receivers (celebration overlay, ledger view,
+# Achievements autoload itself for reward grant) subscribe to react.
+@warning_ignore("unused_signal") signal achievement_unlocked(achievement_id: String)
+# endregion
+
 # region — Navigation
 # Phase 11d — empty-state hint buttons fire this so any screen can
 # request a primary-tab switch without reaching into main.gd. Main

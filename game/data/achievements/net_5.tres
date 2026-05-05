@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AchievementResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/achievement_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"net_5"
+display_name = "Net Wright"
+description = "Own 5 different nets."
+tier = 1
+source = 3
+ledger_field = &""
+threshold = 5
+rp_reward = 50
+gold_reward = {"m": 0.0, "e": 0}

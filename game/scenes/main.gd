@@ -382,6 +382,7 @@ func _install_celebrations() -> void:
 	EventBus.battle_ended.connect(_on_celebrate_battle_ended)
 	EventBus.pet_acquired.connect(_on_toast_pet_acquired)
 	EventBus.recipe_unlocked.connect(_on_toast_recipe_unlocked)
+	EventBus.achievement_unlocked.connect(_on_achievement_unlocked)
 
 
 func _on_celebrate_tier_completed(tier: int) -> void:
@@ -426,6 +427,25 @@ func _on_toast_pet_acquired(pet_id: String, is_variant: bool) -> void:
 		return
 	var prefix: String = "Variant " if is_variant else ""
 	_toast.show_toast("%spet acquired: %s" % [prefix, pet.display_name])
+
+
+## Phase 12f — achievements ride the celebration spectrum:
+##   BRONZE / SILVER → toast (subtle, doesn't interrupt the loop)
+##   GOLD            → full celebration overlay (rare; deserves the moment)
+## Reward application happens in the Achievements autoload before this
+## fires, so the user sees the unlock + the gold/RP gain at the same time.
+func _on_achievement_unlocked(achievement_id: String) -> void:
+	var ach: AchievementResource = ContentRegistry.achievement(StringName(achievement_id))
+	if ach == null:
+		return
+	var reward_suffix: String = ""
+	if ach.rp_reward > 0:
+		reward_suffix = "  +%d RP" % ach.rp_reward
+	if ach.tier == AchievementResource.Tier.GOLD:
+		var body: String = "%s%s" % [ach.description, reward_suffix]
+		_celebration_overlay.show_celebration("Achievement: %s" % ach.display_name, body, ach.sprite)
+	else:
+		_toast.show_toast("Achievement: %s%s" % [ach.display_name, reward_suffix], 3.5)
 
 
 func _on_toast_recipe_unlocked(recipe_id: String) -> void:

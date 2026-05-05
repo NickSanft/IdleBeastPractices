@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AchievementResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/achievement_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tier_10"
+display_name = "Highland"
+description = "Reach tier 10."
+tier = 2
+source = 5
+ledger_field = &""
+threshold = 10
+rp_reward = 200
+gold_reward = {"m": 0.0, "e": 0}

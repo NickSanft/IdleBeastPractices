@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AchievementResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/achievement_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"catch_100"
+display_name = "First Hundred"
+description = "Catch 100 monsters of any species."
+tier = 0
+source = 0
+ledger_field = &"total_catches"
+threshold = 100
+rp_reward = 5
+gold_reward = {"m": 0.0, "e": 0}
