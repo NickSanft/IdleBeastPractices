@@ -81,6 +81,7 @@ var _more_popup: PopupPanel
 const _CELEBRATION_OVERLAY := preload("res://game/scenes/ui/celebration_overlay.tscn")
 const _TOAST := preload("res://game/scenes/ui/toast.tscn")
 const _COACHMARK := preload("res://game/scenes/ui/coachmark.tscn")
+const _QUEST_STRIP := preload("res://game/scenes/ui/quest_strip.tscn")
 var _celebration_overlay: CanvasLayer
 var _toast: CanvasLayer
 var _coachmark: CanvasLayer
@@ -216,6 +217,13 @@ func _build_ui() -> void:
 	var settings_tab: Control = _SETTINGS_VIEW.instantiate()
 	settings_tab.name = "Settings"
 	tabs.add_child(settings_tab)
+
+	# Phase 12g — quest strip pinned above the bottom nav. Three rows
+	# (SHORT/MEDIUM/LONG) with progress bars; visible from every tab
+	# since it's part of the main scene's vbox, not a per-tab child.
+	var quest_strip: Control = _QUEST_STRIP.instantiate()
+	quest_strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.add_child(quest_strip)
 
 	# v0.9.0: bottom navigation bar below the tab content. 4 primary
 	# destinations + a "More" button that opens a sheet with the rest.
@@ -383,6 +391,7 @@ func _install_celebrations() -> void:
 	EventBus.pet_acquired.connect(_on_toast_pet_acquired)
 	EventBus.recipe_unlocked.connect(_on_toast_recipe_unlocked)
 	EventBus.achievement_unlocked.connect(_on_achievement_unlocked)
+	EventBus.quest_completed.connect(_on_quest_completed)
 
 
 func _on_celebrate_tier_completed(tier: int) -> void:
@@ -446,6 +455,22 @@ func _on_achievement_unlocked(achievement_id: String) -> void:
 		_celebration_overlay.show_celebration("Achievement: %s" % ach.display_name, body, ach.sprite)
 	else:
 		_toast.show_toast("Achievement: %s%s" % [ach.display_name, reward_suffix], 3.5)
+
+
+## Phase 12g — quest completions toast quietly (SHORT cycles every
+## minute or two; full celebration would over-celebrate the loop).
+## LONG-tier completions get a slightly longer-dwelling toast since
+## they're prestige-cycle milestones. Reward application happens in
+## QuestLog before this fires.
+func _on_quest_completed(quest_id: String) -> void:
+	var quest: QuestResource = ContentRegistry.quest(StringName(quest_id))
+	if quest == null:
+		return
+	var reward_suffix: String = ""
+	if quest.rp_reward > 0:
+		reward_suffix = "  +%d RP" % quest.rp_reward
+	var dwell: float = 4.0 if quest.quest_tier == QuestResource.QuestTier.LONG else 2.5
+	_toast.show_toast("Quest done: %s%s" % [quest.display_name, reward_suffix], dwell)
 
 
 func _on_toast_recipe_unlocked(recipe_id: String) -> void:

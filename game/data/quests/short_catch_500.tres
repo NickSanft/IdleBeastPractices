@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="QuestResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/quest_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"short_catch_500"
+display_name = "Catch 500"
+description = "Catch 500 monsters."
+quest_tier = 0
+source = 0
+ledger_field = &"total_catches"
+threshold = 500
+baseline = 100
+repeatable = false
+next_quest_id = &""
+rp_reward = 8
+gold_reward = {"m": 1.0, "e": 3}
+item_reward_id = &""
+item_reward_amount = 0

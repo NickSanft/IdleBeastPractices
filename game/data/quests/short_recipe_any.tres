@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="QuestResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/quest_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"short_recipe_any"
+display_name = "Craft Anything"
+description = "Craft any recipe once."
+quest_tier = 0
+source = 4
+ledger_field = &""
+threshold = 1
+baseline = 0
+repeatable = false
+next_quest_id = &""
+rp_reward = 3
+gold_reward = {"m": 0.0, "e": 0}
+item_reward_id = &""
+item_reward_amount = 0

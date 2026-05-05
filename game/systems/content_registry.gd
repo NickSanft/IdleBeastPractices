@@ -16,6 +16,7 @@ const _DIALOGUE_DIR := "res://game/data/dialogue"
 const _BATTLE_STAGES_DIR := "res://game/data/battle_stages"
 const _EQUIPMENT_DIR := "res://game/data/equipment"
 const _ACHIEVEMENTS_DIR := "res://game/data/achievements"
+const _QUESTS_DIR := "res://game/data/quests"
 
 static var _monsters_by_id: Dictionary = {}   # StringName -> MonsterResource
 static var _items_by_id: Dictionary = {}      # StringName -> ItemResource
@@ -27,6 +28,7 @@ static var _dialogue_by_id: Dictionary = {}   # StringName -> DialogueLineResour
 static var _battle_stages_by_id: Dictionary = {}  # StringName -> BattleStageResource
 static var _equipment_by_id: Dictionary = {}      # StringName -> EquipmentResource
 static var _achievements_by_id: Dictionary = {}   # StringName -> AchievementResource
+static var _quests_by_id: Dictionary = {}         # StringName -> QuestResource
 static var _initialized: bool = false
 
 
@@ -43,6 +45,7 @@ static func ensure_loaded() -> void:
 	_load_dir(_BATTLE_STAGES_DIR, _battle_stages_by_id)
 	_load_dir(_EQUIPMENT_DIR, _equipment_by_id)
 	_load_dir(_ACHIEVEMENTS_DIR, _achievements_by_id)
+	_load_dir(_QUESTS_DIR, _quests_by_id)
 	_initialized = true
 
 
@@ -209,6 +212,19 @@ static func achievements() -> Array[AchievementResource]:
 static func achievement(id: StringName) -> AchievementResource:
 	ensure_loaded()
 	return _achievements_by_id.get(id)
+
+
+static func quests() -> Array[QuestResource]:
+	ensure_loaded()
+	var out: Array[QuestResource] = []
+	for id in _quests_by_id.keys():
+		out.append(_quests_by_id[id])
+	return out
+
+
+static func quest(id: StringName) -> QuestResource:
+	ensure_loaded()
+	return _quests_by_id.get(id)
 
 
 ## Returns the highest-tier stage the player has unlocked given their

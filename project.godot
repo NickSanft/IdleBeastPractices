@@ -35,6 +35,7 @@ GodotPlayGameServices="*uid://bin06y213u26g"
 CloudSyncManager="*res://game/autoloads/cloud_sync_manager.gd"
 TutorialState="*res://game/autoloads/tutorial_state.gd"
 Achievements="*res://game/autoloads/achievements.gd"
+QuestLog="*res://game/autoloads/quest_log.gd"
 
 [display]
 

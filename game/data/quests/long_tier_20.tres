@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="QuestResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/quest_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"long_tier_20"
+display_name = "Capstone"
+description = "Reach tier 20 (the cap)."
+quest_tier = 2
+source = 5
+ledger_field = &""
+threshold = 20
+baseline = 0
+repeatable = false
+next_quest_id = &""
+rp_reward = 500
+gold_reward = {"m": 0.0, "e": 0}
+item_reward_id = &""
+item_reward_amount = 0

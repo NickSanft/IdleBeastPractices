@@ -35,6 +35,13 @@ var best_rp_at_prestige: int = 0
 ## via save_v4. The Achievements autoload consults this dict to skip
 ## re-firing already-unlocked achievements.
 var achievements_unlocked: Dictionary = {}
+## Phase 12g — three-tier concurrent quest log.
+## active_quests is indexed by slot int (0 SHORT, 1 MEDIUM, 2 LONG).
+## Each slot stores either an empty string (no quest active) or the
+## quest id. quests_completed is a set-style dict so non-repeatable
+## quests don't get re-picked from the pool.
+var active_quests: Dictionary = {0: "", 1: "", 2: ""}
+var quests_completed: Dictionary = {}
 var nets_owned: Array[String] = []
 var active_net: String = ""
 var upgrades_purchased: Array[Dictionary] = []  # [{"id": StringName, "level": int}]
@@ -96,6 +103,8 @@ func to_dict() -> Dictionary:
 		"owned_equipment": owned_equipment.duplicate(),
 		"best_rp_at_prestige": best_rp_at_prestige,
 		"achievements_unlocked": achievements_unlocked.duplicate(true),
+		"active_quests": active_quests.duplicate(true),
+		"quests_completed": quests_completed.duplicate(true),
 	}
 
 
@@ -129,6 +138,21 @@ func from_dict(data: Dictionary) -> void:
 	owned_equipment = _to_string_array(data.get("owned_equipment", []))
 	best_rp_at_prestige = int(data.get("best_rp_at_prestige", 0))
 	achievements_unlocked = (data.get("achievements_unlocked", {}) as Dictionary).duplicate(true)
+	active_quests = _normalize_active_quests(data.get("active_quests", {}))
+	quests_completed = (data.get("quests_completed", {}) as Dictionary).duplicate(true)
+
+
+## Save format stores active_quests with string keys ("0","1","2")
+## because JSON can't represent int-keyed dicts. Normalize back to
+## int keys for in-memory use, ensuring all three slots are present.
+func _normalize_active_quests(raw: Variant) -> Dictionary:
+	var out: Dictionary = {0: "", 1: "", 2: ""}
+	if raw is Dictionary:
+		for key in (raw as Dictionary).keys():
+			var slot: int = int(key)
+			if slot >= 0 and slot <= 2:
+				out[slot] = String(raw[key])
+	return out
 
 
 func _seed_first_launch() -> void:
@@ -158,6 +182,8 @@ func _reset_to_defaults() -> void:
 	owned_equipment = []
 	best_rp_at_prestige = 0
 	achievements_unlocked = {}
+	active_quests = {0: "", 1: "", 2: ""}
+	quests_completed = {}
 	ledger = {
 		"total_catches": 0,
 		"total_taps": 0,
@@ -557,6 +583,12 @@ func perform_prestige() -> int:
 	# Phase 12f — achievements persist across prestige (they're meta-
 	# progression rewards, not run rewards).
 	var keep_achievements := achievements_unlocked.duplicate(true)
+	# Phase 12g — quests_completed persists (it's the de-dupe set for
+	# the picker; without it we'd re-issue completed one-shots every
+	# prestige cycle). active_quests resets — slot picks fresh on the
+	# next QuestLog tick because lots of state the quests track also
+	# resets (run gold, pets, etc.).
+	var keep_quests_completed := quests_completed.duplicate(true)
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -571,6 +603,7 @@ func perform_prestige() -> int:
 	owned_equipment = _to_string_array(keep_owned_equipment)
 	best_rp_at_prestige = keep_best_rp
 	achievements_unlocked = keep_achievements
+	quests_completed = keep_quests_completed
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

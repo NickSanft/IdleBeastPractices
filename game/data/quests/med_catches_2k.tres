@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="QuestResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/quest_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"med_catches_2k"
+display_name = "Catch 2,000"
+description = "Catch 2,000 monsters lifetime."
+quest_tier = 1
+source = 0
+ledger_field = &"total_catches"
+threshold = 2000
+baseline = 0
+repeatable = false
+next_quest_id = &""
+rp_reward = 25
+gold_reward = {"m": 1.0, "e": 3}
+item_reward_id = &""
+item_reward_amount = 0

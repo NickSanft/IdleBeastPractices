@@ -62,6 +62,21 @@ extends Node
 @warning_ignore("unused_signal") signal rewarded_video_completed(reward_id: String, granted: bool)
 # endregion
 
+# region — Quests
+# Phase 12g — fired by QuestLog when a quest's threshold is met. The
+# QuestLog itself listens for these to fill the slot with the next
+# quest (or advance along a repeatable ladder). Main routes the
+# signal to celebration_overlay/toast for player feedback.
+@warning_ignore("unused_signal") signal quest_completed(quest_id: String)
+## Fired when a slot becomes active — either at session start (load
+## from save) or when a prior quest in that slot completed and a new
+## one was picked. The QuestStrip listens to refresh its row.
+@warning_ignore("unused_signal") signal quest_activated(slot: int, quest_id: String)
+## Fired whenever quest progress crosses a threshold the strip cares
+## about (% increment). Slot is 0 (SHORT) / 1 (MEDIUM) / 2 (LONG).
+@warning_ignore("unused_signal") signal quest_progress_changed(slot: int, current: int, target: int)
+# endregion
+
 # region — Achievements
 # Phase 12f — fired when a previously-locked achievement crosses its
 # trigger threshold. Receivers (celebration overlay, ledger view,

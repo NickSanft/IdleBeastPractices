@@ -18,6 +18,7 @@ static func migrations() -> Array[Dictionary]:
 		{"from": 1, "fn": Callable(SaveMigrations, "_migrate_v1_to_v2")},
 		{"from": 2, "fn": Callable(SaveMigrations, "_migrate_v2_to_v3")},
 		{"from": 3, "fn": Callable(SaveMigrations, "_migrate_v3_to_v4")},
+		{"from": 4, "fn": Callable(SaveMigrations, "_migrate_v4_to_v5")},
 	]
 
 
@@ -100,6 +101,20 @@ static func _migrate_v3_to_v4(data: Dictionary) -> Dictionary:
 	out["version"] = 4
 	if not out.has("achievements_unlocked"):
 		out["achievements_unlocked"] = {}
+	return out
+
+
+## v4 → v5: Phase 12g introduces three concurrent quest slots and a
+## de-dupe set tracking which non-repeatable quests have been
+## completed. Existing v4 saves get empty defaults; QuestLog fills
+## the slots from the available pool on first tick after load.
+static func _migrate_v4_to_v5(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	out["version"] = 5
+	if not out.has("active_quests"):
+		out["active_quests"] = {"0": "", "1": "", "2": ""}
+	if not out.has("quests_completed"):
+		out["quests_completed"] = {}
 	return out
 
 

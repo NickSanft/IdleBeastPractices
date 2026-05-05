@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="QuestResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/resources/quest_resource.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"short_gold_1k"
+display_name = "Earn 1k Gold"
+description = "Earn 1,000 gold this run."
+quest_tier = 0
+source = 6
+ledger_field = &""
+threshold = 1000
+baseline = 0
+repeatable = true
+next_quest_id = &"short_gold_10k"
+rp_reward = 2
+gold_reward = {"m": 0.0, "e": 0}
+item_reward_id = &""
+item_reward_amount = 0
