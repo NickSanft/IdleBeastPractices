@@ -12,4 +12,4 @@ cost = {"m": 8.30, "e": 6}
 catches_per_second = 2.0
 catch_speed_multiplier = 1.0
 spawn_max = 6
-targets_tiers = Array[int]([4, 5, 6, 7, 8, 9])
+targets_tiers = Array[int]([4, 5, 6, 7, 8, 9, 10])

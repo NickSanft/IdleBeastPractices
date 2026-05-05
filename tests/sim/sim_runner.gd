@@ -86,6 +86,13 @@ const NET_RECIPES: Dictionary = {
 ## continuing wastes compute and pollutes the report with idle-tier catches.
 const STALL_TIMEOUT_SECONDS := 86400.0
 
+## Highest tier_completion the content supports. Once
+## current_max_tier exceeds this the player has cleared the design's
+## final tier; any "stall" beyond that is the endgame plateau, not a
+## progression wall. The runner exits cleanly with `endgame_reached`
+## rather than firing a misleading STALLED diagnosis.
+const MAX_DESIGNED_TIER := 20
+
 var _seed: int = SEED_DEFAULT
 var _max_seconds: float = HOURS_DEFAULT * 3600.0
 var _tick: float = TICK_SECONDS
@@ -98,6 +105,7 @@ var _seen_tier_complete: Dictionary = {}  # int -> true
 var _last_max_tier: int = 1
 var _last_event_t: float = 0.0
 var _stalled: bool = false
+var _endgame_reached: bool = false
 
 
 func _ready() -> void:
@@ -162,7 +170,18 @@ func _run_simulation() -> void:
 		_tick_offline_progress(t)
 		t += _tick
 
-		# 7. Stall check: 24 sim-hours with no event = hard wall.
+		# 7. Endgame check: once current_max_tier exceeds the designed
+		#    cap, the watchdog "stall" is just the post-endgame plateau
+		#    (nothing left to catch beyond tier 20). Exit cleanly.
+		if not _endgame_reached and GameState.current_max_tier > MAX_DESIGNED_TIER:
+			_endgame_reached = true
+			_log_event(t, "endgame_reached", "max_tier_%d" % MAX_DESIGNED_TIER)
+			print("[sim] endgame reached at t=%.1fh (tier %d cleared) — terminating cleanly" % [
+				t / 3600.0, MAX_DESIGNED_TIER,
+			])
+			return
+
+		# 8. Stall check: 24 sim-hours with no event = hard wall.
 		if t - _last_event_t > STALL_TIMEOUT_SECONDS:
 			_stalled = true
 			_log_event(t, "stalled", "no_progress_for_%.0fh" % (STALL_TIMEOUT_SECONDS / 3600.0))
@@ -429,6 +448,9 @@ func _write_report() -> void:
 		GameState.current_gold().format(),
 	])
 	f.store_line("")
+	if _endgame_reached:
+		f.store_line("> **ENDGAME REACHED** — the player cleared tier %d (the design cap) and prestiged at least once. The catching progression curve has no further wall; remaining gameplay is prestige-cycle RP grind." % MAX_DESIGNED_TIER)
+		f.store_line("")
 	if _stalled:
 		f.store_line("> **STALLED** — no progress event fired for %.0f sim-hours. The player has hit a hard progression wall. See the diagnosis at the bottom of this report." % (STALL_TIMEOUT_SECONDS / 3600.0))
 		f.store_line("")
@@ -515,6 +537,7 @@ func _write_report() -> void:
 	f.store_line("- `prestige_starting_net` upgrade is skipped: the sim re-equips `basic_net` at every prestige start regardless. In live play this upgrade is load-bearing.")
 	f.store_line("- Battles are not simulated. Battle RP is a separate income stream that compounds prestige RP indirectly via rp_mult upgrades; sim under-reports total RP gain.")
 	f.store_line("- Wall flags fire when a tier's Δ exceeds 3× the median tier-completion gap. Sprint flags fire below 1/3× median. Both ignore tier 1 (no prior delta).")
+	f.store_line("- The **tier-2 wall flag is a known false positive** in this content layout: tier 2 requires the player to grind ~50 tier-1 drops + the gold cost to craft `tier2_net`, which inherently takes longer than later tiers (where the player has already accumulated resources mid-chain). Real walls — like the tier-3→tier-4 chicken-and-egg fixed in v0.13.4 by extending mid-tier net `targets_tiers` — show up as **multiple consecutive walls** or as a stall, not a single flagged tier.")
 	f.store_line("- Re-run via `godot --headless --path . res://tests/sim/sim_runner.tscn -- --seed=N --hours=N --tick=N` to compare seeds.")
 
 	# Stall diagnosis: when the sim terminates early, the diagnostic block

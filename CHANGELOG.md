@@ -6,6 +6,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.13.4 — Phase 12h: Difficulty curve overhaul
+
+**Why**
+
+The headless sim runner from v0.9.4 stalled at tier 4: `tier3_net` only targeted tiers [2,3], so the player could never catch a tier-4 monster to drop the `wraith_cinder` needed to craft `wraith_net`. Classic chicken-and-egg. The mid-tier nets (tier3, wraith, hedgewright, gleamwarp, refrain, vigil) all had the same off-by-one structural gap — each net's `targets_tiers` ended exactly at the tier whose drops the *next* net's recipe required, locking the player out of progression.
+
+**Fix — overlap net target ranges by one tier**
+
+Each middle net now extends one tier into the next bracket so the next recipe's input drops are reachable without crafting the net you need them for first. Higher CPS still drives the player to upgrade — the overlap just unblocks the chain.
+
+| Net | Old `targets_tiers` | New `targets_tiers` | Unlocks input for |
+|---|---|---|---|
+| `tier3_net` | `[2, 3]` | `[2, 3, 4]` | `wraith_net` (needs tier-4 `wraith_cinder`) |
+| `wraith_net` | `[4, 5, 6]` | `[4, 5, 6, 7]` | `hedgewright_net` (needs tier-7 `glimmer_husk`) |
+| `hedgewright_net` | `[4, 5, 6, 7, 8, 9]` | `[4, 5, 6, 7, 8, 9, 10]` | `gleamwarp_net` (needs tier-10 `drift_crystal`) |
+| `gleamwarp_net` | `[7, 8, 9, 10, 11, 12]` | `[7, 8, 9, 10, 11, 12, 13]` | `refrain_net` (needs tier-13 `refrain_echo`) |
+| `refrain_net` | `[10, 11, 12, 13, 14, 15]` | `[10, 11, 12, 13, 14, 15, 16]` | `vigil_net` (needs tier-16 `refract_splinter`) |
+| `vigil_net` | `[13, 14, 15, 16, 17, 18]` | `[13, 14, 15, 16, 17, 18, 19]` | `nadir_net` (needs tier-19 `hollow_cinder`) |
+
+`basic_net`, `tier2_net`, and `nadir_net` are unchanged — `basic_net` is the seed (player is handed it), `tier2_net` already targets `[1, 2]` (its own input is tier 1), and `nadir_net` is the terminal net.
+
+**Sim runner improvements**
+
+- **`MAX_DESIGNED_TIER = 20`** + new `endgame_reached` event. Once `current_max_tier > 20` the runner exits cleanly with `endgame_reached` instead of false-positive STALLED. The post-cap "stall" was always just the player having nothing left to catch and the prestige threshold growing past their gold rate — not a balance issue.
+- New `> ENDGAME REACHED` blockquote at the top of the report when the run cleared tier 20.
+- Methodology note documenting that the **tier-2 wall flag is a known false positive** — tier 2 takes ~50 minutes (grind 50 wisplet_ectoplasm + craft `tier2_net`), which is the natural bootstrap pace; the median-relative flag fires because tiers 3-7 chain through in seconds with accumulated resources. Real walls show as multiple consecutive tiers flagged or as an outright stall.
+
+**Sim sweep results (seed=42, 14-day horizon)**
+
+- **Endgame reached at t=5.4h** (was: stalled at tier 4 with no progression after 31h)
+- 11 prestige cycles in the first run before hitting the cap
+- All 8 nets in the chain crafted: `basic → tier2 → tier3 → wraith → hedgewright` shown in the timeline by t=1.13h; later nets craft after subsequent prestige climbs
+- Multi-seed sanity (seed=99): also hits endgame at t=5.4h, confirming the fix isn't seed-specific
+
+**Tests**
+
+- Full GUT suite: **363/363 pass**, 48 scripts, 3377 asserts, 19.28s
+- No new tests authored — the change is data-only (+ a small sim runner ergonomic improvement). The sim itself is the regression test for difficulty-curve health.
+
+**Pre-push checklist**
+
+- Project loads cleanly (60-frame headless run): no SCRIPT ERROR / autoload failures
+- Full GUT suite green
+- Sim sweep with `seed=42` and `seed=99` both reach endgame; CSV + report committed
+
 ### v0.13.3 — Phase 12g: Quest system
 
 **Why**

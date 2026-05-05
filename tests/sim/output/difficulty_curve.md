@@ -1,30 +1,48 @@
 # Difficulty curve simulation — seed 42
 
-Sim horizon: **336.0 hours** (14.0 days). Tick: 60 s. Total events: 37.
+Sim horizon: **336.0 hours** (14.0 days). Tick: 60 s. Total events: 699.
 
-Final state: max tier **4**, prestige count **0**, total catches **120534**, RP **0**, gold **17.3M**.
+Final state: max tier **21**, prestige count **1**, total catches **31138**, RP **54598552**, gold **292Qi**.
 
-> **STALLED** — no progress event fired for 24 sim-hours. The player has hit a hard progression wall. See the diagnosis at the bottom of this report.
+> **ENDGAME REACHED** — the player cleared tier 20 (the design cap) and prestiged at least once. The catching progression curve has no further wall; remaining gameplay is prestige-cycle RP grind.
 
 ## Tier-completion timeline (first run)
 
 | Tier | First completed at | Δ from prior tier | Note |
 |---|---|---|---|
 | Tier 1 | 0.05 h (0.00 d) | 0.05 h |  |
-| Tier 2 | 5.23 h (0.22 d) | 5.18 h |  |
-| Tier 3 | 7.73 h (0.32 d) | 2.50 h |  |
+| Tier 2 | 0.92 h (0.04 d) | 0.87 h | **WALL** (17.3× median) |
+| Tier 3 | 0.97 h (0.04 d) | 0.05 h |  |
+| Tier 4 | 1.02 h (0.04 d) | 0.05 h |  |
+| Tier 5 | 1.05 h (0.04 d) | 0.03 h |  |
+| Tier 6 | 1.10 h (0.05 d) | 0.05 h |  |
+| Tier 7 | 1.17 h (0.05 d) | 0.07 h |  |
 
 ## Prestige timeline
 
-_No prestiges occurred within the sim horizon._
+| Prestige # | At | RP awarded | Max tier reached pre-prestige |
+|---|---|---|---|
+| 1 | 1.18 h | +267 | tier 1 |
+| 1 | 1.43 h | +465 | tier 1 |
+| 1 | 1.73 h | +1775 | tier 1 |
+| 1 | 2.03 h | +5939 | tier 1 |
+| 1 | 2.37 h | +17321 | tier 1 |
+| 1 | 2.73 h | +53670 | tier 1 |
+| 1 | 3.12 h | +260534 | tier 1 |
+| 1 | 3.52 h | +776821 | tier 1 |
+| 1 | 3.95 h | +2754904 | tier 1 |
+| 1 | 4.40 h | +11384849 | tier 1 |
+| 1 | 4.88 h | +39341722 | tier 1 |
 
 ## Net-acquisition timeline (first run)
 
 | Net | Acquired at |
 |---|---|
 | basic_net | 0.00 h |
-| tier2_net | 5.13 h |
-| tier3_net | 7.67 h |
+| tier2_net | 0.82 h |
+| tier3_net | 0.90 h |
+| wraith_net | 0.98 h |
+| hedgewright_net | 1.13 h |
 
 ## Methodology
 
@@ -33,23 +51,5 @@ _No prestiges occurred within the sim horizon._
 - `prestige_starting_net` upgrade is skipped: the sim re-equips `basic_net` at every prestige start regardless. In live play this upgrade is load-bearing.
 - Battles are not simulated. Battle RP is a separate income stream that compounds prestige RP indirectly via rp_mult upgrades; sim under-reports total RP gain.
 - Wall flags fire when a tier's Δ exceeds 3× the median tier-completion gap. Sprint flags fire below 1/3× median. Both ignore tier 1 (no prior delta).
+- The **tier-2 wall flag is a known false positive** in this content layout: tier 2 requires the player to grind ~50 tier-1 drops + the gold cost to craft `tier2_net`, which inherently takes longer than later tiers (where the player has already accumulated resources mid-chain). Real walls — like the tier-3→tier-4 chicken-and-egg fixed in v0.13.4 by extending mid-tier net `targets_tiers` — show up as **multiple consecutive walls** or as a stall, not a single flagged tier.
 - Re-run via `godot --headless --path . res://tests/sim/sim_runner.tscn -- --seed=N --hours=N --tick=N` to compare seeds.
-
-## Stall diagnosis
-
-The simulator terminated early after a 24-hour silent window. State at stall:
-
-- Active net: `tier3_net` (targets tiers `[2, 3]`)
-- current_max_tier: `4`
-- Gold available: `17.3M`
-- Rancher Points: `0`
-
-Next net the AI tried to craft: `wraith_net` (recipe `recipe_wraith_net`):
-
-- Tier required: `4` (current_max_tier OK)
-- Gold cost: `4.65K` (have `17.3M`)
-- Item inputs:
-    - `wraith_cinder` × `50` (have `0`) — drops from tiers [4]
-- Prereq recipes: [&"recipe_tier3_net"]
-
-**Likely root cause:** the only net targeting the input's source tier requires drops from monsters in that same tier. Tap-grinding does NOT bypass this in the live game — `CatchingSystem.pick_spawn` filters by `net.targets_tiers` for both auto-catch AND tap spawns ([catching_view.gd:154](../../game/scenes/catching/catching_view.gd:154)). The wall is real. Fix paths: (1) overlap net target ranges so e.g. `tier3_net` includes tier 4, (2) cross-tier item drops (lower-tier monsters occasionally drop the next-tier ingredient), (3) a shop or trade-in mechanic that converts lower-tier drops into higher-tier ones.
