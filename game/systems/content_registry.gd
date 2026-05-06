@@ -214,6 +214,15 @@ static func achievement(id: StringName) -> AchievementResource:
 	return _achievements_by_id.get(id)
 
 
+## Returns the underlying dict (id -> AchievementResource) for hot-path
+## iteration that wants to avoid the per-call allocation `achievements()`
+## does. Phase 12f's [`Achievements`] autoload uses this to keep the
+## per-frame evaluator allocation-free.
+static func achievement_index() -> Dictionary:
+	ensure_loaded()
+	return _achievements_by_id
+
+
 static func quests() -> Array[QuestResource]:
 	ensure_loaded()
 	var out: Array[QuestResource] = []
@@ -225,6 +234,12 @@ static func quests() -> Array[QuestResource]:
 static func quest(id: StringName) -> QuestResource:
 	ensure_loaded()
 	return _quests_by_id.get(id)
+
+
+## Allocation-free quest iteration for the [`QuestLog`] hot path.
+static func quest_index() -> Dictionary:
+	ensure_loaded()
+	return _quests_by_id
 
 
 ## Returns the highest-tier stage the player has unlocked given their

@@ -6,6 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.13.5 — Tap-path performance regression fix
+
+**Why**
+
+A user-reported Android perf regression in this batch (12a–12h): tapping enemies on the catching screen had become noticeably slower. Profiling traced it to a fan-out problem introduced when 12f (achievements) and 12g (quests) both subscribed to the same set of progress signals. A single caught tap fires three signals — `monster_tapped`, `currency_changed` (from `add_gold`), `monster_caught` — and each evaluator was re-running the full content-registry walk per signal:
+
+| Per caught tap | Before | After |
+|---|---|---|
+| `Achievements.evaluate_all` calls | **2** | **1 / frame** |
+| `QuestLog.evaluate_progress` calls | **3** | **1 / frame** |
+| Allocations of `Array[AchievementResource]` | **2** | **0** |
+| Allocations of `Array[QuestResource]` | **3** | **0** |
+
+12b's hold-to-tap (up to 8 Hz) plus offline-progress auto-catches multiplied that further — visible in frame timings on Android.
+
+**Fix — per-frame coalescing + allocation-free hot path**
+
+- **[`Achievements`](game/autoloads/achievements.gd) and [`QuestLog`](game/autoloads/quest_log.gd)** now use a dirty-flag pattern: each subscribed signal calls `_mark_dirty()` (a single bool write), and `_process` drains the flag with one evaluator call per frame. Any number of cascaded same-frame signals collapse to a single evaluator pass. Public `is_dirty()` + `eval_count` exposed for tests.
+- **`ContentRegistry.achievement_index()` and `quest_index()`** — return the cached `Dictionary` reference instead of allocating a fresh `Array[…Resource]` each call. The evaluators now iterate the dict's keys directly. `achievements()` / `quests()` array variants stay around for non-hot-path callers (Ledger grid, etc.).
+- **QuestLog `_pick_for_slot` was O(N²)** — the inner `_is_eligible_ladder_position` scanned all quests for every quest under consideration. Replaced with a one-time predecessor map built before the eligibility loop. Now O(N). Only fires on quest completion (not per tap), but the cleanup matches the broader allocation budget theme.
+
+**Tests — `test_tap_path_perf.gd` (8 cases, +8)**
+
+The new suite codifies the budget so this regression class can't return:
+
+- `test_burst_of_signals_in_one_frame_yields_one_achievement_eval` / `_quest_eval` — emit 10 signals back-to-back, assert evaluator runs **0** times before `_process` drains, **1** time after.
+- `test_caught_tap_simulation_stays_under_budget` — fire the exact 3-signal cascade a caught tap produces; assert each autoload evaluates once, not 2× / 3×.
+- `test_eight_taps_in_one_frame_yields_one_eval` — hold-to-tap worst case (8 caught taps × 3 signals each = 24 signals) collapses to 1 eval.
+- `test_signals_across_frames_eval_per_frame` — one signal per frame × 5 frames yields 5 evals (proves coalescing is per-frame, not "ever").
+- `test_idle_frame_does_not_eval` — 60 idle frames cost zero evaluator runs (no per-frame cost when nothing is happening).
+- `test_achievement_index_returns_same_dict_every_call` / `_quest_index_…` — index getters return the live cached reference, not a copy. A copy-per-call would re-introduce the allocation pressure even with coalescing in place.
+
+**Pre-push checklist**
+
+- Full GUT suite: **371/371 pass**, 49 scripts, 3395 asserts
+- New perf suite: 8/8 pass
+
 ### v0.13.4 — Phase 12h: Difficulty curve overhaul
 
 **Why**

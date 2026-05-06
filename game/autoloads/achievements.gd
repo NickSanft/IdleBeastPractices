@@ -8,40 +8,73 @@
 ##   3. EventBus.achievement_unlocked is emitted so the celebration
 ##      overlay + ledger grid can react
 ##
-## The evaluator is intentionally cheap (a handful of int comparisons
-## per signal) so wiring it to fast events like monster_caught /
-## monster_tapped is fine — no batching needed at this scale.
+## v0.13.5 — per-frame coalescing. Pre-12f, the simple wiring of
+## `signal.connect(evaluate_all)` ran the full 20-achievement walk
+## twice per caught tap (monster_tapped + monster_caught). With 12g's
+## QuestLog stacking the same fan of subscriptions, a single tap
+## during hold-to-tap (12b, up to 8 Hz) was firing >40 evaluator
+## walks per second on Android. The fix below coalesces every signal
+## fired within a single frame into a single evaluator call via a
+## dirty flag drained by `_process`. See `test_achievements_perf.gd`
+## for the regression test that asserts the tap-burst budget.
 extends Node
+
+## Test/diagnostic counter: number of times `evaluate_all` has run.
+## Reset between tests; live builds ignore it.
+var eval_count: int = 0
+
+# Set by signal handlers; drained by _process. Coalesces N per-frame
+# signals into one evaluator pass.
+var _dirty: bool = false
 
 
 func _ready() -> void:
 	# Subscribe to every signal that mutates a tracked source. The
 	# evaluator just re-reads GameState, so connecting to too many is
 	# cheap; connecting to too few risks an achievement firing one
-	# event late.
-	EventBus.monster_caught.connect(_on_any_progress_event.unbind(4))
-	EventBus.monster_tapped.connect(_on_any_progress_event.unbind(2))
-	EventBus.pet_acquired.connect(_on_any_progress_event.unbind(2))
-	EventBus.recipe_unlocked.connect(_on_any_progress_event.unbind(1))
-	EventBus.item_crafted.connect(_on_any_progress_event.unbind(2))
-	EventBus.tier_completed.connect(_on_any_progress_event.unbind(1))
-	EventBus.tier_unlocked.connect(_on_any_progress_event.unbind(1))
-	EventBus.prestige_triggered.connect(_on_any_progress_event.unbind(2))
+	# event late. Each handler just sets _dirty — the actual walk
+	# happens once per frame in _process.
+	EventBus.monster_caught.connect(_mark_dirty.unbind(4))
+	EventBus.monster_tapped.connect(_mark_dirty.unbind(2))
+	EventBus.pet_acquired.connect(_mark_dirty.unbind(2))
+	EventBus.recipe_unlocked.connect(_mark_dirty.unbind(1))
+	EventBus.item_crafted.connect(_mark_dirty.unbind(2))
+	EventBus.tier_completed.connect(_mark_dirty.unbind(1))
+	EventBus.tier_unlocked.connect(_mark_dirty.unbind(1))
+	EventBus.prestige_triggered.connect(_mark_dirty.unbind(2))
 	# Re-evaluate on load so a save imported from a newer build (or
 	# fixture-loaded in tests) immediately reflects unlocks.
-	EventBus.game_loaded.connect(evaluate_all)
+	EventBus.game_loaded.connect(_mark_dirty)
 
 
-func _on_any_progress_event() -> void:
-	evaluate_all()
+func _process(_delta: float) -> void:
+	if _dirty:
+		_dirty = false
+		evaluate_all()
+
+
+func _mark_dirty() -> void:
+	_dirty = true
+
+
+## True iff at least one signal has been seen since the last
+## evaluator run. Public for tests; the live game just lets _process
+## drain it.
+func is_dirty() -> bool:
+	return _dirty
 
 
 ## Walk every achievement, fire any whose trigger now passes and
 ## hasn't already been recorded. Public so tests can call it directly
 ## after staging GameState.
+##
+## Uses `ContentRegistry.achievement_index()` (cached dict) to avoid
+## re-allocating the achievement array on every call.
 func evaluate_all() -> void:
-	var defs := ContentRegistry.achievements()
-	for ach in defs:
+	eval_count += 1
+	var index := ContentRegistry.achievement_index()
+	for id in index.keys():
+		var ach: AchievementResource = index[id]
 		if ach == null:
 			continue
 		var id_str: String = String(ach.id)

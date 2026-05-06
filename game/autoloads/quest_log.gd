@@ -23,26 +23,52 @@ const SLOT_LONG := 2
 # spam quest_progress_changed every signal tick. Slot -> int.
 var _last_progress: Dictionary = {0: -1, 1: -1, 2: -1}
 
+## Test/diagnostic counter: number of times `evaluate_progress` has
+## actually run. Useful as the assertion target for the per-tap budget
+## regression test.
+var eval_count: int = 0
+
+# Coalesce per-frame events into a single evaluator pass. See the
+# matching note in achievements.gd. Without this, a caught tap on
+# Android fired evaluate_progress 3× (monster_tapped, currency_changed
+# from add_gold, monster_caught) — and at hold-to-tap's 8 Hz the cost
+# was visible in frame timings.
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	# Same fan of signals the Achievements autoload subscribes to —
 	# any of them might tip a quest's progress past threshold. We
 	# don't need a payload, just a re-evaluate trigger.
-	EventBus.monster_caught.connect(_on_progress_event.unbind(4))
-	EventBus.monster_tapped.connect(_on_progress_event.unbind(2))
-	EventBus.pet_acquired.connect(_on_progress_event.unbind(2))
-	EventBus.recipe_unlocked.connect(_on_progress_event.unbind(1))
-	EventBus.item_crafted.connect(_on_progress_event.unbind(2))
-	EventBus.tier_completed.connect(_on_progress_event.unbind(1))
-	EventBus.tier_unlocked.connect(_on_progress_event.unbind(1))
-	EventBus.prestige_triggered.connect(_on_progress_event.unbind(2))
-	EventBus.currency_changed.connect(_on_progress_event.unbind(2))
+	EventBus.monster_caught.connect(_mark_dirty.unbind(4))
+	EventBus.monster_tapped.connect(_mark_dirty.unbind(2))
+	EventBus.pet_acquired.connect(_mark_dirty.unbind(2))
+	EventBus.recipe_unlocked.connect(_mark_dirty.unbind(1))
+	EventBus.item_crafted.connect(_mark_dirty.unbind(2))
+	EventBus.tier_completed.connect(_mark_dirty.unbind(1))
+	EventBus.tier_unlocked.connect(_mark_dirty.unbind(1))
+	EventBus.prestige_triggered.connect(_mark_dirty.unbind(2))
+	EventBus.currency_changed.connect(_mark_dirty.unbind(2))
 	# After load, fill empty slots and re-emit progress so the strip
 	# can paint its initial state.
 	EventBus.game_loaded.connect(_on_game_loaded)
 	# Also fill on _ready so a fresh launch (no save) starts with
 	# something in each slot.
 	call_deferred("_initial_fill")
+
+
+func _process(_delta: float) -> void:
+	if _dirty:
+		_dirty = false
+		evaluate_progress()
+
+
+func _mark_dirty() -> void:
+	_dirty = true
+
+
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _on_game_loaded() -> void:
@@ -57,13 +83,10 @@ func _initial_fill() -> void:
 	evaluate_progress()
 
 
-func _on_progress_event() -> void:
-	evaluate_progress()
-
-
 ## Walk every slot, re-read the quest's tracked source, fire completion
 ## if crossed. Public for tests + main.gd post-prestige refill.
 func evaluate_progress() -> void:
+	eval_count += 1
 	for slot in [SLOT_SHORT, SLOT_MEDIUM, SLOT_LONG]:
 		var quest_id_str: String = String(GameState.active_quests.get(slot, ""))
 		if quest_id_str == "":
@@ -133,15 +156,35 @@ func _activate(slot: int, quest_id_str: String) -> void:
 ## been completed past it. Picks deterministically by sorting eligible
 ## ids alphabetically and returning the first — keeps tests stable
 ## without a seed plumbed through.
+##
+## Uses `ContentRegistry.quest_index()` to avoid the per-call array
+## allocation, and pre-computes the ladder predecessor map so the
+## eligibility check is O(1) per quest instead of O(N).
 func _pick_for_slot(slot: int) -> QuestResource:
 	var target_tier: int = _slot_to_quest_tier(slot)
+	var index := ContentRegistry.quest_index()
+
 	var active_ids: Dictionary = {}
 	for s in GameState.active_quests.keys():
 		var v: String = String(GameState.active_quests[s])
 		if v != "":
 			active_ids[v] = true
+
+	# predecessor_of[next_id] = id of the quest that points to it via
+	# next_quest_id. Built once per pick instead of re-scanning all
+	# quests inside the eligibility loop.
+	var predecessor_of: Dictionary = {}
+	for k in index.keys():
+		var q: QuestResource = index[k]
+		if q == null:
+			continue
+		var next_id_str: String = String(q.next_quest_id)
+		if next_id_str != "":
+			predecessor_of[next_id_str] = String(q.id)
+
 	var eligible: Array[QuestResource] = []
-	for q in ContentRegistry.quests():
+	for k in index.keys():
+		var q: QuestResource = index[k]
 		if q == null:
 			continue
 		if q.quest_tier != target_tier:
@@ -151,14 +194,11 @@ func _pick_for_slot(slot: int) -> QuestResource:
 			continue
 		if GameState.quests_completed.has(id_str):
 			continue
-		# Skip ladder-tail quests: if a non-head rung has its
-		# previous rung un-completed, we want to issue the head first.
-		# Simplification: only issue quests that are heads (no other
-		# quest references this one as next_quest_id) OR whose
-		# predecessor IS completed. Catches the case where the picker
-		# would otherwise jump to "catch 500" before completing
-		# "catch 25 → 100".
-		if not _is_eligible_ladder_position(q):
+		# Ladder tail: if some other quest points at this one via
+		# next_quest_id and that predecessor isn't completed yet,
+		# issue the head first.
+		var pred: String = String(predecessor_of.get(id_str, ""))
+		if pred != "" and not GameState.quests_completed.has(pred):
 			continue
 		eligible.append(q)
 	if eligible.is_empty():
@@ -173,18 +213,6 @@ func _slot_to_quest_tier(slot: int) -> int:
 		SLOT_MEDIUM: return QuestResource.QuestTier.MEDIUM
 		SLOT_LONG: return QuestResource.QuestTier.LONG
 	return QuestResource.QuestTier.SHORT
-
-
-func _is_eligible_ladder_position(q: QuestResource) -> bool:
-	# Find any other quest that points to q via next_quest_id. If
-	# there is one and it's not yet completed, q is a tail — skip.
-	for other in ContentRegistry.quests():
-		if other == null or other.id == q.id:
-			continue
-		if String(other.next_quest_id) == String(q.id):
-			if not GameState.quests_completed.has(String(other.id)):
-				return false
-	return true
 
 
 func _evaluate_value(q: QuestResource) -> int:
