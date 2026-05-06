@@ -26,6 +26,25 @@ var _scroll: ScrollContainer
 var _detail: PopupPanel
 var _cards: Array[PanelContainer] = []
 
+## v0.13.6 — visibility-gated refresh.
+##
+## Pre-fix: every monster_caught (a per-tap signal on the catching
+## screen) called _refresh_cards, which iterates 60 cards and each
+## card's refresh() destroys + rebuilds its 4 pill Labels. That's
+## 240 Label allocs + 240 destroys + 60 AtlasTexture allocs **per
+## tap, while the bestiary tab is hidden** — directly responsible
+## for the ~1s freeze users saw on Android.
+##
+## Now: signal handlers just set _dirty. _refresh_cards only fires
+## when the tab is actually visible (or when it becomes visible
+## after one or more dirty signals while hidden). Same pattern as
+## ledger_view's `if visible: _refresh()`.
+##
+## Test/diagnostic counter for the regression suite. Reset between
+## tests; live builds ignore it.
+var refresh_count: int = 0
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	_scroll = ScrollContainer.new()
@@ -44,6 +63,7 @@ func _ready() -> void:
 	add_child(_detail)
 
 	resized.connect(_on_resized)
+	visibility_changed.connect(_on_visibility_changed)
 	EventBus.monster_caught.connect(_on_monster_caught)
 	EventBus.first_catch_of_species.connect(_on_first_catch)
 	EventBus.first_shiny_caught.connect(_on_first_shiny)
@@ -57,6 +77,12 @@ func _on_resized() -> void:
 		_list.columns = _columns_for_width(size.x)
 
 
+func _on_visibility_changed() -> void:
+	if visible and _dirty:
+		_dirty = false
+		_refresh_cards()
+
+
 func _columns_for_width(w: float) -> int:
 	if w >= _BREAKPOINT_4_COL:
 		return 4
@@ -65,25 +91,45 @@ func _columns_for_width(w: float) -> int:
 	return 1
 
 
-# Catch / unlock signals just refresh existing cards in place — no
-# need to wipe the grid (cards refresh themselves).
+# Catch / unlock signals just mark the grid dirty. The cards repaint
+# only when the bestiary tab is actually visible (in _on_visibility_changed)
+# — there's no point burning frames refreshing offscreen UI on every
+# tap from the catching screen.
 func _on_monster_caught(_id: String, _ix: int, _is_shiny: bool, _src: String) -> void:
-	_refresh_cards()
+	_mark_dirty()
 
 
 func _on_first_catch(_id: String) -> void:
-	_refresh_cards()
+	_mark_dirty()
 
 
 func _on_first_shiny(_id: String) -> void:
-	_refresh_cards()
+	_mark_dirty()
 
 
 func _on_pet_acquired(_pet_id: String, _is_variant: bool) -> void:
-	_refresh_cards()
+	_mark_dirty()
+
+
+func _mark_dirty() -> void:
+	if visible:
+		# Visible: refresh immediately so the player sees the catch
+		# count tick up. Skips the dirty-flag dance.
+		_refresh_cards()
+	else:
+		# Hidden: defer until the tab is opened.
+		_dirty = true
+
+
+## True iff at least one signal has been received while hidden and
+## the cards are out-of-date. Public for the regression test that
+## asserts the visibility gate.
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _refresh_cards() -> void:
+	refresh_count += 1
 	for card in _cards:
 		if is_instance_valid(card):
 			card.refresh()

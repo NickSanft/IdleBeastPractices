@@ -60,6 +60,18 @@ var _count_label: Label
 var _slot_row: HBoxContainer
 var _silhouette_material: ShaderMaterial
 
+# v0.13.6 — pills are built once in _build_layout and updated in
+# refresh(). Pre-fix every refresh queue_freed and recreated all 4
+# Labels, which compounded with bestiary_view's per-tap refresh into
+# the Android freeze. See bestiary_view.gd for the full diagnosis.
+var _pill_seen: Label
+var _pill_normal: Label
+var _pill_shiny: Label
+var _pill_variant: Label
+
+# Reused atlas; refresh() retargets it instead of allocating fresh.
+var _atlas: AtlasTexture
+
 
 func _ready() -> void:
 	clip_contents = true
@@ -133,6 +145,25 @@ func _build_layout() -> void:
 	_slot_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(_slot_row)
 
+	# Build pills once. refresh() flips their fill state without
+	# touching the scene tree. The glyph + tooltip text are static,
+	# only modulate (filled vs dim) and the colorblind-mode suffix
+	# change between refreshes.
+	_pill_seen = _build_pill("◇", _PALETTE.SAGE_GREEN, "Seen")
+	_pill_normal = _build_pill("✦", _PALETTE.BRASS_ACCENT, "Normal")
+	_pill_shiny = _build_pill("✧", _PALETTE.BLOOD_RUBY, "Shiny")
+	_pill_variant = _build_pill("⬢", _PALETTE.DUSK_BLUE, "Variant")
+	_slot_row.add_child(_pill_seen)
+	_slot_row.add_child(_pill_normal)
+	_slot_row.add_child(_pill_shiny)
+	_slot_row.add_child(_pill_variant)
+
+	# Atlas is reused across refreshes — only the source texture
+	# rotates if the monster.sprite ever changes (currently it doesn't
+	# at runtime, but binding once keeps the tex pointer stable).
+	_atlas = AtlasTexture.new()
+	_atlas.region = Rect2(Vector2.ZERO, _SPRITE_FRAME_SIZE)
+
 
 func _build_silhouette_material() -> ShaderMaterial:
 	var shader := Shader.new()
@@ -156,12 +187,12 @@ func refresh() -> void:
 	var variant_owned: bool = pet_id != "" and GameState.pet_variants_owned.has(pet_id)
 
 	# Sprite vs silhouette. Use the SAME atlas region for both — the
-	# silhouette material does the visual reduction.
+	# silhouette material does the visual reduction. The AtlasTexture
+	# itself is shared across refreshes (built once in _build_layout);
+	# we just retarget its source.
 	if monster.sprite != null:
-		var atlas := AtlasTexture.new()
-		atlas.atlas = monster.sprite
-		atlas.region = Rect2(Vector2.ZERO, _SPRITE_FRAME_SIZE)
-		_sprite_rect.texture = atlas
+		_atlas.atlas = monster.sprite
+		_sprite_rect.texture = _atlas
 		if seen:
 			_sprite_rect.material = null
 			_sprite_rect.modulate = monster.tint
@@ -194,12 +225,12 @@ func refresh() -> void:
 		_count_label.text = "—"
 
 	# Slot pills — four states (seen | normal | shiny | variant).
-	for child in _slot_row.get_children():
-		child.queue_free()
-	_slot_row.add_child(_pill("◇", seen, _PALETTE.SAGE_GREEN, "Seen"))
-	_slot_row.add_child(_pill("✦", normal_count > 0, _PALETTE.BRASS_ACCENT, "Normal"))
-	_slot_row.add_child(_pill("✧", shiny_count > 0, _PALETTE.BLOOD_RUBY, "Shiny"))
-	_slot_row.add_child(_pill("⬢", variant_owned, _PALETTE.DUSK_BLUE, "Variant"))
+	# Built once in _build_layout; refresh() just flips fill state +
+	# (when colorblind_mode is on) the redundant ✓/· suffix.
+	_update_pill(_pill_seen, "◇", seen, _PALETTE.SAGE_GREEN)
+	_update_pill(_pill_normal, "✦", normal_count > 0, _PALETTE.BRASS_ACCENT)
+	_update_pill(_pill_shiny, "✧", shiny_count > 0, _PALETTE.BLOOD_RUBY)
+	_update_pill(_pill_variant, "⬢", variant_owned, _PALETTE.DUSK_BLUE)
 
 	# Perfected = all four slots filled. Border tint is overridden on
 	# the panel via a StyleBoxFlat copy so the change is per-card,
@@ -237,8 +268,20 @@ func slot_state() -> int:
 	return SlotState.SEEN
 
 
-func _pill(glyph: String, filled: bool, color: Color, hint: String) -> Control:
+## v0.13.6 — split into "build once" (this) and "update existing"
+## (`_update_pill`). The hot path uses _update_pill so refreshes
+## don't allocate Labels or thrash the scene tree.
+func _build_pill(glyph: String, color: Color, hint: String) -> Label:
 	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 18)
+	label.tooltip_text = hint
+	# Initial unfilled state — refresh() will set the real state
+	# the first time it runs.
+	_update_pill(label, glyph, false, color)
+	return label
+
+
+func _update_pill(label: Label, glyph: String, filled: bool, color: Color) -> void:
 	# Phase 12b colorblind mode: append a redundant shape token (✓ for
 	# filled, · for unfilled) so the filled/unfilled state is readable
 	# without distinguishing the modulate color from the dim outline.
@@ -247,10 +290,7 @@ func _pill(glyph: String, filled: bool, color: Color, hint: String) -> Control:
 		label.text = "%s%s" % [glyph, "✓" if filled else "·"]
 	else:
 		label.text = glyph
-	label.add_theme_font_size_override("font_size", 18)
 	label.modulate = color if filled else Color(0.55, 0.5, 0.4, 0.45)
-	label.tooltip_text = hint
-	return label
 
 
 ## Override the panel's StyleBox per-card so the perfected border

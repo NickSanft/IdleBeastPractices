@@ -6,6 +6,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.13.6 — Tap-path freeze: hidden-tab rebuilders
+
+**Why**
+
+v0.13.5 fixed the autoload evaluator fan-out, but the user reported the ~1-second freeze persisted. Profiling traced it to a much heavier offender: **six different view scenes were full-rebuilding their entire DOM on every per-tap signal, even while hidden behind another tab.**
+
+The worst offender was `bestiary_view`: every `monster_caught` (one per caught tap) called `_refresh_cards()`, which iterates 60 cards. Each card's `refresh()` then queue-freed its 4 pill `Label`s and re-built fresh ones, plus allocated a new `AtlasTexture`. That's **240 Label allocations + 240 destroys + 60 AtlasTexture allocations per tap, while the bestiary tab wasn't even visible.** Compounding listeners across `crafting_view`, `inventory_panel`, `net_shop`, `upgrade_tree`, and `prestige_view` — each running its own full rebuild on `currency_changed` / `item_gained` (both fire per catch) — multiplied the cost.
+
+`ledger_view` already had the right pattern (`if visible: _refresh()`); the others were missing it.
+
+**Fix — visibility-gated rebuilders**
+
+Every signal-driven rebuilder now uses the same gate:
+
+```gdscript
+func _on_signal(...) -> void:
+    if visible:
+        _refresh()
+    else:
+        _dirty = true   # defer until visibility_changed
+```
+
+When the player switches to the previously-hidden tab, `visibility_changed → visible=true` drains the dirty flag with **exactly one** refresh — not one per suppressed signal. Six views updated:
+
+- [`bestiary_view`](game/scenes/bestiary/bestiary_view.gd) — was the heaviest. `monster_caught`, `first_catch_of_species`, `first_shiny_caught`, `pet_acquired` all now gated.
+- [`crafting_view`](game/scenes/crafting/crafting_view.gd) — `currency_changed`, `item_gained`, `item_spent`, `item_crafted`, `tier_unlocked`, `tier_completed` all gated.
+- [`inventory_panel`](game/scenes/ui/inventory_panel.gd) — `item_gained`, `item_spent` gated.
+- [`net_shop`](game/scenes/ui/net_shop.gd) — `currency_changed` gated.
+- [`upgrade_tree`](game/scenes/ui/upgrade_tree.gd) — `currency_changed`, `upgrade_purchased` gated.
+- [`prestige_view`](game/scenes/prestige/prestige_view.gd) — `currency_changed`, `tier_completed`, `tier_unlocked`, `upgrade_purchased`, `prestige_triggered` gated.
+
+**Bonus fix — bestiary_card no longer rebuilds pills in `refresh()`**
+
+The 4 pill Labels are built once in `_build_layout` and just have their fill state updated by `refresh()` via a new `_update_pill(label, glyph, filled, color)` helper. The `AtlasTexture` is also constructed once in `_build_layout` and retargeted on refresh. Eliminates the per-card allocations even when the bestiary IS visible, so foreground refreshes are cheap too.
+
+**Tests — `test_hidden_tab_refresh_budget.gd` (13 cases, +13)**
+
+- For each of the six views: a `_hidden_skips_refresh_*` test fires 20 same-signal emits while the view is hidden and asserts `refresh_count == 0` plus `is_dirty() == true`. A future maintainer who adds a new rebuilder and forgets the gate sees a specific named test fail, not a generic budget violation.
+- For each of the six views: a `_drains_on_show` test stages dirty signals while hidden, then sets `visible = true` and asserts `refresh_count == 1` (one drain pass, not N).
+- `_visible_still_refreshes_per_signal` for bestiary — guards against over-correcting and accidentally suppressing the foreground refresh.
+- All views expose `refresh_count: int` + `is_dirty() -> bool` as the public test surface; the dirty flag itself is private.
+
+**Pre-push checklist**
+
+- Full GUT suite: **384/384 pass**, 50 scripts, 3413 asserts (+13 from this fix, +21 total since v0.13.4)
+- New hidden-tab suite: 13/13 pass
+
 ### v0.13.5 — Tap-path performance regression fix
 
 **Why**

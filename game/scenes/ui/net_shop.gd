@@ -12,6 +12,10 @@ const _PALETTE := preload("res://game/resources/palette_colors.gd")
 
 var _list: VBoxContainer
 
+# v0.13.6 — visibility-gated refresh (currency_changed fires per caught tap).
+var refresh_count: int = 0
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	var scroll := ScrollContainer.new()
@@ -24,18 +28,37 @@ func _ready() -> void:
 	_list.add_theme_constant_override("separation", 12)
 	scroll.add_child(_list)
 
+	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_currency_changed)
-	EventBus.game_loaded.connect(_refresh)
+	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_visibility_changed() -> void:
+	if visible and _dirty:
+		_dirty = false
+		_refresh()
+
+
+func _mark_dirty_or_refresh() -> void:
+	if visible:
+		_refresh()
+	else:
+		_dirty = true
+
+
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _on_currency_changed(_currency_id: String, _new_value: Variant) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _refresh() -> void:
 	if not is_instance_valid(_list):
 		return
+	refresh_count += 1
 	for child in _list.get_children():
 		child.queue_free()
 	for net_res in ContentRegistry.nets():

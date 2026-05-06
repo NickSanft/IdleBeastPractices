@@ -13,6 +13,13 @@ const _REASON_LABELS := {
 
 var _list: VBoxContainer
 
+# v0.13.6 — visibility-gated refresh. currency_changed and item_gained
+# both fire per caught tap; full-rebuilding the recipe list while the
+# crafting tab is hidden was a major contributor to the Android tap
+# freeze. The cards repaint when the player actually opens the tab.
+var refresh_count: int = 0
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	var scroll := ScrollContainer.new()
@@ -24,35 +31,54 @@ func _ready() -> void:
 	_list.add_theme_constant_override("separation", 12)
 	scroll.add_child(_list)
 
+	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_state_changed)
 	EventBus.item_gained.connect(_on_state_changed_string_int)
 	EventBus.item_spent.connect(_on_state_changed_string_int)
 	EventBus.item_crafted.connect(_on_recipe_crafted)
 	EventBus.tier_unlocked.connect(_on_tier_changed)
 	EventBus.tier_completed.connect(_on_tier_changed)
-	EventBus.game_loaded.connect(_refresh)
+	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_visibility_changed() -> void:
+	if visible and _dirty:
+		_dirty = false
+		_refresh()
+
+
+func _mark_dirty_or_refresh() -> void:
+	if visible:
+		_refresh()
+	else:
+		_dirty = true
+
+
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _on_state_changed(_id: String, _v: Variant) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_state_changed_string_int(_id: String, _amount: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_recipe_crafted(_recipe_id: String, _output_id: String) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_tier_changed(_t: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _refresh() -> void:
 	if not is_instance_valid(_list):
 		return
+	refresh_count += 1
 	for child in _list.get_children():
 		child.queue_free()
 	var visible_count: int = 0

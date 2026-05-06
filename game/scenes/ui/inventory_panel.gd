@@ -25,6 +25,10 @@ var _empty_label: Label
 var _context_popup: PopupPanel
 var _context_target_item_id: StringName = &""
 
+# v0.13.6 — visibility-gated refresh (item_gained fires per caught tap).
+var refresh_count: int = 0
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	_scroll = ScrollContainer.new()
@@ -47,10 +51,28 @@ func _ready() -> void:
 	_grid.add_child(_empty_label)
 
 	resized.connect(_on_resized)
+	visibility_changed.connect(_on_visibility_changed)
 	EventBus.item_gained.connect(_on_item_gained)
 	EventBus.item_spent.connect(_on_item_spent)
-	EventBus.game_loaded.connect(_refresh)
+	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_visibility_changed() -> void:
+	if visible and _dirty:
+		_dirty = false
+		_refresh()
+
+
+func _mark_dirty_or_refresh() -> void:
+	if visible:
+		_refresh()
+	else:
+		_dirty = true
+
+
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _exit_tree() -> void:
@@ -76,16 +98,17 @@ func _columns_for_width(w: float) -> int:
 
 
 func _on_item_gained(_id: String, _amount: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_item_spent(_id: String, _amount: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _refresh() -> void:
 	if not is_instance_valid(_grid):
 		return
+	refresh_count += 1
 	for child in _grid.get_children():
 		if child == _empty_label:
 			continue

@@ -15,6 +15,10 @@ var _summary_label: RichTextLabel
 var _prestige_button: Button
 var _confirm_dialog: ConfirmationDialog
 
+# v0.13.6 — visibility-gated refresh (currency_changed fires per caught tap).
+var refresh_count: int = 0
+var _dirty: bool = false
+
 
 func _ready() -> void:
 	var vbox := VBoxContainer.new()
@@ -66,34 +70,53 @@ func _ready() -> void:
 	_confirm_dialog.confirmed.connect(_on_prestige_confirmed)
 	add_child(_confirm_dialog)
 
+	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_currency_changed)
 	EventBus.tier_completed.connect(_on_tier_changed)
 	EventBus.tier_unlocked.connect(_on_tier_changed)
 	EventBus.upgrade_purchased.connect(_on_upgrade_changed)
 	EventBus.prestige_triggered.connect(_on_prestige_triggered)
-	EventBus.game_loaded.connect(_refresh)
+	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_visibility_changed() -> void:
+	if visible and _dirty:
+		_dirty = false
+		_refresh()
+
+
+func _mark_dirty_or_refresh() -> void:
+	if visible:
+		_refresh()
+	else:
+		_dirty = true
+
+
+func is_dirty() -> bool:
+	return _dirty
 
 
 func _on_currency_changed(_id: String, _v: Variant) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_tier_changed(_t: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_upgrade_changed(_id: String) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _on_prestige_triggered(_rp: int, _count: int) -> void:
-	_refresh()
+	_mark_dirty_or_refresh()
 
 
 func _refresh() -> void:
 	if not is_instance_valid(_projected_label):
 		return
+	refresh_count += 1
 	var rp_gain: int = GameState.projected_rp_gain()
 	_projected_label.text = "Projected: +%d RP" % rp_gain
 	# Phase 12e: surface "vs your best" so the player has a reference
