@@ -74,7 +74,7 @@ func _build_net_card(net_res: NetResource) -> Control:
 
 	var name_label := Label.new()
 	name_label.text = net_res.display_name
-	name_label.add_theme_font_size_override("font_size", 20)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(20))
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()

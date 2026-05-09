@@ -34,7 +34,7 @@ func _ready() -> void:
 
 	var heading := Label.new()
 	heading.text = "Settings"
-	heading.add_theme_font_size_override("font_size", 26)
+	heading.add_theme_font_size_override("font_size", UiScale.size(26))
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(heading)
 
@@ -93,12 +93,12 @@ func _build_reset_progress_section(parent: Container) -> void:
 
 	var heading := Label.new()
 	heading.text = "Reset Progress"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	section.add_child(heading)
 
 	var blurb := Label.new()
 	blurb.text = "Wipe all saved progress: gold, items, pets, upgrades, prestige, ledger. This cannot be undone."
-	blurb.add_theme_font_size_override("font_size", 14)
+	blurb.add_theme_font_size_override("font_size", UiScale.size(14))
 	blurb.modulate = _PALETTE.SEPIA_MID
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(blurb)
@@ -149,7 +149,7 @@ func _build_accessibility_section(parent: Container) -> void:
 
 	var heading := Label.new()
 	heading.text = "Accessibility"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	section.add_child(heading)
 
 	# Reduce motion toggle. When on, animation-heavy effects (catching
@@ -165,14 +165,14 @@ func _build_accessibility_section(parent: Container) -> void:
 	motion_row.add_child(motion_check)
 	var motion_label := Label.new()
 	motion_label.text = "Reduce motion"
-	motion_label.add_theme_font_size_override("font_size", 16)
+	motion_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	motion_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	motion_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	motion_row.add_child(motion_label)
 
 	var motion_blurb := Label.new()
 	motion_blurb.text = "Skips screen shake, sprite bumps, floating gold drift, combatant bobs, and parallax scrolling. Use if motion makes you queasy."
-	motion_blurb.add_theme_font_size_override("font_size", 13)
+	motion_blurb.add_theme_font_size_override("font_size", UiScale.size(13))
 	motion_blurb.modulate = _PALETTE.SEPIA_MID
 	motion_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(motion_blurb)
@@ -190,7 +190,7 @@ func _build_accessibility_section(parent: Container) -> void:
 	hap_row.add_child(hap_check)
 	var hap_label := Label.new()
 	hap_label.text = "Haptic feedback"
-	hap_label.add_theme_font_size_override("font_size", 16)
+	hap_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	hap_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hap_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hap_row.add_child(hap_label)
@@ -209,7 +209,7 @@ func _build_accessibility_section(parent: Container) -> void:
 	hold_row.add_child(hold_check)
 	var hold_label := Label.new()
 	hold_label.text = "Hold to auto-tap"
-	hold_label.add_theme_font_size_override("font_size", 16)
+	hold_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	hold_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hold_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hold_row.add_child(hold_label)
@@ -220,12 +220,12 @@ func _build_accessibility_section(parent: Container) -> void:
 	section.add_child(rate_header)
 	var rate_name := Label.new()
 	rate_name.text = "Hold tap rate"
-	rate_name.add_theme_font_size_override("font_size", 16)
+	rate_name.add_theme_font_size_override("font_size", UiScale.size(16))
 	rate_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rate_header.add_child(rate_name)
 	var rate_value := Label.new()
 	rate_value.text = "%.0f Hz" % Settings.hold_tap_rate_hz
-	rate_value.add_theme_font_size_override("font_size", 14)
+	rate_value.add_theme_font_size_override("font_size", UiScale.size(14))
 	rate_value.modulate = _PALETTE.SEPIA_MID
 	rate_header.add_child(rate_value)
 
@@ -253,13 +253,13 @@ func _build_accessibility_section(parent: Container) -> void:
 	cb_row.add_child(cb_check)
 	var cb_label := Label.new()
 	cb_label.text = "Color-blind mode"
-	cb_label.add_theme_font_size_override("font_size", 16)
+	cb_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	cb_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cb_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cb_row.add_child(cb_label)
 	var cb_blurb := Label.new()
 	cb_blurb.text = "Adds shape markers alongside color so bestiary slot states are readable without color discrimination."
-	cb_blurb.add_theme_font_size_override("font_size", 13)
+	cb_blurb.add_theme_font_size_override("font_size", UiScale.size(13))
 	cb_blurb.modulate = _PALETTE.SEPIA_MID
 	cb_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(cb_blurb)
@@ -269,12 +269,12 @@ func _build_accessibility_section(parent: Container) -> void:
 	section.add_child(font_header)
 	var font_name := Label.new()
 	font_name.text = "Text size"
-	font_name.add_theme_font_size_override("font_size", 16)
+	font_name.add_theme_font_size_override("font_size", UiScale.size(16))
 	font_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	font_header.add_child(font_name)
 	var font_value := Label.new()
 	font_value.text = "%.0f%%" % (Settings.font_scale * 100.0)
-	font_value.add_theme_font_size_override("font_size", 14)
+	font_value.add_theme_font_size_override("font_size", UiScale.size(14))
 	font_value.modulate = _PALETTE.SEPIA_MID
 	font_header.add_child(font_value)
 
@@ -301,7 +301,7 @@ func _build_language_section(parent: Container) -> void:
 
 	var heading := Label.new()
 	heading.text = "Language"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	section.add_child(heading)
 
 	var picker := OptionButton.new()
@@ -317,7 +317,7 @@ func _build_language_section(parent: Container) -> void:
 
 	var note := Label.new()
 	note.text = "Additional languages will arrive in a future update."
-	note.add_theme_font_size_override("font_size", 13)
+	note.add_theme_font_size_override("font_size", UiScale.size(13))
 	note.modulate = _PALETTE.SEPIA_MID
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(note)
@@ -336,7 +336,7 @@ func _build_tutorial_section(parent: Container) -> void:
 
 	var heading := Label.new()
 	heading.text = "Tutorial"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	section.add_child(heading)
 
 	var btn := Button.new()
@@ -347,7 +347,7 @@ func _build_tutorial_section(parent: Container) -> void:
 
 	var blurb := Label.new()
 	blurb.text = "Resets tutorial coachmarks. They'll re-appear at their trigger conditions in this session."
-	blurb.add_theme_font_size_override("font_size", 13)
+	blurb.add_theme_font_size_override("font_size", UiScale.size(13))
 	blurb.modulate = _PALETTE.SEPIA_MID
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(blurb)
@@ -375,11 +375,11 @@ func _build_cloud_save_section(parent: Container) -> void:
 
 	var heading := Label.new()
 	heading.text = "Cloud Save"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	section.add_child(heading)
 
 	_cloud_status_label = Label.new()
-	_cloud_status_label.add_theme_font_size_override("font_size", 14)
+	_cloud_status_label.add_theme_font_size_override("font_size", UiScale.size(14))
 	_cloud_status_label.modulate = Color(0.85, 0.85, 0.85)
 	_cloud_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	section.add_child(_cloud_status_label)
@@ -445,12 +445,12 @@ func _build_volume_slider(
 	section.add_child(header)
 	var name_label := Label.new()
 	name_label.text = title
-	name_label.add_theme_font_size_override("font_size", 18)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(18))
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_label)
 	var value_label := Label.new()
 	value_label.text = _format_db(initial_db)
-	value_label.add_theme_font_size_override("font_size", 16)
+	value_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	value_label.modulate = Color(0.85, 0.85, 0.85)
 	header.add_child(value_label)
 

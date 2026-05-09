@@ -58,7 +58,7 @@ func _ready() -> void:
 
 	var name_label := Label.new()
 	name_label.text = "Peniber"
-	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(14))
 	name_label.modulate = Color(1.0, 0.85, 0.5)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(name_label)

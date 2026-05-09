@@ -72,7 +72,7 @@ func _ready() -> void:
 	margins.add_child(vbox)
 
 	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 26)
+	_title_label.add_theme_font_size_override("font_size", UiScale.size(26))
 	_title_label.add_theme_color_override("font_color", _PALETTE.INK_BLACK)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -89,7 +89,7 @@ func _ready() -> void:
 	vbox.add_child(_sprite_rect)
 
 	_body_label = Label.new()
-	_body_label.add_theme_font_size_override("font_size", 16)
+	_body_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	_body_label.add_theme_color_override("font_color", _PALETTE.SEPIA_DARK)
 	_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -98,7 +98,7 @@ func _ready() -> void:
 
 	var hint := Label.new()
 	hint.text = "Tap anywhere to dismiss"
-	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_font_size_override("font_size", UiScale.size(12))
 	hint.add_theme_color_override("font_color", _PALETTE.SEPIA_MID)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(hint)

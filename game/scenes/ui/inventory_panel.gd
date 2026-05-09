@@ -183,7 +183,7 @@ func _build_context_popup() -> void:
 	margins.add_child(vbox)
 	var heading := Label.new()
 	heading.text = "Item options"
-	heading.add_theme_font_size_override("font_size", 16)
+	heading.add_theme_font_size_override("font_size", UiScale.size(16))
 	vbox.add_child(heading)
 	# Currently the only action is Sell All. The hook is in place for
 	# future "use as ingredient" / "pin" actions in 12a follow-ups.

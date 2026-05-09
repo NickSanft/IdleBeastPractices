@@ -64,7 +64,7 @@ func _ready() -> void:
 
 	_qmark = Label.new()
 	_qmark.text = "?"
-	_qmark.add_theme_font_size_override("font_size", 28)
+	_qmark.add_theme_font_size_override("font_size", UiScale.size(28))
 	_qmark.modulate = _PALETTE.SEPIA_MID
 	_qmark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_qmark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -73,7 +73,7 @@ func _ready() -> void:
 	sprite_cell.add_child(_qmark)
 
 	_name_label = Label.new()
-	_name_label.add_theme_font_size_override("font_size", 12)
+	_name_label.add_theme_font_size_override("font_size", UiScale.size(12))
 	_name_label.modulate = _PALETTE.INK_BLACK
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -81,7 +81,7 @@ func _ready() -> void:
 	vbox.add_child(_name_label)
 
 	_count_label = Label.new()
-	_count_label.add_theme_font_size_override("font_size", 14)
+	_count_label.add_theme_font_size_override("font_size", UiScale.size(14))
 	_count_label.modulate = _PALETTE.SEPIA_DARK
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_count_label)

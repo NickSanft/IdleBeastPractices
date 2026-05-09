@@ -32,7 +32,7 @@ func _ready() -> void:
 	set_process_input(true)
 
 	_info_label = Label.new()
-	_info_label.add_theme_font_size_override("font_size", 11)
+	_info_label.add_theme_font_size_override("font_size", UiScale.size(11))
 	_info_label.modulate = Color(1.0, 1.0, 0.5, 0.9)
 	_info_label.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_info_label.position = Vector2(8, 96)

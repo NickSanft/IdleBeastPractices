@@ -74,7 +74,7 @@ func _build_card(u: UpgradeResource) -> Control:
 
 	var name_label := Label.new()
 	name_label.text = "%s   [Lv %d / %d]" % [u.display_name, current_level, u.max_level]
-	name_label.add_theme_font_size_override("font_size", 20)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(20))
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()

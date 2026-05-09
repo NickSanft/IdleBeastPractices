@@ -28,18 +28,18 @@ func _ready() -> void:
 
 	var heading := Label.new()
 	heading.text = "Prestige"
-	heading.add_theme_font_size_override("font_size", 26)
+	heading.add_theme_font_size_override("font_size", UiScale.size(26))
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(heading)
 
 	_projected_label = Label.new()
-	_projected_label.add_theme_font_size_override("font_size", 22)
+	_projected_label.add_theme_font_size_override("font_size", UiScale.size(22))
 	_projected_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_projected_label.add_theme_color_override("font_color", _PALETTE.BRASS_ACCENT)
 	vbox.add_child(_projected_label)
 
 	_best_label = Label.new()
-	_best_label.add_theme_font_size_override("font_size", 14)
+	_best_label.add_theme_font_size_override("font_size", UiScale.size(14))
 	_best_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_best_label.add_theme_color_override("font_color", _PALETTE.SEPIA_MID)
 	vbox.add_child(_best_label)

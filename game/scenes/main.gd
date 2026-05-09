@@ -156,11 +156,30 @@ func _notification(what: int) -> void:
 			_save_now()
 
 
+## v0.14.0 (Phase 13b) — root UI layout now wraps everything in a
+## safe-area MarginContainer that pads inward from the device's
+## status bar / gesture bar / notch via `DeviceLayout.safe_area`.
+## Without this the currency bar slides under the status bar and
+## the bottom nav drifts into the gesture-bar zone on Android 10+.
+##
+## The MarginContainer subscribes to `DeviceLayout.layout_changed`
+## so orientation flips, foldable open/close, and split-screen
+## resizes all re-apply the safe area without a scene reload.
+var _safe_margin: MarginContainer
+
+
 func _build_ui() -> void:
+	_safe_margin = MarginContainer.new()
+	_safe_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_safe_margin)
+	_apply_safe_area_margins()
+	DeviceLayout.layout_changed.connect(_apply_safe_area_margins)
+
 	var root_vbox := VBoxContainer.new()
-	root_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root_vbox.add_theme_constant_override("separation", 0)
-	add_child(root_vbox)
+	_safe_margin.add_child(root_vbox)
 
 	var currency_bar: Control = _CURRENCY_BAR.instantiate()
 	currency_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -340,6 +359,31 @@ func _apply_mobile_default_theme() -> void:
 ## each animation/haptic, so they don't need a re-apply step.
 func _on_accessibility_settings_changed() -> void:
 	_apply_mobile_default_theme()
+
+
+## Phase 13b — re-apply DeviceLayout.safe_area to the root margin
+## container. Called on _build_ui (first layout) and on every
+## layout_changed event (orientation flip, safe-area change,
+## foldable open). The math: convert the safe-area Rect2 in
+## viewport coords into the four MarginContainer constants.
+##
+## On desktop / web where safe area equals the full window, every
+## margin is 0 — the wrapper is a no-op cost.
+func _apply_safe_area_margins() -> void:
+	if _safe_margin == null:
+		return
+	var safe: Rect2 = DeviceLayout.safe_area
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	if view_size.x <= 0.0 or view_size.y <= 0.0:
+		return
+	var top: int = int(max(0.0, safe.position.y))
+	var left: int = int(max(0.0, safe.position.x))
+	var right: int = int(max(0.0, view_size.x - (safe.position.x + safe.size.x)))
+	var bottom: int = int(max(0.0, view_size.y - (safe.position.y + safe.size.y)))
+	_safe_margin.add_theme_constant_override("margin_top", top)
+	_safe_margin.add_theme_constant_override("margin_left", left)
+	_safe_margin.add_theme_constant_override("margin_right", right)
+	_safe_margin.add_theme_constant_override("margin_bottom", bottom)
 
 
 ## Wire a 20-millisecond haptic pulse to every Button press in the
@@ -733,7 +777,7 @@ func _build_more_popup() -> void:
 
 	var heading := Label.new()
 	heading.text = "More"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	heading.modulate = Color(0.85, 0.85, 0.85)
 	vbox.add_child(heading)
 

@@ -121,7 +121,7 @@ func _build_empty_state_card(next_locked_tier: int) -> Control:
 
 	var heading := Label.new()
 	heading.text = "Nothing crafted here yet"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(heading)
 
@@ -160,7 +160,7 @@ func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 
 	var name_label := Label.new()
 	name_label.text = recipe.display_name
-	name_label.add_theme_font_size_override("font_size", 20)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(20))
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()

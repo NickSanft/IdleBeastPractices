@@ -71,7 +71,7 @@ func _ready() -> void:
 	add_child(_root_vbox)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 22)
+	_status_label.add_theme_font_size_override("font_size", UiScale.size(22))
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_root_vbox.add_child(_status_label)
 
@@ -158,14 +158,14 @@ func _render_idle() -> void:
 	_status_label.text = "Stage: %s" % stage.display_name
 	var subtitle := Label.new()
 	subtitle.text = "Tier %d  •  %d encounters" % [stage.tier, stage.encounters.size()]
-	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.add_theme_font_size_override("font_size", UiScale.size(14))
 	subtitle.modulate = _PALETTE.SEPIA_MID
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content_box.add_child(subtitle)
 
 	var roster_heading := Label.new()
 	roster_heading.text = "Roster"
-	roster_heading.add_theme_font_size_override("font_size", 18)
+	roster_heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	_content_box.add_child(roster_heading)
 	for pet in pets.slice(0, _MAX_PETS_IN_FIGHT):
 		var row := Label.new()
@@ -176,7 +176,7 @@ func _render_idle() -> void:
 			int(pet.base_hp),
 			String(pet.ability_id),
 		]
-		row.add_theme_font_size_override("font_size", 16)
+		row.add_theme_font_size_override("font_size", UiScale.size(16))
 		_content_box.add_child(row)
 	if pets.size() > _MAX_PETS_IN_FIGHT:
 		var note := Label.new()
@@ -345,7 +345,7 @@ func _setup_battle_map_with_player_team() -> void:
 
 	_action_log_label = Label.new()
 	_action_log_label.text = ""
-	_action_log_label.add_theme_font_size_override("font_size", 14)
+	_action_log_label.add_theme_font_size_override("font_size", UiScale.size(14))
 	_action_log_label.modulate = _PALETTE.SEPIA_MID
 	_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

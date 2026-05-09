@@ -77,14 +77,14 @@ func _refresh() -> void:
 	var heading := Label.new()
 	heading.text = "Peniber's Ledger"
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.add_theme_font_size_override("font_size", 24)
+	heading.add_theme_font_size_override("font_size", UiScale.size(24))
 	_list.add_child(heading)
 
 	var subtitle := Label.new()
 	subtitle.text = "A faithful record. Mostly faithful."
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.modulate = Color(0.85, 0.85, 0.85)
-	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.add_theme_font_size_override("font_size", UiScale.size(14))
 	_list.add_child(subtitle)
 
 	_list.add_child(_spacer(8))
@@ -134,7 +134,7 @@ func _build_achievements_section() -> void:
 	var heading := Label.new()
 	heading.text = "Achievements (%d / %d)" % [int(summary.get("unlocked", 0)), int(summary.get("total", 0))]
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.add_theme_font_size_override("font_size", 20)
+	heading.add_theme_font_size_override("font_size", UiScale.size(20))
 	_list.add_child(heading)
 	_list.add_child(_spacer(6))
 
@@ -173,7 +173,7 @@ func _build_achievement_tile(ach: AchievementResource) -> Control:
 	name_label.text = ach.display_name if unlocked else "?????"
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_label.add_theme_font_size_override("font_size", 12)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(12))
 	name_label.modulate = _tier_color(ach.tier)
 	vbox.add_child(name_label)
 
@@ -181,7 +181,7 @@ func _build_achievement_tile(ach: AchievementResource) -> Control:
 	desc_label.text = ach.description if unlocked else "Locked"
 	desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc_label.add_theme_font_size_override("font_size", 10)
+	desc_label.add_theme_font_size_override("font_size", UiScale.size(10))
 	desc_label.modulate = Color(0.85, 0.85, 0.85)
 	vbox.add_child(desc_label)
 	return card
@@ -214,12 +214,12 @@ func _build_row(label_text: String, value_text: String) -> Control:
 	label.text = label_text
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_font_size_override("font_size", UiScale.size(15))
 	hbox.add_child(label)
 
 	var value := Label.new()
 	value.text = value_text
-	value.add_theme_font_size_override("font_size", 15)
+	value.add_theme_font_size_override("font_size", UiScale.size(15))
 	value.modulate = Color(1.0, 0.95, 0.6)
 	hbox.add_child(value)
 	return card

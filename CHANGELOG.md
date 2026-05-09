@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.0 — Phase 13a + 13b: Responsive font scale + device-aware layout
+
+**Why**
+
+Two structural gaps the user surfaced after the perf work landed:
+1. **Text didn't scale.** The Phase-11b `Settings.font_scale` slider only reached the Theme-level `Button` / `Label` / `RichTextLabel` defaults — but **71 places in the codebase used hard-coded `add_theme_font_size_override("font_size", 16)`** that bypassed it entirely. `main.gd:272` even documented the limitation explicitly.
+2. **No DPI / safe-area awareness.** A `font_size = 16` design value rendered at noticeably different physical sizes on a 720×1280 vs 1440×3200 phone. The currency bar slid under the device status bar, and the bottom nav drifted into the gesture-bar zone on Android 10+.
+
+This release lays the foundation that Phase 13c (landscape, also requested) builds on.
+
+**Phase 13b — `DeviceLayout` autoload**
+
+- New [`game/autoloads/device_layout.gd`](game/autoloads/device_layout.gd) — single source of truth for:
+  - **`safe_area: Rect2`** — usable rect minus status bar / gesture bar / notch, derived from `DisplayServer.screen_get_usable_rect(0)` and translated into viewport coords through the `canvas_items` stretch ratio.
+  - **`dpi_bucket: float`** — one of `{0.85, 1.0, 1.15, 1.30}` chosen from `DisplayServer.screen_get_dpi(0)` via Android-style cutoffs (mdpi / hdpi / xhdpi / xxhdpi).
+  - **`is_landscape`** + **`is_tablet`** — booleans for Phase 13c view-layout branches.
+  - **`layout_changed`** signal — fires on every viewport `size_changed` (orientation flip, foldable open, split-screen resize) so subscribed views can re-anchor without polling.
+  - **Test seams** — `_test_set_safe_area`, `_test_set_dpi_bucket`, `_test_set_orientation`, `_test_set_tablet` let tests stage any device profile without a real DisplayServer.
+- **Root safe-area `MarginContainer`** in [`main.gd._build_ui()`](game/scenes/main.gd) wraps the entire UI tree. Margins update on every `layout_changed`. On desktop / web where the safe area equals the viewport the wrapper costs nothing.
+
+**Phase 13a — `UiScale` helper + sweep**
+
+- New [`game/systems/ui_scale.gd`](game/systems/ui_scale.gd) — static helper exposing:
+  - **`UiScale.size(base_px) -> int`** — returns `base_px * Settings.font_scale * DeviceLayout.dpi_bucket`, rounded. Reads both globals via the autoload tree so unit tests don't need to monkey-patch globals.
+  - **`UiScale.tap_target() -> int`** — Material 48 dp floor scaled by dpi_bucket (lands here ahead of the Phase 13d touch-target sweep that will route every tappable Control through it).
+- **Sweep**: 70 of the 71 hard-coded `add_theme_font_size_override("font_size", N)` call sites across 23 view files now route through `UiScale.size(N)`. The 71st was already replaced by an earlier edit. The accessibility slider now reaches every label in the codebase.
+- **Live re-application**: long-lived cards (e.g., `bestiary_card`) that build labels in `_build_layout` now subscribe to `Settings.accessibility_settings_changed` + `DeviceLayout.layout_changed` and reapply the font_size override without a refresh. Most other call sites are already inside `_refresh()` paths and pick up new sizes automatically.
+
+**Tests — 14 new, 398/398 passing**
+
+- [`test_ui_scale.gd`](game/tests/test_ui_scale.gd) (11 cases): unit-scale identity; `font_scale` multiplier; `dpi_bucket` multiplier; compound scaling; zero/negative clamping; dpi-cutoff lookup; boundary values (140 / 200); `layout_changed` signal contract on each test setter.
+- [`test_ui_scale.gd::test_no_hardcoded_font_size_overrides_remain`](game/tests/test_ui_scale.gd) — **lint test** that walks `res://game/scenes` + `res://game/autoloads`, regex-matches `add_theme_font_size_override("font_size", N)` literals, and fails with file:line if any sneak back in. A future maintainer who forgets `UiScale.size(N)` fails on this named test rather than at user-tap time.
+- [`test_safe_area_margin.gd`](game/tests/test_safe_area_margin.gd) (3 cases): main.gd's root `MarginContainer` zeroes margins when safe area equals viewport; updates margins when safe area shrinks (status bar + gesture bar test profile); maps horizontal insets correctly (landscape notch profile).
+
+**Pre-push checklist**
+
+- Full GUT suite: **398/398 pass**, 52 scripts, ~3500 asserts (+14 from this phase, +35 since v0.13.4)
+- No `add_theme_font_size_override` literals remain anywhere in `game/scenes` or `game/autoloads`
+- DeviceLayout autoload registered after QuestLog (project.godot autoload order)
+- main.gd root layout still parses + boots from `_run_screenshot_mode`
+
 ### v0.13.6 — Tap-path freeze: hidden-tab rebuilders
 
 **Why**

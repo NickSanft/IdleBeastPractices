@@ -44,7 +44,7 @@ func bind_monster(monster: MonsterResource) -> void:
 	# Header — name + tier.
 	var name_label := Label.new()
 	name_label.text = monster.display_name if seen else "??? — Tier %d" % monster.tier
-	name_label.add_theme_font_size_override("font_size", 24)
+	name_label.add_theme_font_size_override("font_size", UiScale.size(24))
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(name_label)
 
@@ -53,7 +53,7 @@ func bind_monster(monster: MonsterResource) -> void:
 		tier_label.text = "Tier %d" % monster.tier
 		tier_label.modulate = _PALETTE.SEPIA_MID
 		tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tier_label.add_theme_font_size_override("font_size", 14)
+		tier_label.add_theme_font_size_override("font_size", UiScale.size(14))
 		vbox.add_child(tier_label)
 
 	# Big sprite.
@@ -92,14 +92,14 @@ void fragment() {
 		flavor.text = monster.flavor_text
 		flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		flavor.modulate = _PALETTE.SEPIA_DARK
-		flavor.add_theme_font_size_override("font_size", 14)
+		flavor.add_theme_font_size_override("font_size", UiScale.size(14))
 		flavor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		vbox.add_child(flavor)
 
 		var stats := _stats_text(monster, normal_count, shiny_count, entry)
 		var stats_label := Label.new()
 		stats_label.text = stats
-		stats_label.add_theme_font_size_override("font_size", 13)
+		stats_label.add_theme_font_size_override("font_size", UiScale.size(13))
 		vbox.add_child(stats_label)
 
 		var quote := _peniber_first_catch_line(monster.id)
@@ -108,7 +108,7 @@ void fragment() {
 			quote_label.text = "“%s”" % quote
 			quote_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			quote_label.modulate = _PALETTE.SEPIA_MID
-			quote_label.add_theme_font_size_override("font_size", 13)
+			quote_label.add_theme_font_size_override("font_size", UiScale.size(13))
 			quote_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			vbox.add_child(quote_label)
 

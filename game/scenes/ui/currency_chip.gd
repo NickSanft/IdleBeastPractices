@@ -79,7 +79,7 @@ func _ready() -> void:
 	hbox.add_child(stack)
 
 	_value_label = Label.new()
-	_value_label.add_theme_font_size_override("font_size", 18)
+	_value_label.add_theme_font_size_override("font_size", UiScale.size(18))
 	_value_label.add_theme_color_override("font_color", _PALETTE.INK_BLACK)
 	_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_value_label.size_flags_vertical = Control.SIZE_EXPAND_FILL

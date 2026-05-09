@@ -56,7 +56,7 @@ func _build_row(parent: VBoxContainer, slot: int) -> Dictionary:
 
 	var label := Label.new()
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_font_size_override("font_size", UiScale.size(12))
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	label.modulate = _ROW_TINTS[slot]
 	label.text = _row_default_text(slot)
@@ -71,7 +71,7 @@ func _build_row(parent: VBoxContainer, slot: int) -> Dictionary:
 	hbox.add_child(bar)
 
 	var value_label := Label.new()
-	value_label.add_theme_font_size_override("font_size", 11)
+	value_label.add_theme_font_size_override("font_size", UiScale.size(11))
 	value_label.custom_minimum_size = Vector2(60, 0)
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value_label.modulate = Color(0.85, 0.85, 0.85)

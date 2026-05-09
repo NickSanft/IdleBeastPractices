@@ -30,7 +30,7 @@ func _ready() -> void:
 	add_child(vbox)
 
 	_label = Label.new()
-	_label.add_theme_font_size_override("font_size", 13)
+	_label.add_theme_font_size_override("font_size", UiScale.size(13))
 	_label.add_theme_color_override("font_color", _PALETTE.SEPIA_DARK)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

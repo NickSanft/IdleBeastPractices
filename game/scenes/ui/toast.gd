@@ -54,7 +54,7 @@ func _ready() -> void:
 	_banner.add_child(margins)
 
 	_label = Label.new()
-	_label.add_theme_font_size_override("font_size", 16)
+	_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	_label.add_theme_color_override("font_color", _PALETTE.INK_BLACK)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -81,6 +81,25 @@ func _ready() -> void:
 	_build_layout()
 	if monster != null:
 		refresh()
+	# Phase 13a: live re-apply font sizes when the user moves the
+	# accessibility slider. Without this, cards built once at scene
+	# build time keep their old px sizes until the next full refresh.
+	# The labels themselves stay; we just retarget their font_size
+	# theme override.
+	Settings.accessibility_settings_changed.connect(_apply_font_sizes)
+	DeviceLayout.layout_changed.connect(_apply_font_sizes)
+
+
+func _apply_font_sizes() -> void:
+	if _qmark_label != null:
+		_qmark_label.add_theme_font_size_override("font_size", UiScale.size(36))
+	if _name_label != null:
+		_name_label.add_theme_font_size_override("font_size", UiScale.size(16))
+	if _count_label != null:
+		_count_label.add_theme_font_size_override("font_size", UiScale.size(12))
+	for pill in [_pill_seen, _pill_normal, _pill_shiny, _pill_variant]:
+		if pill != null:
+			pill.add_theme_font_size_override("font_size", UiScale.size(18))
 
 
 func set_monster(m: MonsterResource) -> void:
@@ -120,7 +139,7 @@ func _build_layout() -> void:
 
 	_qmark_label = Label.new()
 	_qmark_label.text = "?"
-	_qmark_label.add_theme_font_size_override("font_size", 36)
+	_qmark_label.add_theme_font_size_override("font_size", UiScale.size(36))
 	_qmark_label.modulate = Color(0.45, 0.4, 0.32)
 	_qmark_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_qmark_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -128,13 +147,13 @@ func _build_layout() -> void:
 	sprite_cell.add_child(_qmark_label)
 
 	_name_label = Label.new()
-	_name_label.add_theme_font_size_override("font_size", 16)
+	_name_label.add_theme_font_size_override("font_size", UiScale.size(16))
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_name_label)
 
 	_count_label = Label.new()
-	_count_label.add_theme_font_size_override("font_size", 12)
+	_count_label.add_theme_font_size_override("font_size", UiScale.size(12))
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_count_label.modulate = _PALETTE.SEPIA_MID
 	vbox.add_child(_count_label)
@@ -273,7 +292,7 @@ func slot_state() -> int:
 ## don't allocate Labels or thrash the scene tree.
 func _build_pill(glyph: String, color: Color, hint: String) -> Label:
 	var label := Label.new()
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", UiScale.size(18))
 	label.tooltip_text = hint
 	# Initial unfilled state — refresh() will set the real state
 	# the first time it runs.

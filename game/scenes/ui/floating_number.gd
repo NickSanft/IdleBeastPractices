@@ -10,7 +10,7 @@ const _DURATION := 1.0
 
 func _ready() -> void:
 	# Defaults; the spawner overrides text/modulate.
-	add_theme_font_size_override("font_size", 18)
+	add_theme_font_size_override("font_size", UiScale.size(18))
 	z_index = 50
 	pivot_offset = size * 0.5
 	# v0.11.1 (Phase 11b): reduce_motion users see the number for a
@@ -30,7 +30,7 @@ func configure(gold_text: String, is_shiny: bool) -> Label:
 	if is_shiny:
 		text = "✨ " + text
 		modulate = Color(1.0, 0.95, 0.55)
-		add_theme_font_size_override("font_size", 22)
+		add_theme_font_size_override("font_size", UiScale.size(22))
 	else:
 		modulate = Color(1.0, 0.86, 0.4)
 	return self
