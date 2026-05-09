@@ -323,13 +323,50 @@ func _summarize_monsters(monsters: Array[MonsterResource]) -> Array:
 
 ## Build the SubViewport + battle_map subtree and spawn the player team.
 ## Enemy team is spawned per-encounter via _spawn_enemy_team.
+##
+## v0.14.2 (Phase 13c.2) — landscape side-by-side. In landscape the
+## battle map gets a much wider aspect ratio than the SubViewport's
+## fixed 720×520, so we put the action log in a sidebar to its left
+## and let the viewport stretch into the freed horizontal space. In
+## portrait the layout is unchanged: viewport on top, log below.
 func _setup_battle_map_with_player_team() -> void:
 	_teardown_battle_map()
+
+	var landscape: bool = DeviceLayout.is_landscape
+	# In landscape, _content_box (a VBox) hosts a single HBox child
+	# containing [action_log_sidebar, viewport_container]. In portrait
+	# the viewport and log are stacked siblings of _content_box, same
+	# as before.
+	var viewport_parent: Control = _content_box
+	if landscape:
+		var hbox := HBoxContainer.new()
+		hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		hbox.add_theme_constant_override("separation", 8)
+		_content_box.add_child(hbox)
+		viewport_parent = hbox
+
+	_action_log_label = Label.new()
+	_action_log_label.text = ""
+	_action_log_label.add_theme_font_size_override("font_size", UiScale.size(14))
+	_action_log_label.modulate = _PALETTE.SEPIA_MID
+	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if landscape:
+		# Sidebar: ~180-px wide column on the LEFT of the map, holds
+		# the live action log so the player can read it without it
+		# eating vertical real estate from the already-short landscape
+		# viewport.
+		_action_log_label.custom_minimum_size = Vector2(180, 0)
+		_action_log_label.size_flags_horizontal = Control.SIZE_FILL
+		_action_log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_action_log_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		viewport_parent.add_child(_action_log_label)
+
 	_viewport_container = SubViewportContainer.new()
 	_viewport_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_viewport_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_viewport_container.stretch = true
-	_content_box.add_child(_viewport_container)
+	viewport_parent.add_child(_viewport_container)
 
 	_viewport = SubViewport.new()
 	_viewport.size = Vector2i(720, 520)
@@ -343,13 +380,10 @@ func _setup_battle_map_with_player_team() -> void:
 	_viewport.add_child(_battle_map)
 	_battle_map.apply_tier_palette(int(GameState.current_max_tier))
 
-	_action_log_label = Label.new()
-	_action_log_label.text = ""
-	_action_log_label.add_theme_font_size_override("font_size", UiScale.size(14))
-	_action_log_label.modulate = _PALETTE.SEPIA_MID
-	_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_action_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_content_box.add_child(_action_log_label)
+	if not landscape:
+		# Portrait: log goes BELOW the viewport, full width.
+		_action_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_content_box.add_child(_action_log_label)
 
 	_player_combatants = _spawn_team("player", _player_team_summary)
 

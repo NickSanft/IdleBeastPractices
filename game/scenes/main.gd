@@ -156,16 +156,40 @@ func _notification(what: int) -> void:
 			_save_now()
 
 
-## v0.14.0 (Phase 13b) — root UI layout now wraps everything in a
+## v0.14.0 (Phase 13b) — root UI layout wraps everything in a
 ## safe-area MarginContainer that pads inward from the device's
 ## status bar / gesture bar / notch via `DeviceLayout.safe_area`.
-## Without this the currency bar slides under the status bar and
-## the bottom nav drifts into the gesture-bar zone on Android 10+.
+##
+## v0.14.2 (Phase 13c.2) — orientation-aware composition.
+##
+## The persistent UI children (currency bar, TabContainer, quest
+## strip, nav buttons) are instantiated ONCE and stored as members.
+## `_apply_orientation_layout()` then composes them into either:
+##   - PORTRAIT: VBox { currency_bar / tabs / quest_strip / bottom_nav }
+##   - LANDSCAPE: HBox { left_rail (vertical nav) / VBox { currency_bar / tabs / quest_strip } }
+##
+## On `DeviceLayout.layout_changed` the composition root
+## (`_orientation_root`) is rebuilt; the persistent children are
+## re-parented rather than torn down, so per-tab game state (live
+## battle replay, hold-to-tap state, etc.) survives orientation
+## flips intact.
 ##
 ## The MarginContainer subscribes to `DeviceLayout.layout_changed`
 ## so orientation flips, foldable open/close, and split-screen
 ## resizes all re-apply the safe area without a scene reload.
 var _safe_margin: MarginContainer
+## Composition root rebuilt on every orientation change. Child of
+## _safe_margin. The persistent UI elements get re-parented into
+## either the portrait or landscape layout under this node.
+var _orientation_root: Control
+## Persistent children. Created once in _build_ui, reparented on
+## every orientation flip.
+var _currency_bar: Control
+var _quest_strip: Control
+## Width of the left-side rail in landscape mode. ~80 dp keeps
+## buttons readable without crowding the content area; matches
+## Material's bottom-nav 80 dp height target rotated 90°.
+const _LEFT_RAIL_WIDTH_DP := 80.0
 
 
 func _build_ui() -> void:
@@ -174,79 +198,80 @@ func _build_ui() -> void:
 	add_child(_safe_margin)
 	_apply_safe_area_margins()
 	DeviceLayout.layout_changed.connect(_apply_safe_area_margins)
+	# Phase 13c.2: rebuild root layout on orientation change.
+	DeviceLayout.layout_changed.connect(_apply_orientation_layout)
 
-	var root_vbox := VBoxContainer.new()
-	root_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_vbox.add_theme_constant_override("separation", 0)
-	_safe_margin.add_child(root_vbox)
-
-	var currency_bar: Control = _CURRENCY_BAR.instantiate()
-	currency_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root_vbox.add_child(currency_bar)
+	# Build the persistent children once. They get re-parented on
+	# every orientation flip — see _apply_orientation_layout().
+	_currency_bar = _CURRENCY_BAR.instantiate()
+	_currency_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	# v0.9.0: TabContainer still owns the content area + visibility
-	# management, but its tab bar is hidden — navigation moved to the
-	# bottom-anchored nav bar built below. Keeps the existing scene
+	# management, but its tab bar is hidden — navigation moved to
+	# the bottom-anchored / left-rail nav. Keeps the existing scene
 	# wiring (TabContainer.current_tab drives which child is visible)
 	# while lifting interaction into the thumb zone.
 	var tabs := TabContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.tabs_visible = false
-	root_vbox.add_child(tabs)
 	_tabs = tabs
 
 	var catch_tab: Control = _CATCHING_VIEW.instantiate()
 	catch_tab.name = "Catch"
-	tabs.add_child(catch_tab)
+	_tabs.add_child(catch_tab)
 
 	var battle_tab: Control = _BATTLE_VIEW.instantiate()
 	battle_tab.name = "Battle"
-	tabs.add_child(battle_tab)
+	_tabs.add_child(battle_tab)
 
 	var inventory_tab: Control = _INVENTORY_PANEL.instantiate()
 	inventory_tab.name = "Inventory"
-	tabs.add_child(inventory_tab)
+	_tabs.add_child(inventory_tab)
 
 	var bestiary_tab: Control = _BESTIARY_VIEW.instantiate()
 	bestiary_tab.name = "Bestiary"
-	tabs.add_child(bestiary_tab)
+	_tabs.add_child(bestiary_tab)
 
 	var crafting_tab: Control = _CRAFTING_VIEW.instantiate()
 	crafting_tab.name = "Crafting"
-	tabs.add_child(crafting_tab)
+	_tabs.add_child(crafting_tab)
 
 	var ledger_tab: Control = _LEDGER_VIEW.instantiate()
 	ledger_tab.name = "Ledger"
-	tabs.add_child(ledger_tab)
+	_tabs.add_child(ledger_tab)
 
 	var shop_tab: Control = _NET_SHOP.instantiate()
 	shop_tab.name = "Shop"
-	tabs.add_child(shop_tab)
+	_tabs.add_child(shop_tab)
 
 	var upgrades_tab: Control = _UPGRADE_TREE.instantiate()
 	upgrades_tab.name = "Upgrades"
-	tabs.add_child(upgrades_tab)
+	_tabs.add_child(upgrades_tab)
 
 	var prestige_tab: Control = _PRESTIGE_VIEW.instantiate()
 	prestige_tab.name = "Prestige"
-	tabs.add_child(prestige_tab)
+	_tabs.add_child(prestige_tab)
 
 	var settings_tab: Control = _SETTINGS_VIEW.instantiate()
 	settings_tab.name = "Settings"
-	tabs.add_child(settings_tab)
+	_tabs.add_child(settings_tab)
 
-	# Phase 12g — quest strip pinned above the bottom nav. Three rows
-	# (SHORT/MEDIUM/LONG) with progress bars; visible from every tab
-	# since it's part of the main scene's vbox, not a per-tab child.
-	var quest_strip: Control = _QUEST_STRIP.instantiate()
-	quest_strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root_vbox.add_child(quest_strip)
+	# Phase 12g — quest strip. Three rows (SHORT/MEDIUM/LONG) with
+	# progress bars; visible from every tab since it's a sibling of
+	# the TabContainer in the orientation root, not a per-tab child.
+	_quest_strip = _QUEST_STRIP.instantiate()
+	_quest_strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# v0.9.0: bottom navigation bar below the tab content. 4 primary
-	# destinations + a "More" button that opens a sheet with the rest.
-	_build_bottom_nav(root_vbox)
+	# v0.9.0: bottom navigation buttons. Now built standalone so the
+	# orientation-aware composer can place them either as a horizontal
+	# bar (portrait) or a vertical rail (landscape).
+	_build_nav_buttons()
+
+	# Compose into the active orientation's root layout. The
+	# layout_changed subscription above will re-call this whenever
+	# the device flips.
+	_apply_orientation_layout()
 
 	# NarratorOverlay sits ABOVE the tab container so it can float over any
 	# tab. Mouse_filter is IGNORE on the overlay so background taps still
@@ -666,34 +691,136 @@ func _on_any_button_pressed() -> void:
 ## same 720 px of viewport width.
 ## v0.9.0 bottom navigation: 4 primary destinations as toggleable
 ## buttons + a "More" button that opens a PopupMenu listing the
-## secondary destinations. Each button is _NAV_BUTTON_HEIGHT_DP tall
-## and stretches horizontally (size_flags_horizontal = SIZE_EXPAND_FILL),
-## so the row evenly spans the device width.
-func _build_bottom_nav(root_vbox: VBoxContainer) -> void:
-	var bottom_nav := HBoxContainer.new()
-	bottom_nav.add_theme_constant_override("separation", 0)
-	bottom_nav.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root_vbox.add_child(bottom_nav)
-
+## secondary destinations.
+##
+## v0.14.2 (Phase 13c.2) — split into "build buttons" (this) and
+## "compose them into a parent" (`_apply_orientation_layout`'s helpers).
+## Buttons are reused across orientation flips so signal connections
+## and `button_pressed` toggle state survive rotation.
+func _build_nav_buttons() -> void:
 	for tab_name in _PRIMARY_NAV:
 		var btn := Button.new()
 		btn.text = _label_with_icon(tab_name)
 		btn.toggle_mode = true
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		btn.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
 		btn.pressed.connect(_on_nav_button_pressed.bind(tab_name))
 		_nav_buttons[tab_name] = btn
-		bottom_nav.add_child(btn)
 
 	_more_button = Button.new()
 	_more_button.text = _label_with_icon("More")
-	_more_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_more_button.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
 	_more_button.pressed.connect(_on_more_pressed)
-	bottom_nav.add_child(_more_button)
 
 	# Initial selection: Catch (the home / main loop tab).
 	_set_active_nav("Catch")
+
+
+## Phase 13c.2 — orientation-aware root composition.
+##
+## Tears down the previous composition root (if any) without touching
+## the persistent children, then rebuilds it for the active
+## orientation. The persistent children (currency_bar, _tabs,
+## quest_strip, nav buttons) are re-parented; their internal state
+## (catching view's RNG, battle replay frame, hold-to-tap, scroll
+## position, etc.) survives the flip intact.
+func _apply_orientation_layout() -> void:
+	if _safe_margin == null:
+		return
+	# Detach persistent children from any current parent so they can
+	# be safely re-added under the new composition root. `remove_child`
+	# is a no-op if the parent is null.
+	for node in _persistent_layout_children():
+		var parent := node.get_parent()
+		if parent != null:
+			parent.remove_child(node)
+	# Tear down the previous composition root (containers only — the
+	# persistent children were already detached above).
+	if _orientation_root != null and is_instance_valid(_orientation_root):
+		_orientation_root.queue_free()
+	if DeviceLayout.is_landscape:
+		_orientation_root = _build_landscape_layout()
+	else:
+		_orientation_root = _build_portrait_layout()
+	_safe_margin.add_child(_orientation_root)
+
+
+func _persistent_layout_children() -> Array[Control]:
+	# Order doesn't matter — each child is reparented to the right
+	# slot inside the new layout.
+	var out: Array[Control] = []
+	if _currency_bar != null: out.append(_currency_bar)
+	if _tabs != null: out.append(_tabs)
+	if _quest_strip != null: out.append(_quest_strip)
+	for tab_name in _PRIMARY_NAV:
+		if _nav_buttons.has(tab_name):
+			out.append(_nav_buttons[tab_name])
+	if _more_button != null: out.append(_more_button)
+	return out
+
+
+## Portrait root: VBox { currency_bar / tabs / quest_strip / bottom_nav }.
+## Mirrors the pre-13c.2 layout exactly so existing screens (and the
+## screenshot mode) look identical to v0.13.x in portrait.
+func _build_portrait_layout() -> Control:
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 0)
+
+	vbox.add_child(_currency_bar)
+	vbox.add_child(_tabs)
+	vbox.add_child(_quest_strip)
+
+	var bottom_nav := HBoxContainer.new()
+	bottom_nav.add_theme_constant_override("separation", 0)
+	bottom_nav.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for tab_name in _PRIMARY_NAV:
+		var btn: Button = _nav_buttons[tab_name]
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.size_flags_vertical = Control.SIZE_FILL
+		btn.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
+		bottom_nav.add_child(btn)
+	_more_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_more_button.size_flags_vertical = Control.SIZE_FILL
+	_more_button.custom_minimum_size = Vector2(0.0, _NAV_BUTTON_HEIGHT_DP)
+	bottom_nav.add_child(_more_button)
+	vbox.add_child(bottom_nav)
+	return vbox
+
+
+## Landscape root: HBox { left_rail (vertical nav) / VBox { currency_bar / tabs / quest_strip } }.
+## Phase 13c.2's user-visible payoff: in landscape the bottom-bar
+## stops eating ~9 % of vertical real estate and the catching screen
+## breathes. Same buttons, same handlers, just rotated 90°.
+func _build_landscape_layout() -> Control:
+	var hbox := HBoxContainer.new()
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hbox.add_theme_constant_override("separation", 0)
+
+	var rail := VBoxContainer.new()
+	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rail.custom_minimum_size = Vector2(_LEFT_RAIL_WIDTH_DP, 0)
+	rail.add_theme_constant_override("separation", 0)
+	for tab_name in _PRIMARY_NAV:
+		var btn: Button = _nav_buttons[tab_name]
+		btn.size_flags_horizontal = Control.SIZE_FILL
+		btn.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(_LEFT_RAIL_WIDTH_DP, _NAV_BUTTON_HEIGHT_DP)
+		rail.add_child(btn)
+	_more_button.size_flags_horizontal = Control.SIZE_FILL
+	_more_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_more_button.custom_minimum_size = Vector2(_LEFT_RAIL_WIDTH_DP, _NAV_BUTTON_HEIGHT_DP)
+	rail.add_child(_more_button)
+	hbox.add_child(rail)
+
+	var content_vbox := VBoxContainer.new()
+	content_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content_vbox.add_theme_constant_override("separation", 0)
+	content_vbox.add_child(_currency_bar)
+	content_vbox.add_child(_tabs)
+	content_vbox.add_child(_quest_strip)
+	hbox.add_child(content_vbox)
+	return hbox
 
 
 ## Bottom-nav button handler — switches the (hidden) TabContainer's

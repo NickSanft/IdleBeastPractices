@@ -6,6 +6,55 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.2 — Phase 13c.2: Primary screens — landscape layouts
+
+**Why**
+
+13c.1 unlocked rotation but every screen kept its portrait shape — the bottom nav bar still ate ~9 % of vertical real estate even in landscape, and the Battle view's SubViewport got squashed into a wide-but-short strip. This release gives the two screens that matter most a proper landscape layout.
+
+**Bottom-nav becomes a left-side rail in landscape**
+
+`main.gd`'s root layout is now orientation-aware:
+
+- **Portrait**: VBox `{ currency_bar / tabs / quest_strip / bottom_nav }` (unchanged from v0.14.x)
+- **Landscape**: HBox `{ left_rail (vertical nav, 80 dp wide) / VBox { currency_bar / tabs / quest_strip } }`
+
+Switching orientation rebuilds the *composition root* but **re-parents the persistent children** (TabContainer + its 10 tab scenes, currency_bar, quest_strip, the nav button widgets) instead of recreating them. So per-tab game state survives the flip:
+- Catching view's RNG, hold-to-tap state, and currently-spawned monster instances stay live
+- Battle view's mid-replay frame survives if you rotate during a fight
+- TabContainer.current_tab is preserved (you stay on the tab you were on)
+- Button signal connections + toggle state are preserved
+
+**Battle view goes side-by-side in landscape**
+
+`_setup_battle_map_with_player_team` checks `DeviceLayout.is_landscape`:
+
+- **Portrait**: viewport on top, action log below — unchanged
+- **Landscape**: HBox `{ action_log_sidebar (180 dp wide) / viewport_container }` — the action log moves to a sidebar so the SubViewport gets the full landscape width to render the battle map
+
+The IDLE state's roster text list looks fine in both orientations (vertical Label list works either way), so it's left alone.
+
+**Tests — 6 new, 409/409 passing**
+
+[`test_orientation_layout.gd`](game/tests/test_orientation_layout.gd):
+- `test_portrait_root_is_vbox` / `test_landscape_root_is_hbox` — composition root is the right container shape per orientation
+- `test_orientation_flip_rebuilds_root` — flipping replaces the root container, BUT the TabContainer instance survives (proves re-parenting, not recreation)
+- `test_tab_children_survive_orientation_flip` — every tab child has the same instance id pre and post flip; ensures we don't lose game state on rotation
+- `test_active_tab_survives_orientation_flip` — `_tabs.current_tab` stays at its pre-flip value (you don't get bounced back to Catch on rotation)
+- `test_landscape_left_rail_has_nav_buttons` — landscape rail has exactly the 4 primary buttons + More
+
+**Pre-push checklist**
+
+- Full GUT suite: **409/409 pass**, 54 scripts (+6 from this phase, +46 since v0.13.4)
+- Headless project loads cleanly + the screenshot mode walks all 10 tabs without crashing (the `save_png` errors at the end are a pre-existing headless-mode limitation: `get_texture().get_image()` returns null without a real rendering surface — irrelevant to the layout refactor)
+
+**13c roadmap status**
+
+- ✅ 13c.1 (v0.14.1): orientation unlocked, layout pipeline survives
+- ✅ 13c.2 (v0.14.2): catching + battle + bottom-nav landscape layouts ← THIS RELEASE
+- 13c.3: secondary screens (crafting, shop, upgrades, prestige, ledger, settings) — most are vertical Label lists that look fine in landscape; the polish here is mainly two-column layouts on tablet aspect ratios
+- 13c.4: tablet column polish across the remaining views
+
 ### v0.14.1 — Phase 13c.1: Landscape baseline (orientation unlocked)
 
 **Why**
