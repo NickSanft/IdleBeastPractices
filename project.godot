@@ -44,7 +44,12 @@ window/size/viewport_width=720
 window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep_width"
-window/handheld/orientation=1
+; Phase 13c.1 — orientation unlocked for landscape support.
+; 6 = SCREEN_SENSOR (auto-rotate based on device sensor; excludes
+; reverse-portrait by default, which is what idle games want).
+; Per the v0.8.x notes the integer enum is required — string
+; "sensor" silently falls back to landscape.
+window/handheld/orientation=6
 
 [dotnet]
 

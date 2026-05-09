@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.1 — Phase 13c.1: Landscape baseline (orientation unlocked)
+
+**Why**
+
+Phase 13a + 13b laid the foundation; this is the smallest possible step toward landscape support: **unlock orientation, let every existing view inherit a graceful "stretched portrait" landscape layout**. The user can rotate their device, the app rotates with it, and nothing crashes. Per-screen polish (proper landscape layouts) is Phase 13c.2+, where each primary view picks up a custom landscape branch.
+
+**The change**
+
+- [`project.godot`](project.godot): `window/handheld/orientation` flipped from `1` (portrait) to `6` (`SCREEN_SENSOR` — auto-rotate based on device sensor; excludes reverse-portrait by default, which is what idle games want). Per the saved Galaxy Z Fold7 fix the integer enum is required; string `"sensor"` silently falls back.
+- The Phase-13b machinery already in place handles the rotation transparently:
+  - `DeviceLayout.is_landscape` flips on every viewport `size_changed` and emits `layout_changed`.
+  - `main.gd._safe_margin` reapplies safe-area insets for the new aspect.
+  - `catching_view._on_resized` already recomputed spawn bounds from `viewport.size`, so the wandering monsters spawn in the rotated rectangle without code changes.
+  - `bestiary_view` and `inventory_panel` already had width breakpoints; landscape gets the wider column count for free.
+
+**Note on Android manifest hooks**
+
+The three workflow YAMLs (build, release, maestro-emulator) currently patch `android:resizeableActivity="true"` → `"false"` to defeat the foldable orientation-lock bug. With orientation now unlocked, that workaround is no longer load-bearing — Android sensor rotation works regardless of `resizeableActivity`. The hooks are left in place because they still prevent multi-window / freeform on devices that support it, which is fine for an idle game where windowed shrinkage would crowd the catching screen. If you ever want multi-window support, drop the patcher; orientation is independent.
+
+**Tests — 5 new, 403/403 passing**
+
+- [`test_landscape_baseline.gd`](game/tests/test_landscape_baseline.gd):
+  - `test_orientation_flip_emits_layout_changed` — `_test_set_orientation(true)` fires the signal.
+  - `test_is_landscape_field_updates` — public field flips with the setter.
+  - `test_main_gd_root_layout_handles_landscape_safe_area` — boots main.gd with a 1280×720 landscape safe area + 60-px notch inset; asserts the root MarginContainer's `margin_left` reflects the inset.
+  - `test_main_gd_layout_survives_orientation_flip` — boots in portrait, then forces landscape via `_test_set_orientation` + a wider safe area; asserts no crash and `_safe_margin` is still valid.
+  - `test_catching_view_spawn_bounds_reflow_to_landscape` — instantiates the catching view and asserts `_spawn_bounds` is non-empty after the resize event runs.
+
+**Pre-push checklist**
+
+- Full GUT suite: **403/403 pass**, 53 scripts (+5 from this phase, +40 since v0.13.4)
+- Headless project loads cleanly (no SCRIPT ERROR / autoload failure)
+- DeviceLayout.is_landscape signal contract preserved across the orientation change
+
+**Phase 13c roadmap**
+
+- 13c.1 (this release): orientation unlocked, layout pipeline survives
+- 13c.2: catching + battle + bottom-nav landscape layouts (left-side rail nav, side-by-side battle UI)
+- 13c.3: secondary screens (crafting, shop, upgrades, prestige, ledger, settings)
+- 13c.4: tablet column polish across the remaining views
+
 ### v0.14.0 — Phase 13a + 13b: Responsive font scale + device-aware layout
 
 **Why**
