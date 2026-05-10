@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.0.1 — Fix: huge empty band on desktop / multi-monitor tests
+
+**Why**
+
+User reported a screenshot showing the in-game UI offset hundreds of pixels to the right with a huge olive-tan band filling the left ~33% of a 720×1280 desktop test window. The debug overlay showed `viewport=847x1505 window=720x1280 scale=0.85` — viewport and content_scale_factor were correct, but the safe-area margins were applying a bogus left inset.
+
+**Root cause** — `DeviceLayout._probe_safe_area` used `DisplayServer.screen_get_usable_rect(0)` to derive the safe rect, but that returns the **screen's** usable rect (monitor minus taskbar), not the **window's** safe area. On a multi-monitor desktop, if the game window opened on a secondary display, the screen origin can be hundreds of pixels offset from the window origin. The probe translated that screen-space position straight into a `margin_left` inset, painting the gap visible in the screenshot.
+
+On a real Android phone the bug doesn't manifest because the activity window is fullscreen at screen origin `(0, 0)`, so the screen-space and window-space positions coincide. Maestro CI runs on a Pixel 6 emulator that's also fullscreen — which is why this didn't surface earlier.
+
+**Fix** — Gate the screen-rect probe on `OS.has_feature("mobile")`. On desktop / web, return the full viewport as the safe area (no insets — the entire window is usable). On mobile, keep the existing screen-rect math since the window position is guaranteed `(0, 0)` and the rect's non-zero `position` component correctly carries the status-bar / notch inset.
+
+**Tests — 1 new, 453/453 passing**
+
+[`test_landscape_baseline.gd::test_non_mobile_safe_area_fills_full_viewport`](game/tests/test_landscape_baseline.gd) — asserts that on a non-mobile test environment (every CI run), `DeviceLayout.safe_area == Rect2(Vector2.ZERO, viewport_size)`. A future maintainer who re-introduces a screen-rect-based safe-area probe on desktop fails by name.
+
 ### v0.15.0 — Phase 14a: Amethyst (Dusk pixel-RPG) Theme resource
 
 **Why**

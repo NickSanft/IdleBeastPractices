@@ -91,22 +91,36 @@ func _recompute() -> void:
 
 
 func _probe_safe_area(viewport_size: Vector2) -> Rect2:
-	# DisplayServer can be stubbed (web, headless tests). Each call is
-	# guarded to fall back to a full-viewport safe area.
+	# Desktop / web: the entire window is usable. The earlier
+	# `screen_get_usable_rect(0)` approach returned the *screen*'s
+	# usable rect (monitor minus taskbar), which on multi-monitor
+	# setups can be offset hundreds of pixels from the window
+	# origin and projected a huge bogus left margin into the safe
+	# area. v0.15.1 fix.
+	if not OS.has_feature("mobile"):
+		return Rect2(Vector2.ZERO, viewport_size)
+	# Mobile: query the OS for the actual safe area inside the
+	# window (status bar, gesture bar, notch insets). Each platform
+	# call is guarded to fall back to a full-viewport safe area if
+	# the DisplayServer is stubbed (headless tests, early boot).
 	if DisplayServer.get_screen_count() <= 0:
 		return Rect2(Vector2.ZERO, viewport_size)
 	var usable: Rect2i = DisplayServer.screen_get_usable_rect(0)
 	if usable.size.x <= 0 or usable.size.y <= 0:
 		return Rect2(Vector2.ZERO, viewport_size)
-	# screen_get_usable_rect returns *screen* coordinates; the project
-	# uses canvas_items stretch with `keep_width`, so the viewport-to-
-	# screen ratio is `viewport.x / screen.x`. Apply the same ratio to
-	# every edge of the usable rect.
+	# screen_get_usable_rect on a fullscreen mobile activity returns
+	# the device screen minus status bar + gesture bar. Translate
+	# into viewport coords via the canvas_items stretch ratio.
 	var screen_size: Vector2i = DisplayServer.screen_get_size(0)
 	if screen_size.x <= 0 or screen_size.y <= 0:
 		return Rect2(Vector2.ZERO, viewport_size)
 	var ratio_x: float = viewport_size.x / float(screen_size.x)
 	var ratio_y: float = viewport_size.y / float(screen_size.y)
+	# IMPORTANT: drop the position component. The activity is at
+	# screen origin (0, 0) on Android — a non-zero `usable.position`
+	# would mean a notch / status bar inset, which we want to
+	# convert into a margin, not into a screen-space offset. So
+	# `position.x * ratio_x` is the correct status-bar inset.
 	return Rect2(
 			Vector2(float(usable.position.x) * ratio_x, float(usable.position.y) * ratio_y),
 			Vector2(float(usable.size.x) * ratio_x, float(usable.size.y) * ratio_y))

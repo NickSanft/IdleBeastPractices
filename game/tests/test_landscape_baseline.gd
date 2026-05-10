@@ -31,6 +31,35 @@ func after_each() -> void:
 	DeviceLayout._test_set_safe_area(Rect2(0, 0, 720, 1280))
 
 
+# region — non-mobile safe area = full viewport (v0.15.0.1 regression)
+
+func test_non_mobile_safe_area_fills_full_viewport() -> void:
+	# v0.15.0 had a bug where DeviceLayout used screen_get_usable_rect
+	# to derive the safe area on every platform, including desktop.
+	# On a desktop test window with a multi-monitor setup, the screen
+	# usable rect could be offset hundreds of px from the window
+	# origin — projecting a huge bogus left margin into the layout.
+	#
+	# Fix: gate the screen-rect probe on `OS.has_feature("mobile")`
+	# so desktop / web tests treat the full viewport as the safe
+	# area. Asserted by calling `recompute()` directly (which calls
+	# `_probe_safe_area`) and checking the output.
+	#
+	# Test relies on the headless test environment NOT having
+	# `OS.has_feature("mobile")` true — confirmed by the assertion
+	# below.
+	assert_false(OS.has_feature("mobile"),
+		"GUT runs in headless mode where 'mobile' feature is false; if this assertion ever flips, the test below needs revisiting")
+	DeviceLayout.recompute()
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	assert_eq(DeviceLayout.safe_area.position, Vector2.ZERO,
+		"non-mobile safe_area must start at (0, 0) — no bogus screen-rect offset")
+	assert_eq(DeviceLayout.safe_area.size, view_size,
+		"non-mobile safe_area must fill the entire viewport")
+
+# endregion
+
+
 # region — orientation signal contract
 
 func test_orientation_flip_emits_layout_changed() -> void:
