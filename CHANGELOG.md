@@ -6,6 +6,61 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.1.1 — Fix: Dusk theme wasn't reaching the live UI + phantom right/bottom margins
+
+**Why**
+
+User report: after v0.15.1, the Godot preview still looked parchment-themed (theming hadn't changed visually), and there were "huge margin at the bottom and a decent one on the right" in a 720×1280 preview. Two distinct root causes:
+
+**Bug 1 — theme override in `main.tscn`**
+
+`main.tscn` was exporting `theme = ExtResource("main_theme.tres")` at scene-build time, pinning Main's `theme` property to the legacy parchment Theme. When `_apply_mobile_default_theme` set `get_tree().root.theme = dusk_theme` at runtime, the assignment reached the **window root** but never reached Main's subtree — because Main's own `theme` property shadows the window root's theme for everything inside Main. So Dusk was loaded and assigned, but every Button / Panel under Main inherited from the parchment theme regardless.
+
+**Fix**: stripped the `theme = ExtResource(...)` line from main.tscn (and the `[ext_resource]` declaration above it). `_apply_mobile_default_theme` now assigns the Dusk theme to **both** `get_tree().root.theme` (for popup Windows) and `self.theme` (for Main's subtree).
+
+**Bug 2 — DeviceLayout init-order**
+
+`DeviceLayout._ready` did:
+
+```gdscript
+_recompute()                         # reads viewport at raw 720×1280
+root.content_scale_factor = dpi_bucket   # expands viewport to 847×1505 design dp
+root.size_changed.connect(_recompute)
+```
+
+The first `_recompute()` ran before `content_scale_factor` took effect, so `safe_area` was cached at `(0, 0, 720, 1280)`. When `_apply_safe_area_margins` later combined that stale cached value with the new live viewport `(847, 1505)`:
+
+```
+right_margin = 847 - (0 + 720) = 127 px phantom band
+bottom_margin = 1505 - (0 + 1280) = 225 px phantom band
+```
+
+Matches the user's screenshot exactly — parchment-coloured Background bleeding through 127×225 px bands on the right and bottom edges.
+
+**Fix**: reordered `_ready` to set `content_scale_factor` first, connect the resize listener, then re-`_recompute()` after the scale factor has taken effect. The second recompute reads the post-scale-factor viewport (847×1505) and updates `safe_area` to match.
+
+**Tests — `test_visual_regression.gd` (7 new cases, 469/469 passing total)**
+
+The user explicitly asked: "*Can you please create some visual regression for this as well? I feel like this should be able to be caught easily if this slips back.*" Structural assertions, no PNG diffs — but catches the same class of bug:
+
+- **Theme propagation** (3 cases):
+  - `test_main_node_carries_dusk_theme_after_ready` — Main's `theme.resource_path` equals the Dusk Amethyst .tres path
+  - `test_main_scene_tscn_does_not_export_legacy_theme` — grep-lints the .tscn file for `theme = ExtResource` and `main_theme.tres` literals; a future maintainer who re-adds a scene-level theme override fails by name
+  - `test_window_root_also_carries_dusk_theme` — popup-Window inheritance path also carries Dusk
+- **No phantom safe-area bands** (2 cases):
+  - `test_safe_margin_has_zero_margins_on_desktop` — all 4 `_safe_margin` theme constants are 0 on non-mobile. The pre-fix bug produced (top=0, bottom=225, left=0, right=127); the assertion message names the offending side + pixel count so a regression points straight at the broken edge
+  - `test_device_layout_safe_area_matches_post_scale_factor_viewport` — `safe_area.size == viewport_size` after `_ready`, proving the init-order fix held
+- **Orientation root fills its parent** (2 cases):
+  - `test_orientation_root_fills_safe_margin_horizontally` / `_vertically` — `orientation_root.size` matches `_safe_margin.size` within 1-px tolerance. If a future Control inside the composition root forgets `SIZE_EXPAND_FILL` and content shrinks, the parchment Background bleeds through — these tests catch it
+
+**Other tests updated**
+
+- `test_theme.gd::test_main_scene_applies_theme` — updated to assert Main's theme is now the Dusk Amethyst path, not the legacy parchment one.
+
+**Pre-push checklist**
+
+- Full GUT suite: **469/469 pass** (+7 from this fix-up)
+
 ### v0.15.1 — Phase 14b: Dusk theme at the Window root + resize-latency coalescing
 
 **Why**

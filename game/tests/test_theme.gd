@@ -76,14 +76,17 @@ func test_subhead_variation_exists() -> void:
 
 
 func test_main_scene_applies_theme() -> void:
+	# v0.15.1 (Phase 14b) — Main now applies the Dusk Amethyst theme
+	# at runtime via _apply_mobile_default_theme. The legacy
+	# parchment theme is no longer assigned anywhere. Test was
+	# updated to pin the new contract.
 	var scene := load("res://game/scenes/main.tscn") as PackedScene
 	var root: Control = scene.instantiate()
 	add_child_autofree(root)
 	await wait_frames(1)
-	assert_not_null(root.theme, "main.tscn root must have theme assigned")
-	var theme: Theme = load(_THEME_PATH)
-	assert_eq(root.theme.resource_path, theme.resource_path,
-			"main.tscn theme should be res://game/resources/main_theme.tres")
+	assert_not_null(root.theme, "main.tscn root must have theme assigned at runtime")
+	assert_eq(root.theme.resource_path, "res://assets/themes/dusk/amethyst.tres",
+			"main.tscn root should now carry the Dusk Amethyst theme (set in _apply_mobile_default_theme)")
 
 
 func test_palette_colors_constants_present() -> void:

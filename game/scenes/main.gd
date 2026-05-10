@@ -373,7 +373,15 @@ func _apply_mobile_default_theme() -> void:
 	dusk_theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
 	dusk_theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
 
+	# v0.15.1.1 — assign to BOTH the window root AND Main itself.
+	# Just setting `get_tree().root.theme` was reaching the window
+	# but Main's subtree inherits from its own `theme` property
+	# (which the .tscn used to populate with main_theme.tres,
+	# shadowing the window theme). Setting `self.theme` ensures
+	# Main's children pick up Dusk even if a future scene re-adds
+	# a per-scene theme override.
 	get_tree().root.theme = dusk_theme
+	self.theme = dusk_theme
 
 
 ## Phase 11b — Settings.accessibility_settings_changed handler.

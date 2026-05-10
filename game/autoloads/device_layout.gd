@@ -43,22 +43,30 @@ var is_tablet: bool = false
 
 
 func _ready() -> void:
-	# Pick up the initial values once the engine has surfaced a real
-	# viewport. `_recompute` is also wired to `size_changed` for live
-	# updates (orientation flips on Android, foldable open/close).
+	# Step 1 — initial recompute. This sets `dpi_bucket` from the
+	# detected screen DPI (the value we're about to push to
+	# `content_scale_factor`). `safe_area` it picks up here may be
+	# stale because the viewport hasn't yet been scaled — we recompute
+	# below after the scale factor takes effect.
 	_recompute()
-	# Phase 13c.3 — with stretch_aspect="expand", design pixel ==
-	# physical pixel. On a 1440×3200 phone a 16-px label would be ~3.6
-	# mm tall — readable but small. content_scale_factor multiplies
-	# every canvas_item by `dpi_bucket` so the same design value scales
-	# to the device's density bucket without altering the per-orientation
-	# viewport math. UiScale.size() also reads dpi_bucket; the two
-	# interact predictably (a font_size=16 ends up ~16 × dpi_bucket²
-	# physical pixels, which is the intent — bigger fonts on dense
-	# screens AND on devices the user has set high font_scale on).
+	# Step 2 — push content_scale_factor. Under
+	# `stretch_aspect="expand"` this changes the effective viewport
+	# size in design dp (window_size / content_scale_factor). On a
+	# 720×1280 window with dpi_bucket=0.85 the viewport becomes
+	# 847×1505 design dp.
 	var root := get_tree().root
 	root.content_scale_factor = dpi_bucket
+	# Step 3 — connect the resize listener BEFORE the second recompute
+	# so any size_changed event that fires synchronously between now
+	# and the next frame still flows through.
 	root.size_changed.connect(_recompute)
+	# Step 4 — v0.15.1.1 fix: re-read viewport after the scale
+	# factor took effect. Without this, the pre-step-2 stale
+	# safe_area combined with the new viewport size produced phantom
+	# right + bottom margins of (1 - 1/dpi_bucket) × design viewport,
+	# visible as parchment-coloured bands in the screenshot the user
+	# reported.
+	_recompute()
 
 
 ## Force a full recomputation. Public so tests + the screenshot mode
