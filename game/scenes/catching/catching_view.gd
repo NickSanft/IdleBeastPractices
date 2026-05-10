@@ -259,12 +259,11 @@ func _pick_random_on_screen_monster() -> Node:
 
 func _on_monster_tapped(inst: Node2D) -> void:
 	GameState.record_tap()
-	# Phase 10b: brief haptic on every tap that lands on a monster.
-	# v0.11.1 — gated on Settings.haptics_enabled in addition to the
-	# mobile-platform check, so users who turn haptics off in Settings
-	# get a fully silent (vibrationally) catch.
-	if OS.has_feature("mobile") and Settings.haptics_enabled:
-		Input.vibrate_handheld(40)
+	# v0.14.6 (Phase 13f): the per-tap 40ms haptic moved to
+	# HapticManager._on_monster_tapped — fires off `EventBus.monster_tapped`
+	# which we emit a few lines below. Centralising the dispatch
+	# means catches/tier-ups/etc. can layer their own pulses without
+	# duplicating the platform + Settings checks.
 	# Trigger feedback now so the player sees their click registered even if
 	# this tap doesn't yet cross the catch difficulty.
 	if inst.has_method("play_tap_feedback"):

@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.6 — Phase 13f: Microinteraction polish — haptic gradient
+
+**Why**
+
+Pre-13f haptics were sparse: 20 ms on every button press (`main.gd._install_global_haptic_feedback`), 40 ms on every monster tap (inline in `catching_view`), and **nothing** on the moments that should feel best — shiny catches, first catch of species, tier completions, pet acquisitions, prestige. The ones that need the strongest tactile sting got none at all.
+
+**The fix — `HapticManager` autoload**
+
+- New [`game/autoloads/haptic_manager.gd`](game/autoloads/haptic_manager.gd) subscribes to seven EventBus signals and fires graded pulses based on the moment's weight:
+
+| Signal | Pulse | ms | Why |
+|---|---|---|---|
+| `monster_tapped` | LIGHT | 20 | (button) reserved for global button handler |
+| `monster_tapped` | MEDIUM | 40 | every monster tap |
+| `first_catch_of_species` | NOTABLE | 60 | Pokédex moment |
+| `monster_caught (is_shiny)` | HEAVY | 80 | distinguishes from normal catches |
+| `pet_acquired` | HEAVY | 80 | major roster milestone |
+| `tier_completed` | MAJOR | 100 | tier-up celebration |
+| `first_shiny_caught` | MAJOR | 100 | first-ever shiny is special |
+| `prestige_triggered` | PRESTIGE | 150 | rarest of rare |
+
+- The catching view's inline `Input.vibrate_handheld(40)` is **removed** — the manager now fires it via `EventBus.monster_tapped`. Centralising the dispatch means future moments (shiny, tier-up, pet) layer on top without each call site having to repeat the `OS.has_feature("mobile") and Settings.haptics_enabled` gate.
+
+- **Layered pulses** make a shiny catch feel distinctly heavier:
+  - Subsequent shiny: `monster_tapped` + `monster_caught(shiny)` = 40 + 80 = **120 ms** across two pulses
+  - First-ever shiny: above + `first_shiny_caught` = 40 + 80 + 100 = **220 ms** across three pulses
+  - First catch of a species (non-shiny): `monster_tapped` + `first_catch_of_species` = 40 + 60 = **100 ms**
+
+- `Settings.haptics_enabled = false` zeros every pulse — already-existing user preference still wins.
+
+**Tests — `test_haptic_gradient.gd` (11 cases, +11)**
+
+- Each event signal fires exactly one pulse with the documented intensity (7 cases).
+- Layered shiny tests: subsequent shiny = 2 pulses, first-ever shiny = 3 pulses, totals match the gradient sums.
+- Settings.haptics_enabled = false suppresses everything (4 events emitted, vibrate_count stays 0).
+- Gradient ordering pinned: LIGHT < MEDIUM < NOTABLE < HEAVY < MAJOR < PRESTIGE so future tweaks can't accidentally invert the curve.
+
+The manager exposes `vibrate_count`, `total_pulse_ms`, `last_pulse_ms` test counters that increment regardless of platform — headless tests work without a real device.
+
+**Pre-push checklist**
+
+- Full GUT suite: **429/429 pass** (+11 from this phase, +51 since v0.13.4)
+
 ### v0.14.5 — Phase 13d: Touch-target sweep
 
 **Why**
