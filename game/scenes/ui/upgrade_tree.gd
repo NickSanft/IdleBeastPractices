@@ -4,7 +4,11 @@
 ## and a Buy button. Refreshes on currency / upgrade events.
 extends PanelContainer
 
-var _list: VBoxContainer
+## v0.14.4 (Phase 13c.4) — responsive GridContainer; upgrade cards
+## reflow from 1 to N columns based on the view's own width.
+var _list: GridContainer
+
+const _UPGRADE_CARD_MIN_DP := 360.0
 
 # v0.13.6 — visibility-gated refresh (currency_changed fires per caught tap).
 var refresh_count: int = 0
@@ -16,16 +20,24 @@ func _ready() -> void:
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
-	_list = VBoxContainer.new()
+	_list = GridContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.add_theme_constant_override("separation", 12)
+	_list.add_theme_constant_override("h_separation", 12)
+	_list.add_theme_constant_override("v_separation", 12)
+	_list.columns = UiScale.columns(size.x, _UPGRADE_CARD_MIN_DP)
 	scroll.add_child(_list)
 
+	resized.connect(_on_resized)
 	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_currency_changed)
 	EventBus.upgrade_purchased.connect(_on_upgrade_changed)
 	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_resized() -> void:
+	if _list != null:
+		_list.columns = UiScale.columns(size.x, _UPGRADE_CARD_MIN_DP)
 
 
 func _on_visibility_changed() -> void:

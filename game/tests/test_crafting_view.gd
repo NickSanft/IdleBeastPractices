@@ -25,7 +25,8 @@ func test_at_least_one_recipe_card_at_default_tier() -> void:
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	var list: VBoxContainer = view._list
+	# v0.14.4: _list is a GridContainer with responsive columns.
+	var list: GridContainer = view._list
 	assert_not_null(list)
 	# At current_max_tier=1, the Tier 2 net recipe is visible (tier_required=1).
 	# The placeholder Tier 4 recipe is hidden (tier_required=4 > 1+1).
@@ -40,25 +41,34 @@ func test_cards_clip_contents() -> void:
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(2)
-	var list: VBoxContainer = view._list
+	var list: GridContainer = view._list
 	for card in list.get_children():
 		assert_true(card is PanelContainer)
 		assert_true((card as Control).clip_contents,
 				"every recipe card must clip_contents to stop input/cost lines bleeding")
 
 
-func test_cards_do_not_overlap_vertically() -> void:
+func test_cards_do_not_overlap() -> void:
+	# v0.14.4: cards live in a GridContainer with non-zero h/v
+	# separation, so vertical-only overlap testing no longer works.
+	# We assert NO PAIR of cards overlap rectangles instead — catches
+	# both row stacking AND column stacking regressions.
 	var view: Control = _SCENE.instantiate()
 	add_child_autofree(view)
 	view.size = Vector2(720, 1100)
 	await wait_frames(3)
-	var list: VBoxContainer = view._list
+	var list: GridContainer = view._list
 	var cards := list.get_children()
 	if cards.size() < 2:
 		assert_true(true, "skipped: fewer than 2 cards")
 		return
-	for i in range(cards.size() - 1):
-		var a: Control = cards[i]
-		var b: Control = cards[i + 1]
-		assert_true(b.position.y >= a.position.y + a.size.y - 1,
-				"card %d overlaps card %d" % [i, i + 1])
+	for i in range(cards.size()):
+		for j in range(i + 1, cards.size()):
+			var a: Control = cards[i]
+			var b: Control = cards[j]
+			var a_rect := Rect2(a.position, a.size)
+			var b_rect := Rect2(b.position, b.size)
+			# Allow 1-px touching; only flag genuine overlap.
+			a_rect = a_rect.grow(-1.0)
+			assert_false(a_rect.intersects(b_rect),
+					"card %d overlaps card %d" % [i, j])

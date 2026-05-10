@@ -10,7 +10,11 @@ extends PanelContainer
 
 const _PALETTE := preload("res://game/resources/palette_colors.gd")
 
-var _list: VBoxContainer
+## v0.14.4 (Phase 13c.4) — responsive GridContainer; net cards
+## reflow from 1 to N columns based on the view's own width.
+var _list: GridContainer
+
+const _NET_CARD_MIN_DP := 340.0
 
 # v0.13.6 — visibility-gated refresh (currency_changed fires per caught tap).
 var refresh_count: int = 0
@@ -23,15 +27,23 @@ func _ready() -> void:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 
-	_list = VBoxContainer.new()
+	_list = GridContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.add_theme_constant_override("separation", 12)
+	_list.add_theme_constant_override("h_separation", 12)
+	_list.add_theme_constant_override("v_separation", 12)
+	_list.columns = UiScale.columns(size.x, _NET_CARD_MIN_DP)
 	scroll.add_child(_list)
 
+	resized.connect(_on_resized)
 	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_currency_changed)
 	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_resized() -> void:
+	if _list != null:
+		_list.columns = UiScale.columns(size.x, _NET_CARD_MIN_DP)
 
 
 func _on_visibility_changed() -> void:

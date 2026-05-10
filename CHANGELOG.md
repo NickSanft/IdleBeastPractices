@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.4 — Phase 13c.4: Secondary screens get responsive multi-column grids
+
+**Why**
+
+After v0.14.3 unlocked the wider design viewport in landscape, three secondary screens (crafting, net_shop, upgrade_tree) still rendered as single-column VBox lists — their cards stretched into 1700-dp-wide bands on a foldable open. Bestiary and inventory already had width-adaptive grids from earlier polish; this release brings the rest of the secondary-card screens to the same standard.
+
+**The change**
+
+- New **`UiScale.columns(view_width, min_card_width_dp)`** helper — returns `floor(view_width / min_card_width_dp)` clamped to ≥ 1. Reads the view's *own* width (so it accounts for the Phase 13c.2 left rail eating ~80 dp of viewport in landscape).
+- **`crafting_view`**, **`net_shop`**, **`upgrade_tree`** — `_list` is now a `GridContainer` instead of `VBoxContainer`, with `columns` re-evaluated on `resized`. Per-view minimum card widths chosen for content density:
+  - Crafting recipes: 320 dp/card → 2 cols on phone landscape, 5+ on tablet
+  - Net shop: 340 dp/card (cards have stat-delta lines that need room)
+  - Upgrade tree: 360 dp/card (longest descriptions)
+
+Cards stretch to fill grid cells via the existing `size_flags_horizontal = SIZE_EXPAND_FILL` they already had — no per-card change required.
+
+**Tests — 7 new, 416/416 passing**
+
+- [`test_responsive_columns.gd`](game/tests/test_responsive_columns.gd):
+  - `UiScale.columns` math: 720/320 → 2, 1280/320 → 4, 480/320 → 1, defensive zero/negative inputs → 1
+  - Each of the 3 refactored views: instantiate, resize portrait → landscape, assert column count strictly increased
+  - "Landscape widens vs portrait" check pinned for the helper itself
+- [`test_crafting_view.gd`](game/tests/test_crafting_view.gd) updated:
+  - Type annotations `VBoxContainer` → `GridContainer`
+  - `test_cards_do_not_overlap_vertically` → `test_cards_do_not_overlap` (pairwise rect-intersection check; catches both row-stacking AND column-stacking regressions on a grid)
+
+**Pre-push checklist**
+
+- Full GUT suite: 416/416 pass
+- The 3 view tests run with simulated portrait + landscape widths; both produce non-overlapping grids
+
 ### v0.14.3 — Phase 13c.3: Truly landscape (stretch_aspect = expand)
 
 **Why**

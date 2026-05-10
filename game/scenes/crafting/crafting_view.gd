@@ -11,7 +11,17 @@ const _REASON_LABELS := {
 	"no_output": "Recipe broken",
 }
 
-var _list: VBoxContainer
+## v0.14.4 (Phase 13c.4) — _list is now a GridContainer that
+## reflows from 1 to N columns based on the view's own width. A
+## recipe card's minimum comfortable width is ~320 design dp, so:
+##
+##   - Phone portrait (~720 dp wide): 2 cols
+##   - Phone landscape (~1200 dp wide after rail): 3 cols
+##   - Tablet portrait (~900 dp): 2 cols
+##   - Tablet landscape / foldable open (~1700+ dp): 5+ cols
+var _list: GridContainer
+
+const _RECIPE_CARD_MIN_DP := 320.0
 
 # v0.13.6 — visibility-gated refresh. currency_changed and item_gained
 # both fire per caught tap; full-rebuilding the recipe list while the
@@ -26,11 +36,14 @@ func _ready() -> void:
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
-	_list = VBoxContainer.new()
+	_list = GridContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.add_theme_constant_override("separation", 12)
+	_list.add_theme_constant_override("h_separation", 12)
+	_list.add_theme_constant_override("v_separation", 12)
+	_list.columns = UiScale.columns(size.x, _RECIPE_CARD_MIN_DP)
 	scroll.add_child(_list)
 
+	resized.connect(_on_resized)
 	visibility_changed.connect(_on_visibility_changed)
 	EventBus.currency_changed.connect(_on_state_changed)
 	EventBus.item_gained.connect(_on_state_changed_string_int)
@@ -40,6 +53,11 @@ func _ready() -> void:
 	EventBus.tier_completed.connect(_on_tier_changed)
 	EventBus.game_loaded.connect(_mark_dirty_or_refresh)
 	_refresh()
+
+
+func _on_resized() -> void:
+	if _list != null:
+		_list.columns = UiScale.columns(size.x, _RECIPE_CARD_MIN_DP)
 
 
 func _on_visibility_changed() -> void:

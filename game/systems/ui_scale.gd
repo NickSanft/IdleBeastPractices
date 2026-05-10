@@ -49,6 +49,26 @@ static func tap_target() -> int:
 	return 48
 
 
+## Phase 13c.4 — recommended column count for a responsive card grid.
+##
+## Pass the container's *own* width (usually `size.x`) and the
+## minimum acceptable card width in design dp. Returns an integer ≥ 1
+## that the caller assigns to `GridContainer.columns`. Wider views
+## (landscape, tablet, foldable open) automatically get more columns;
+## narrow views (phone portrait) collapse to 1.
+##
+## Reading the view's own width — instead of the global viewport —
+## means callers don't need to compensate for the Phase-13c.2 left
+## rail (which makes view width < viewport width in landscape).
+##
+## Usage:
+##   _grid.columns = UiScale.columns(size.x, 320)
+static func columns(view_width: float, min_card_width_dp: float) -> int:
+	if min_card_width_dp <= 0.0 or view_width <= 0.0:
+		return 1
+	return max(1, int(view_width / min_card_width_dp))
+
+
 # Settings is an autoload; access via the tree so unit tests don't
 # need to monkey-patch global symbols. Guaranteed loaded by the
 # time gameplay code calls UiScale (project.godot orders Settings
