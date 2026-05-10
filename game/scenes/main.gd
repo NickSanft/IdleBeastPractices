@@ -715,15 +715,21 @@ func _on_any_button_pressed() -> void:
 ## Buttons are reused across orientation flips so signal connections
 ## and `button_pressed` toggle state survive rotation.
 func _build_nav_buttons() -> void:
+	# v0.14.7 (Phase 13g): every nav button has a `tooltip_text` so
+	# screen readers can announce the destination by name even when
+	# the icon emoji is unfamiliar. The button text still includes
+	# the emoji + name for sighted users.
 	for tab_name in _PRIMARY_NAV:
 		var btn := Button.new()
 		btn.text = _label_with_icon(tab_name)
+		btn.tooltip_text = tab_name
 		btn.toggle_mode = true
 		btn.pressed.connect(_on_nav_button_pressed.bind(tab_name))
 		_nav_buttons[tab_name] = btn
 
 	_more_button = Button.new()
 	_more_button.text = _label_with_icon("More")
+	_more_button.tooltip_text = "More tabs"
 	_more_button.pressed.connect(_on_more_pressed)
 
 	# Initial selection: Catch (the home / main loop tab).

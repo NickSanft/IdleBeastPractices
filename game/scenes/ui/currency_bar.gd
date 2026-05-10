@@ -46,7 +46,11 @@ func _ready() -> void:
 	_gold_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_gold_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(_gold_chip)
-	_gold_chip.configure(_COIN_ICON, _PALETTE.BRASS_ACCENT, "Gold", "")
+	# v0.14.7 (Phase 13g): every currency chip now has a tooltip, so
+	# screen readers + long-press users can identify each chip.
+	# Pre-fix the gold chip's tooltip was "" while RP and Prestige
+	# had labels.
+	_gold_chip.configure(_COIN_ICON, _PALETTE.BRASS_ACCENT, "Gold", "Gold currency")
 
 	_rp_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_rp_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL

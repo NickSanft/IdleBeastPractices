@@ -71,7 +71,12 @@ func _ready() -> void:
 	_sfx_value_label = _sfx_slider.get_meta("value_label")
 
 	_build_accessibility_section(vbox)
-	_build_language_section(vbox)
+	# v0.14.7 (Phase 13g): the language section was a one-entry
+	# OptionButton placeholder that printed to console on tap with a
+	# subtitle promising future locales. That read as a bug (a dead
+	# control). Hiding the section until i18n actually lands; the
+	# `_build_language_section` function is kept around as a one-call
+	# revival point.
 	_build_tutorial_section(vbox)
 	_build_cloud_save_section(vbox)
 	_build_reset_progress_section(vbox)

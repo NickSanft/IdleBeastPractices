@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.7 — Phase 13g: IA cleanup + screen-reader labels
+
+**Why**
+
+The Phase-13 audit flagged a placeholder language picker in Settings (a single-entry OptionButton that printed to console on selection while a subtitle promised future locales — read as a dead control) and noted that several top-level interactive surfaces had no `tooltip_text`, leaving Android TalkBack / iOS VoiceOver / Web ARIA users without a name to announce alongside the emoji icons.
+
+**Hidden — placeholder language section**
+
+[`settings_view.gd`](game/scenes/ui/settings_view.gd) skips `_build_language_section` until i18n actually ships. The function itself is preserved in the file as a one-call revival point — when you eventually ship locales, just uncomment the line.
+
+**Added — accessibility labels via `tooltip_text`**
+
+In Godot 4 a Control's `tooltip_text` is the screen-reader name. Labels added to:
+
+- **All four primary nav buttons** (Catch / Battle / Inventory / Upgrades) — `tooltip_text = tab_name`
+- **The "More" button** — `tooltip_text = "More tabs"`
+- **The Gold currency chip** — was `""`, now `"Gold currency"` (RP and Prestige already had labels via the chip's `configure(...)` 4th arg)
+
+**Tests — `test_accessibility_labels.gd` (4 cases, +4)**
+
+- Every entry in `_nav_buttons` has a non-empty `tooltip_text`
+- The More button has a non-empty `tooltip_text`
+- Every chip in the currency bar has a non-empty `tooltip_text`
+- The Settings tree has zero `Label.text == "Language"` headings (pins the dead-section omission)
+
+A future maintainer who removes a tooltip or re-adds the dead language picker fails on a specific named test.
+
+**Pre-push checklist**
+
+- Full GUT suite: **433/433 pass** (+4 from this phase, +55 since v0.13.4)
+
+**Phase 13 closed**
+
+That completes Phase 13. v0.14.x recap from the research doc:
+
+| Tag | Sub-phase | Subject |
+|---|---|---|
+| v0.14.0 | 13a + 13b | Responsive font scale + DeviceLayout (safe area, dpi bucket) |
+| v0.14.1 | 13c.1 | Landscape baseline (orientation unlocked) |
+| v0.14.2 | 13c.2 | Bottom-nav left rail + battle side-by-side in landscape |
+| v0.14.3 | 13c.3 | Truly landscape (stretch_aspect = expand) |
+| v0.14.4 | 13c.4 | Secondary screens get responsive multi-column grids |
+| v0.14.5 | 13d | Touch-target sweep |
+| v0.14.6 | 13f | Haptic gradient |
+| v0.14.7 | 13g | IA cleanup + screen-reader labels |
+
 ### v0.14.6 — Phase 13f: Microinteraction polish — haptic gradient
 
 **Why**
