@@ -1,14 +1,18 @@
 ## v0.14.0 (Phase 13a) — UiScale resolver tests.
 ##
 ## Asserts the contract every label in the codebase now depends on:
-##   - `size(N)` multiplies base px by `Settings.font_scale * DeviceLayout.dpi_bucket`.
-##   - The accessibility slider (0.85 / 1.0 / 1.5) reaches every call site.
-##   - DPI bucket selection follows the documented cutoffs.
+##   - `size(N) = N * Settings.font_scale` — purely the accessibility
+##     slider's user preference.
+##   - Density (dpi_bucket) is handled at the engine level via
+##     Window.content_scale_factor (set in DeviceLayout._ready) and
+##     intentionally NOT applied a second time here. v0.14.2 had this
+##     wrong: UiScale also multiplied by dpi_bucket, which double-
+##     scaled fonts on dense screens once content_scale_factor
+##     carried the density adjustment.
 ##   - Edge cases (zero, negative) clamp safely.
 ##
-## Tests stage values via `Settings.set_font_scale()` +
-## `DeviceLayout._test_set_dpi_bucket()` so they're deterministic and
-## don't depend on the host's actual screen DPI.
+## Tests stage values via `Settings.set_font_scale()` so they're
+## deterministic and don't depend on the host's actual screen DPI.
 extends GutTest
 
 
@@ -24,7 +28,7 @@ func after_each() -> void:
 
 # region — size()
 
-func test_size_at_unit_scale_and_unit_bucket_returns_input() -> void:
+func test_size_at_unit_scale_returns_input() -> void:
 	assert_eq(UiScale.size(16), 16)
 	assert_eq(UiScale.size(26), 26)
 	assert_eq(UiScale.size(12), 12)
@@ -38,24 +42,32 @@ func test_size_scales_with_font_scale() -> void:
 	assert_eq(UiScale.size(16), 14)
 
 
-func test_size_scales_with_dpi_bucket() -> void:
+func test_size_ignores_dpi_bucket() -> void:
+	# v0.14.3: density is handled via Window.content_scale_factor
+	# (set in DeviceLayout._ready). UiScale.size() is purely the
+	# user's font_scale preference. Setting dpi_bucket here must NOT
+	# affect the returned design px.
 	DeviceLayout._test_set_dpi_bucket(1.30)
-	# 16 * 1.30 = 20.8 → rounds to 21
-	assert_eq(UiScale.size(16), 21)
+	assert_eq(UiScale.size(16), 16,
+		"UiScale.size must NOT apply dpi_bucket — content_scale_factor handles density")
 	DeviceLayout._test_set_dpi_bucket(0.85)
-	assert_eq(UiScale.size(16), 14)
-
-
-func test_size_compounds_font_scale_and_dpi_bucket() -> void:
-	Settings.set_font_scale(1.5)
-	DeviceLayout._test_set_dpi_bucket(1.30)
-	# 16 * 1.5 * 1.30 = 31.2 → rounds to 31
-	assert_eq(UiScale.size(16), 31)
+	assert_eq(UiScale.size(16), 16)
 
 
 func test_size_clamps_zero_and_negative() -> void:
 	assert_eq(UiScale.size(0), 1, "size(0) must clamp to 1 to avoid invisible labels")
 	assert_eq(UiScale.size(-5), 1, "size(<0) must clamp to 1 — defensive")
+
+
+func test_tap_target_returns_material_floor() -> void:
+	# v0.14.3: tap_target() returns 48 design dp. The device's
+	# content_scale_factor (from DeviceLayout) scales this to
+	# physical pixels at engine level — same single-source-of-truth
+	# pattern as size().
+	assert_eq(UiScale.tap_target(), 48)
+	# Independent of dpi_bucket setting.
+	DeviceLayout._test_set_dpi_bucket(1.30)
+	assert_eq(UiScale.tap_target(), 48)
 
 # endregion
 

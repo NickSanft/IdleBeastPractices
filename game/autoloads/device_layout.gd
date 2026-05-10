@@ -47,7 +47,18 @@ func _ready() -> void:
 	# viewport. `_recompute` is also wired to `size_changed` for live
 	# updates (orientation flips on Android, foldable open/close).
 	_recompute()
-	get_tree().root.size_changed.connect(_recompute)
+	# Phase 13c.3 — with stretch_aspect="expand", design pixel ==
+	# physical pixel. On a 1440×3200 phone a 16-px label would be ~3.6
+	# mm tall — readable but small. content_scale_factor multiplies
+	# every canvas_item by `dpi_bucket` so the same design value scales
+	# to the device's density bucket without altering the per-orientation
+	# viewport math. UiScale.size() also reads dpi_bucket; the two
+	# interact predictably (a font_size=16 ends up ~16 × dpi_bucket²
+	# physical pixels, which is the intent — bigger fonts on dense
+	# screens AND on devices the user has set high font_scale on).
+	var root := get_tree().root
+	root.content_scale_factor = dpi_bucket
+	root.size_changed.connect(_recompute)
 
 
 ## Force a full recomputation. Public so tests + the screenshot mode
@@ -129,6 +140,12 @@ func _test_set_safe_area(r: Rect2) -> void:
 
 
 func _test_set_dpi_bucket(b: float) -> void:
+	# Test seam: sets dpi_bucket directly. Does NOT mutate
+	# content_scale_factor — that would trigger the viewport's
+	# size_changed signal and re-fire _recompute, which would read
+	# the headless DisplayServer's stub DPI (160) and reset our test
+	# value. The live _ready does set content_scale_factor; tests
+	# that need to verify that integration should do it explicitly.
 	dpi_bucket = b
 	layout_changed.emit()
 

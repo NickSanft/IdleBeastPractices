@@ -6,6 +6,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.3 — Phase 13c.3: Truly landscape (stretch_aspect = expand)
+
+**Why**
+
+User report: "Landscape works, but it looks like it is just taking the portrait view and making it very small in the center of the screen." Symptom was real and structural — `project.godot` had `window/stretch/aspect="keep_width"` which **locks the design width to 720 dp in every orientation**. So in landscape on a 1280×720 phone, Godot computed a 720×405 logical viewport and scaled it 1.78× to fill the screen. The HBox left-rail-plus-content layout from Phase 13c.2 had the same horizontal design space as portrait — it just got squished vertically. No real "wider" layout, even though landscape was technically working.
+
+**The fix — three coordinated changes**
+
+1. **`window/stretch/aspect` flipped from `keep_width` to `expand`.** The viewport now takes the device's actual aspect ratio. In landscape on a 1280×720 phone the viewport becomes 1280×720 design dp; the rail+content HBox finally has wide horizontal real estate to lay out into.
+2. **`Window.content_scale_factor` is now driven by `DeviceLayout.dpi_bucket`** in `DeviceLayout._ready`. Without this, design pixel == physical pixel under expand, so a 16-px label on a 1440×3200 phone would render at 16 physical pixels (~3.6 mm). content_scale_factor = dpi_bucket compensates: every canvas_item — fonts, panel margins, custom_minimum_size, tap targets — scales uniformly to the device's density bucket.
+3. **`UiScale.size()` and `UiScale.tap_target()` no longer multiply by `dpi_bucket`.** v0.14.0–v0.14.2 had this wrong: density was applied at *both* the engine level (via content_scale_factor) and per-call (via UiScale), which double-scaled fonts on dense screens once content_scale_factor carried the density. UiScale is now purely the user's accessibility-slider preference; density is the engine's job.
+
+**Catching-view spawn-bounds fix**
+
+The catching view computed `_spawn_bounds` from `viewport_size` (the whole window). Under expand+rail-layout, the viewport is wider than the catching_view's actual rect because the left rail eats ~80 dp on the left. So `Rect2(20, 80, viewport.x - 40, ...)` could put monsters off the right edge of the visible catching_view. Now reads `size` (catching_view's own rect) and shrinks the bottom reservation from 200 to 160 dp since landscape no longer has a bottom nav under it.
+
+**Tests — 409/409 passing (test count unchanged)**
+
+- `test_ui_scale.gd` rewritten to assert UiScale ignores `dpi_bucket` (the new contract). New `test_size_ignores_dpi_bucket` and `test_tap_target_returns_material_floor` pin the behavior so a future maintainer who re-adds the dpi multiplier fails on a named test.
+- `test_safe_area_margin.gd` updated to compute expected margins from the **live test viewport** instead of hardcoding 720×1280 — under `expand` the test viewport size is whatever the harness allocates, not the design dimensions.
+- All other tests unchanged and still passing.
+
+**What this looks like to the user**
+
+- **Portrait on a 1080×2400 phone**: viewport now 831×1846 design dp at dpi_bucket=1.30 (was 720×1600). Bigger design space → layouts get more breathing room. Fonts and tap targets keep the same physical size because content_scale_factor compensates.
+- **Landscape on the same phone**: viewport 1846×831 design dp (was 720×324). The HBox rail-plus-content layout finally has 1766 dp of horizontal room for catching, battle map, tabs, etc. — ~2.4× the horizontal design space of the v0.14.2 keep_width landscape.
+- **Tablet / foldable open**: even more design space; bestiary and inventory column breakpoints (already 4–5 columns at wider widths) light up automatically.
+
+**Pre-push checklist**
+
+- Full GUT suite: 409/409 pass
+- DeviceLayout safe-area + dpi_bucket pipeline still firing on `size_changed`; the live `_recompute` won't be overridden by the test seam because `_test_set_dpi_bucket` no longer mutates `content_scale_factor` (would have re-triggered _recompute and overwritten the test value via the headless DisplayServer's stub DPI)
+
 ### v0.14.2 — Phase 13c.2: Primary screens — landscape layouts
 
 **Why**

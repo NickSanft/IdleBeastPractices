@@ -41,12 +41,21 @@ func _find_safe_margin(main: Node) -> MarginContainer:
 	return null
 
 
+## Helper — returns the live test viewport size. With v0.14.3's
+## stretch_aspect="expand", the viewport adapts to the actual window
+## (whatever the test harness allocates) instead of staying at the
+## design 720×1280. Tests that compute expected margins must read
+## the live size rather than hardcode design dimensions.
+func _live_viewport() -> Vector2:
+	return Vector2(get_viewport().get_visible_rect().size)
+
+
 # region — initial layout
 
 func test_default_safe_area_yields_zero_margins() -> void:
-	# Set safe area to the full design viewport before instantiation
-	# so _build_ui() picks it up on first pass.
-	DeviceLayout._test_set_safe_area(Rect2(0, 0, 720, 1280))
+	# Stage safe area = full live viewport so all four margins should be 0.
+	var view_size: Vector2 = _live_viewport()
+	DeviceLayout._test_set_safe_area(Rect2(Vector2.ZERO, view_size))
 	var main: Node = _instantiate_main()
 	var margin: MarginContainer = _find_safe_margin(main)
 	assert_not_null(margin, "main.gd must expose a root safe-area MarginContainer")
@@ -61,34 +70,43 @@ func test_default_safe_area_yields_zero_margins() -> void:
 # region — safe area reactivity
 
 func test_safe_area_change_propagates_to_margins() -> void:
-	# Start from a clean default, then push a notched-phone profile.
-	DeviceLayout._test_set_safe_area(Rect2(0, 0, 720, 1280))
+	var view_size: Vector2 = _live_viewport()
+	DeviceLayout._test_set_safe_area(Rect2(Vector2.ZERO, view_size))
 	var main: Node = _instantiate_main()
 	var margin: MarginContainer = _find_safe_margin(main)
 
 	# Profile: 24-px status bar at top, 32-px gesture bar at bottom,
-	# 0 horizontal insets — typical Android phone.
-	DeviceLayout._test_set_safe_area(Rect2(0, 24, 720, 1224))
+	# 0 horizontal insets — typical Android phone. Build the safe
+	# rect relative to the live viewport so the math doesn't assume
+	# a specific design height.
+	var status_bar: int = 24
+	var gesture_bar: int = 32
+	DeviceLayout._test_set_safe_area(Rect2(
+			Vector2(0, float(status_bar)),
+			Vector2(view_size.x, view_size.y - float(status_bar + gesture_bar))))
 
-	assert_eq(margin.get_theme_constant("margin_top"), 24,
-		"status bar should push content down by 24 px")
-	assert_eq(margin.get_theme_constant("margin_bottom"), 32,
-		"viewport_height (1280) - safe.bottom (24+1224) = 32 px gesture bar")
+	assert_eq(margin.get_theme_constant("margin_top"), status_bar,
+		"status bar should push content down by %d px" % status_bar)
+	assert_eq(margin.get_theme_constant("margin_bottom"), gesture_bar,
+		"gesture bar inset = viewport.y - safe.y - safe.height")
 
 
 func test_landscape_notch_inset_propagates() -> void:
-	DeviceLayout._test_set_safe_area(Rect2(0, 0, 720, 1280))
+	var view_size: Vector2 = _live_viewport()
+	DeviceLayout._test_set_safe_area(Rect2(Vector2.ZERO, view_size))
 	var main: Node = _instantiate_main()
 	var margin: MarginContainer = _find_safe_margin(main)
 
-	# Landscape with a 80-px notch on the left.
-	# The viewport is virtual 720x1280 (portrait design); the test
-	# isn't actually rotating the viewport, just verifying that a
-	# horizontal-inset safe area maps to margin_left correctly.
-	DeviceLayout._test_set_safe_area(Rect2(80, 0, 640, 1280))
+	# Landscape with an 80-px notch on the left. We set the safe area
+	# to start 80 px in and consume the rest of the live viewport
+	# width, so margin_right should land at 0.
+	var notch: int = 80
+	DeviceLayout._test_set_safe_area(Rect2(
+			Vector2(float(notch), 0),
+			Vector2(view_size.x - float(notch), view_size.y)))
 
-	assert_eq(margin.get_theme_constant("margin_left"), 80)
+	assert_eq(margin.get_theme_constant("margin_left"), notch)
 	assert_eq(margin.get_theme_constant("margin_right"), 0,
-		"viewport (720) - safe.right (80+640) = 0")
+		"viewport.x - safe.x - safe.width should be 0")
 
 # endregion

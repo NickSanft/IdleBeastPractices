@@ -48,9 +48,12 @@ func _ready() -> void:
 	add_child(_spawn_root)
 	EventBus.tier_completed.connect(_on_tier_completed_shake)
 	EventBus.first_shiny_caught.connect(_on_first_shiny_shake)
-	# Configure spawn bounds based on current viewport (square area below currency bar).
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	_spawn_bounds = Rect2(20, 80, viewport_size.x - 40, viewport_size.y - 200)
+	# Configure spawn bounds based on the catching_view's OWN rect
+	# (not the full viewport — Phase 13c.3 introduced a left-side
+	# nav rail in landscape, so viewport.x can be wider than the
+	# catching_view actually occupies). resized fires after the
+	# layout settles, so the initial bounds are recomputed there.
+	_recompute_spawn_bounds()
 	resized.connect(_on_resized)
 	_build_drops_2x_button()
 	_build_next_goal_chip()
@@ -61,8 +64,27 @@ func _ready() -> void:
 
 
 func _on_resized() -> void:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	_spawn_bounds = Rect2(20, 80, max(40.0, viewport_size.x - 40), max(120.0, viewport_size.y - 200))
+	_recompute_spawn_bounds()
+
+
+## Spawn area = catching_view's own rect minus reserved padding for
+## widgets anchored inside it: 80 px reserved at top for the
+## next_goal_chip, 80 px at bottom for the drops_2x_button. Reading
+## `size` (catching_view's own rect, since this Control is the root
+## of the scene) instead of viewport_size means landscape's left-rail
+## nav doesn't push monsters off the right edge.
+func _recompute_spawn_bounds() -> void:
+	var rect_size: Vector2 = size
+	if rect_size.x <= 0.0 or rect_size.y <= 0.0:
+		# Pre-layout: fall back to viewport so the very first spawn
+		# tick has SOMETHING. _on_resized fires once the real rect
+		# settles and corrects this.
+		rect_size = Vector2(get_viewport().get_visible_rect().size)
+	_spawn_bounds = Rect2(
+			20,
+			80,
+			max(40.0, rect_size.x - 40),
+			max(120.0, rect_size.y - 160))
 
 
 func _process(delta: float) -> void:
