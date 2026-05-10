@@ -6,6 +6,80 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.0 — Phase 14a: Amethyst (Dusk pixel-RPG) Theme resource
+
+**Why**
+
+The design handoff in [`docs/design_handoff_theming/`](docs/design_handoff_theming/) defines a "dusk pixel-RPG" aesthetic — deep amethyst + teal + warm gold, three pixel display fonts, RPG-window chrome with chunky drop shadows and zero corner radius. This release lands the **theme machinery** that future phases will apply to the live scenes; no live scene is repainted yet.
+
+**Vendored — three OFL pixel display fonts**
+
+Per the README's Typography table:
+- [`assets/fonts/dusk/PressStart2P-Regular.ttf`](assets/fonts/dusk/PressStart2P-Regular.ttf) — display titles, currency glyphs, tier badges
+- [`assets/fonts/dusk/Silkscreen-Regular.ttf`](assets/fonts/dusk/Silkscreen-Regular.ttf) — UI labels + buttons (Theme default at 11 px)
+- [`assets/fonts/dusk/VT323-Regular.ttf`](assets/fonts/dusk/VT323-Regular.ttf) — Peniber dialog body + longform copy
+
+OFL.txt licenses are vendored alongside each TTF.
+
+**Built — `PaletteDusk` token class**
+
+[`assets/themes/dusk/palette_dusk.gd`](assets/themes/dusk/palette_dusk.gd) is a single-source-of-truth `class_name PaletteDusk extends RefCounted` with three named palettes (`Amethyst` default + `Twilight` + `Ember`), each emitting the same 18-token keyset (`bg_deep` / `bg` / `card` / `card_2` / `border` / `border_soft` / `ink` / `ink_dim` / `ink_mute` / `gold` / `gold_dark` / `teal` / `teal_dark` / `magenta` / `rose` / `danger` / `bezel`) so theme code can index by name without per-palette branches. Hex values verified against the README's Design Tokens table and `reference_files/styles.css`'s `:root` block.
+
+**Built — `DuskThemeBuilder` programmatic theme factory**
+
+[`assets/themes/dusk/dusk_theme_builder.gd`](assets/themes/dusk/dusk_theme_builder.gd) is a pure function `static func build(palette, display_font, ui_font, body_font) -> Theme`. Produces:
+
+- Default font: Silkscreen at 11 px (matches `.pixel-btn` baseline)
+- `Panel` / `PanelContainer` styleboxes: pixel-card chrome — `card` bg, 2-px `border`, 0-radius corners, `0 4px 0 #00000080` hard drop
+- `Button` / `CheckBox` / `OptionButton` styleboxes (×4 states): pixel-button chrome — `card_2` bg, 2-px `border`, 0-radius, `0 3px 0 #00000080` drop, pressed-state collapses drop to `0 1px` to mimic `.pixel-btn:active { translateY(2px) }`
+- 8 type variations: `DisplayHeading` (Press Start 2P 18 gold), `DisplaySmall` (Press Start 2P 10 gold), `UiTiny` (Silkscreen 7 ink_mute), `UiCaption` (Silkscreen 9 ink_dim), `BodyText` (VT323 18 ink), `BodyIntro` (VT323 19 ink), `BodyTextRich` (RichTextLabel variant of BodyText), `PixelButtonGold` (gold CTA per `.pixel-btn--gold`)
+
+The README's Implementation Tip #1 is "Build the Theme resource first." This is that.
+
+**Built — three .tres outputs + a re-run runner**
+
+[`tools/build_dusk_themes.gd`](tools/build_dusk_themes.gd) is a one-shot runner:
+
+```
+godot --headless --path . --script res://tools/build_dusk_themes.gd
+```
+
+Calls the builder for each palette and `ResourceSaver.save()` to:
+- [`assets/themes/dusk/amethyst.tres`](assets/themes/dusk/amethyst.tres) (default)
+- [`assets/themes/dusk/twilight.tres`](assets/themes/dusk/twilight.tres)
+- [`assets/themes/dusk/ember.tres`](assets/themes/dusk/ember.tres)
+
+Re-run when `palette_dusk.gd` or `dusk_theme_builder.gd` changes; the `test_committed_amethyst_matches_freshly_built` drift detector fails CI if the committed .tres falls behind.
+
+**Tests — 18 cases in `test_dusk_theme.gd`, all passing**
+
+- 5× palette token coverage: Amethyst's 17-key match against the README, Twilight + Ember overrides, palette inheritance for un-specified tokens, `by_id` fallback, all three palettes share the same keyset
+- 8× builder output shape: default font + size, Button/CheckBox/OptionButton styleboxes for all four states, Panel + PanelContainer styleboxes, eight type variations declared, DisplayHeading uses Press Start 2P at 18 gold, BodyText uses VT323 at 18 ink, PixelButtonGold has `#2b1a05` ink on gold bg
+- 1× zero-corner-radius invariant — README is explicit ("Square corners are part of the aesthetic"); test walks every StyleBoxFlat in the built theme and asserts no rounded corners snuck in
+- 3× .tres integrity: each of the three committed files loads cleanly as `Theme`
+- 1× **drift detector** — committed `amethyst.tres` compared against a freshly-built one, asserting matching `default_font_size` + DisplayHeading color + BodyText size; a future maintainer who edits `palette_dusk.gd` without re-running the builder fails by name
+- 1× three fonts load as `FontFile`
+
+**Authored — `docs/design_handoff_theming/PHASED_RESKIN_PLAN.md`**
+
+Companion to the README, lays out the seven re-skin sub-phases (14b–14g) with per-phase scope, visual regression strategy, and ship cadence. Each future phase is independently shippable with its own GUT + Maestro + render-snapshot coverage, so the project converges on the handoff PNGs incrementally rather than as a single risky cutover.
+
+**Pre-push checklist**
+
+- Full GUT suite: **452/452 pass** (+18 from this phase, +73 since v0.13.4)
+- The three .tres files load via `load("res://assets/themes/dusk/<id>.tres")` without warnings
+- No live scenes touched yet — current parchment look unchanged on screen until Phase 14b applies the theme to the root
+
+**Phase 14 roadmap**
+
+- ✅ 14a (this release): theme resource + plan + visual-regression strategy
+- 14b: apply Amethyst theme at the Window root + sweep `palette_colors.gd` references
+- 14c: Catch screen chrome — HUD currency pills, Tier ribbon, auto-net widget
+- 14d: Map background + scanline overlay + monster card chrome
+- 14e: Peniber dialog ribbon + first-launch intro overlay
+- 14f: Bottom nav repaint + Settings palette switcher (Amethyst / Twilight / Ember)
+- 14g: Polish — gold L-bracket card corners, animation curves, audio sting timing
+
 ### v0.14.8 — Popular-Android-idle UI ratios
 
 **Why**
