@@ -1,14 +1,13 @@
 ## v0.14.0 (Phase 13a) — UiScale resolver tests.
 ##
 ## Asserts the contract every label in the codebase now depends on:
-##   - `size(N) = N * Settings.font_scale` — purely the accessibility
-##     slider's user preference.
+##   - `size(N) = N * BASE_SCALE * Settings.font_scale`.
+##   - `BASE_SCALE` (introduced in v0.14.8) is the popular-Android-idle
+##     ratio; bumping it bumps text + tap targets uniformly. Compounds
+##     with the user's accessibility slider.
 ##   - Density (dpi_bucket) is handled at the engine level via
 ##     Window.content_scale_factor (set in DeviceLayout._ready) and
-##     intentionally NOT applied a second time here. v0.14.2 had this
-##     wrong: UiScale also multiplied by dpi_bucket, which double-
-##     scaled fonts on dense screens once content_scale_factor
-##     carried the density adjustment.
+##     intentionally NOT applied a second time here.
 ##   - Edge cases (zero, negative) clamp safely.
 ##
 ## Tests stage values via `Settings.set_font_scale()` so they're
@@ -28,30 +27,38 @@ func after_each() -> void:
 
 # region — size()
 
-func test_size_at_unit_scale_returns_input() -> void:
-	assert_eq(UiScale.size(16), 16)
-	assert_eq(UiScale.size(26), 26)
-	assert_eq(UiScale.size(12), 12)
+func test_size_at_unit_scale_returns_base_scale_multiple() -> void:
+	# v0.14.8: every input is multiplied by BASE_SCALE (1.20) so the
+	# UI lands at the popular-Android-idle ratio rather than Material's
+	# bare minimum.
+	# 16 * 1.20 = 19.2 → 19
+	assert_eq(UiScale.size(16), 19)
+	# 26 * 1.20 = 31.2 → 31
+	assert_eq(UiScale.size(26), 31)
+	# 12 * 1.20 = 14.4 → 14
+	assert_eq(UiScale.size(12), 14)
 
 
-func test_size_scales_with_font_scale() -> void:
+func test_size_scales_with_font_scale_compounds_base_scale() -> void:
 	Settings.set_font_scale(1.5)
-	assert_eq(UiScale.size(16), 24, "16 px at 1.5× should be 24 px")
+	# 16 * 1.20 * 1.5 = 28.8 → 29
+	assert_eq(UiScale.size(16), 29)
 	Settings.set_font_scale(0.85)
-	# 16 * 0.85 = 13.6 → rounds to 14
-	assert_eq(UiScale.size(16), 14)
+	# 16 * 1.20 * 0.85 = 16.32 → 16
+	assert_eq(UiScale.size(16), 16)
 
 
 func test_size_ignores_dpi_bucket() -> void:
 	# v0.14.3: density is handled via Window.content_scale_factor
-	# (set in DeviceLayout._ready). UiScale.size() is purely the
-	# user's font_scale preference. Setting dpi_bucket here must NOT
+	# (set in DeviceLayout._ready). UiScale.size() is purely
+	# BASE_SCALE × font_scale. Setting dpi_bucket here must NOT
 	# affect the returned design px.
+	var baseline: int = UiScale.size(16)
 	DeviceLayout._test_set_dpi_bucket(1.30)
-	assert_eq(UiScale.size(16), 16,
+	assert_eq(UiScale.size(16), baseline,
 		"UiScale.size must NOT apply dpi_bucket — content_scale_factor handles density")
 	DeviceLayout._test_set_dpi_bucket(0.85)
-	assert_eq(UiScale.size(16), 16)
+	assert_eq(UiScale.size(16), baseline)
 
 
 func test_size_clamps_zero_and_negative() -> void:
@@ -59,15 +66,23 @@ func test_size_clamps_zero_and_negative() -> void:
 	assert_eq(UiScale.size(-5), 1, "size(<0) must clamp to 1 — defensive")
 
 
-func test_tap_target_returns_material_floor() -> void:
-	# v0.14.3: tap_target() returns 48 design dp. The device's
-	# content_scale_factor (from DeviceLayout) scales this to
-	# physical pixels at engine level — same single-source-of-truth
-	# pattern as size().
-	assert_eq(UiScale.tap_target(), 48)
+func test_base_scale_constant_pinned_at_popular_ratio() -> void:
+	# Pinning the constant so a future maintainer who tweaks it sees
+	# this assertion pop alongside the test_size_* expectations,
+	# making the tradeoff conscious. Adjust both together if you
+	# want to retune the global UI feel.
+	assert_eq(UiScale.BASE_SCALE, 1.20)
+
+
+func test_tap_target_returns_popular_idle_floor() -> void:
+	# 48 * 1.20 = 57.6 → 58 design dp. Lands in the 56–64 dp range
+	# Egg Inc / Idle Heroes / AdVenture Capitalist ship at, where
+	# Material's bare 48 dp minimum felt cramped. content_scale_factor
+	# (from DeviceLayout) handles density at the engine level.
+	assert_eq(UiScale.tap_target(), 58)
 	# Independent of dpi_bucket setting.
 	DeviceLayout._test_set_dpi_bucket(1.30)
-	assert_eq(UiScale.tap_target(), 48)
+	assert_eq(UiScale.tap_target(), 58)
 
 # endregion
 

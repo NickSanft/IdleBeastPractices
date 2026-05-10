@@ -58,7 +58,10 @@ func test_every_tappable_meets_material_floor() -> void:
 	# the first layout pass.
 	await wait_frames(3)
 	var floor_dp: int = UiScale.tap_target()
-	assert_eq(floor_dp, 48, "Material baseline floor")
+	# v0.14.8 — bumped from Material's bare 48 dp floor to 58 dp
+	# (= 48 × BASE_SCALE) so the floor matches popular-Android-idle
+	# norms (Egg Inc / Idle Heroes / AdVenture Capitalist).
+	assert_eq(floor_dp, 58, "popular-Android-idle tap-target floor")
 
 	var tappables: Array[Control] = []
 	_walk_tappables(main, tappables)
@@ -84,9 +87,11 @@ func test_every_tappable_meets_material_floor() -> void:
 func test_ui_scale_tap_target_returns_design_dp() -> void:
 	# Density compensation lives in Window.content_scale_factor, NOT
 	# in UiScale.tap_target. So tap_target should return a constant
-	# design-dp value regardless of dpi_bucket.
+	# design-dp value regardless of dpi_bucket. v0.14.8 bumped to 58
+	# (= 48 × BASE_SCALE) so the floor matches popular-Android-idle
+	# norms instead of Material's bare minimum.
 	DeviceLayout._test_set_dpi_bucket(0.85)
-	assert_eq(UiScale.tap_target(), 48)
+	assert_eq(UiScale.tap_target(), 58)
 	DeviceLayout._test_set_dpi_bucket(1.30)
-	assert_eq(UiScale.tap_target(), 48)
+	assert_eq(UiScale.tap_target(), 58)
 	DeviceLayout._test_set_dpi_bucket(1.0)

@@ -15,6 +15,17 @@
 ## `dpi_bucket`, which double-scaled fonts now that content_scale_factor
 ## carries density.)
 ##
+## v0.14.8 — `BASE_SCALE` was added after a player report that text
+## and buttons still felt small even after Phase 13. Comparing
+## against Egg Inc, Idle Heroes, AdVenture Capitalist, and
+## Cookie Clicker mobile (the popular-Android-idle reference set),
+## those games render at roughly 115–125 % of Material's bare
+## minimum: body text 18-19 sp, button text 20-22 sp, tap targets
+## 56-64 dp, bottom nav 72-80 dp. Adding a 1.20 BASE_SCALE
+## multiplier — applied here and used by main.gd's mobile theme via
+## `UiScale.size(N)` — bumps every size into that range without
+## per-call constants drifting away from the design value.
+##
 ## Usage:
 ##   label.add_theme_font_size_override("font_size", UiScale.size(16))
 ##
@@ -27,26 +38,34 @@ class_name UiScale
 extends RefCounted
 
 
+## Multiplier applied on top of every size lookup so the codebase
+## ships at the popular-Android-idle ratio rather than Material's
+## bare minimum. Bumping this number bumps text + tap targets
+## together, which is the right knob for "the whole UI feels small."
+## Compounds with `Settings.font_scale`.
+const BASE_SCALE := 1.20
+
+
 ## Returns the rendered px size for a `base_px` design value, after
-## applying `Settings.font_scale`. Density (dpi_bucket) is applied
-## globally via `Window.content_scale_factor`.
+## applying `BASE_SCALE * Settings.font_scale`. Density (dpi_bucket)
+## is applied globally via `Window.content_scale_factor`.
 ##
 ## Test-friendly: reads `Settings.font_scale` via the autoload tree
 ## so tests can stage values via `Settings.set_font_scale()`.
 static func size(base_px: int) -> int:
 	if base_px <= 0:
 		return 1
-	var scale: float = _font_scale()
+	var scale: float = BASE_SCALE * _font_scale()
 	return int(round(float(base_px) * scale))
 
 
-## Returns Material's 48-dp tap-target floor in design px. The
-## device's content_scale_factor (set by DeviceLayout from dpi_bucket)
-## scales this to physical pixels — no per-call density math needed.
-## Phase 13d (touch-target sweep) will route every tappable Control
-## through this.
+## Returns Material's 48-dp tap-target floor scaled by `BASE_SCALE`
+## so the floor matches the popular-Android-idle "comfortable" tier
+## (~58 dp), not Material's bare minimum. The device's
+## content_scale_factor (set by DeviceLayout from dpi_bucket) scales
+## this to physical pixels — no per-call density math needed.
 static func tap_target() -> int:
-	return 48
+	return int(round(48.0 * BASE_SCALE))
 
 
 ## Phase 13c.4 — recommended column count for a responsive card grid.

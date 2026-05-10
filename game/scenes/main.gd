@@ -40,7 +40,11 @@ var _touch_debug_overlay: Control
 ## drives the More-sheet menu order.
 const _PRIMARY_NAV: Array[String] = ["Catch", "Battle", "Inventory", "Upgrades"]
 const _SECONDARY_NAV: Array[String] = ["Shop", "Crafting", "Bestiary", "Prestige", "Ledger", "Settings"]
-const _NAV_BUTTON_HEIGHT_DP := 64.0   # comfortably above Material's 48 dp floor
+## v0.14.8 — bumped 64 → 72 dp to land in the Material bottom-nav
+## "comfortable" range (72–80 dp) and the popular-Android-idle norm.
+## Pre-bump every nav button rendered shorter than its on-screen
+## emoji felt like it warranted.
+const _NAV_BUTTON_HEIGHT_DP := 72.0
 
 ## v0.9.1 icons. Emoji glyphs because they need zero asset pipeline
 ## work and render reliably across Android system fonts. Each icon
@@ -186,10 +190,11 @@ var _orientation_root: Control
 ## every orientation flip.
 var _currency_bar: Control
 var _quest_strip: Control
-## Width of the left-side rail in landscape mode. ~80 dp keeps
-## buttons readable without crowding the content area; matches
-## Material's bottom-nav 80 dp height target rotated 90°.
-const _LEFT_RAIL_WIDTH_DP := 80.0
+## Width of the left-side rail in landscape mode. v0.14.8 bumped
+## 80 → 88 dp so the rail matches the new bottom-nav 72-dp portrait
+## height plus a small visual buffer — keeps icons and labels from
+## hugging the content edge in landscape.
+const _LEFT_RAIL_WIDTH_DP := 88.0
 
 
 func _build_ui() -> void:
@@ -321,20 +326,20 @@ func _apply_mobile_default_theme() -> void:
 	if not Settings.accessibility_settings_changed.is_connected(_on_accessibility_settings_changed):
 		Settings.accessibility_settings_changed.connect(_on_accessibility_settings_changed)
 
-	# Buttons: 48 dp tap target per Material's accessibility floor
-	# (text height ~22 px + 14 px top + 14 px bottom = ~50 px = 48 dp
-	# at our viewport scale). v0.8.4 dialed this down to 8/12 thinking
-	# the padding was the source of the hit-test mismatch; research
-	# (godotengine/godot#118153 — canvas_items stretch input mapping)
-	# pointed at the real culprit (now mitigated via
-	# `display/window/stretch/aspect="keep"` in project.godot), so
-	# v0.8.5 restores the proper 48 dp size.
+	# Buttons: tap target sized for the popular-Android-idle
+	# "comfortable" range (~58 dp via UiScale.tap_target() which is
+	# 48 × BASE_SCALE). v0.14.8 bumped content_margin_top/bottom from
+	# 14 → 18 dp so a Button with theme font_size = UiScale.size(18)
+	# (which lands near 22 dp at default font_scale) clears the
+	# tap_target floor with breathing room. Pre-bump the buttons sat
+	# on Material's 48 dp minimum, which felt cramped vs the
+	# 56–64 dp Egg Inc / Idle Heroes / AdVenture Capitalist norm.
 	var btn_normal := StyleBoxFlat.new()
 	btn_normal.bg_color = Color(0.22, 0.24, 0.30)
-	btn_normal.content_margin_top = 14.0
-	btn_normal.content_margin_bottom = 14.0
-	btn_normal.content_margin_left = 18.0
-	btn_normal.content_margin_right = 18.0
+	btn_normal.content_margin_top = 18.0
+	btn_normal.content_margin_bottom = 18.0
+	btn_normal.content_margin_left = 22.0
+	btn_normal.content_margin_right = 22.0
 	btn_normal.corner_radius_top_left = 6
 	btn_normal.corner_radius_top_right = 6
 	btn_normal.corner_radius_bottom_left = 6
@@ -350,14 +355,18 @@ func _apply_mobile_default_theme() -> void:
 	mobile_theme.set_stylebox("hover", "Button", btn_hover)
 	mobile_theme.set_stylebox("pressed", "Button", btn_pressed)
 	mobile_theme.set_stylebox("disabled", "Button", btn_disabled)
-	# Font sizes scale with Settings.font_scale (Phase 11b).
-	var scale: float = Settings.font_scale
-	mobile_theme.set_font_size("font_size", "Button", int(round(18.0 * scale)))
+	# v0.14.8 — Font sizes route through `UiScale.size(N)` so they
+	# pick up BASE_SCALE alongside Settings.font_scale (Phase 11b).
+	# A theme `font_size = 18` design value renders at
+	# `round(18 × 1.20 × font_scale)` = 22 px at default font_scale,
+	# matching the 20–22 sp button text typical of popular Android
+	# idle games.
+	mobile_theme.set_font_size("font_size", "Button", UiScale.size(18))
 
 	# Labels: bump up for phone readability. Custom-styled labels
 	# (currency_bar, peniber overlay) override per-control.
-	mobile_theme.set_font_size("font_size", "Label", int(round(16.0 * scale)))
-	mobile_theme.set_font_size("font_size", "RichTextLabel", int(round(16.0 * scale)))
+	mobile_theme.set_font_size("font_size", "Label", UiScale.size(16))
+	mobile_theme.set_font_size("font_size", "RichTextLabel", UiScale.size(16))
 
 	# Phase 13d (v0.14.5): CheckBox and OptionButton are NOT subclasses
 	# of Button in Godot's theme system — the previous comment claiming
@@ -370,12 +379,12 @@ func _apply_mobile_default_theme() -> void:
 	mobile_theme.set_stylebox("hover", "CheckBox", btn_hover)
 	mobile_theme.set_stylebox("pressed", "CheckBox", btn_pressed)
 	mobile_theme.set_stylebox("disabled", "CheckBox", btn_disabled)
-	mobile_theme.set_font_size("font_size", "CheckBox", int(round(18.0 * scale)))
+	mobile_theme.set_font_size("font_size", "CheckBox", UiScale.size(18))
 	mobile_theme.set_stylebox("normal", "OptionButton", btn_normal)
 	mobile_theme.set_stylebox("hover", "OptionButton", btn_hover)
 	mobile_theme.set_stylebox("pressed", "OptionButton", btn_pressed)
 	mobile_theme.set_stylebox("disabled", "OptionButton", btn_disabled)
-	mobile_theme.set_font_size("font_size", "OptionButton", int(round(18.0 * scale)))
+	mobile_theme.set_font_size("font_size", "OptionButton", UiScale.size(18))
 
 	# Sliders need an explicit grabber bump.
 	var slider_grabber := StyleBoxFlat.new()

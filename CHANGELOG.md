@@ -6,6 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.8 — Popular-Android-idle UI ratios
+
+**Why**
+
+User report: "The text and size of the buttons still seem to be fairly small, could you compare UI elements to popular Android games and have them match the same ratios?"
+
+The pre-fix codebase rendered at Material Design's bare *minimum* (Button font 18 sp, tap target 48 dp, bottom nav 64 dp). Comparing against Egg Inc, Idle Heroes, AdVenture Capitalist, and Cookie Clicker mobile — the popular-Android-idle reference set — those games render at roughly 115–125 % of the Material minimum: body text 18-19 sp, button text 20-22 sp, tap targets 56-64 dp, bottom nav 72-80 dp. We were sitting at the floor; they sit comfortably above it.
+
+**The fix — single global ratio multiplier**
+
+[`UiScale.BASE_SCALE = 1.20`](game/systems/ui_scale.gd) — applied inside `UiScale.size()` and `UiScale.tap_target()`, so every size lookup multiplies design dp by 1.20. Compounds with the user's `Settings.font_scale` accessibility slider on top.
+
+| Surface | Pre-bump | Post-bump | Popular-game range |
+|---|---|---|---|
+| Button text (theme default) | 18 sp | **22 sp** (`UiScale.size(18)`) | 20–22 |
+| Body text (theme default) | 16 sp | **19 sp** (`UiScale.size(16)`) | 14–18 |
+| Tap target floor | 48 dp | **58 dp** (`UiScale.size(48)`) | 56–64 |
+| Bottom-nav button height | 64 dp | **72 dp** | 72–80 |
+| Landscape left-rail width | 80 dp | **88 dp** | (matches new nav height) |
+| Button content margin | 14 dp | **18 dp** top/bot, 22 dp lr | (cleared the new tap target) |
+
+The route through `UiScale.size()` means inline label overrides (the 71 sites Phase 13a swept) automatically pick up the bump too — no per-call site needs changing. Bumping `BASE_SCALE` to a different number (1.15 for slightly tighter, 1.25 for chunkier) is a one-line change.
+
+**Tests — 434/434 passing**
+
+- [`test_ui_scale.gd`](game/tests/test_ui_scale.gd) updated:
+  - `test_size_at_unit_scale_returns_base_scale_multiple` — pins the 16 → 19, 26 → 31, 12 → 14 mappings explicitly so a future maintainer who tweaks `BASE_SCALE` sees this assertion alongside the constant.
+  - `test_size_scales_with_font_scale_compounds_base_scale` — proves font_scale multiplier compounds with BASE_SCALE (16 × 1.20 × 1.5 = 29).
+  - `test_base_scale_constant_pinned_at_popular_ratio` — explicit `assert_eq(UiScale.BASE_SCALE, 1.20)` so the constant change is a conscious decision.
+  - `test_tap_target_returns_popular_idle_floor` — pins 58 dp.
+- [`test_tap_targets.gd::test_every_tappable_meets_material_floor`](game/tests/test_tap_targets.gd) — sanity assertion updated `48 → 58`. The full main-tree walk still passes; existing Buttons clear the new floor because the theme `content_margin` was bumped together with the font.
+
+**Pre-push checklist**
+
+- Full GUT suite: **434/434 pass**
+- The mobile theme bump propagates uniformly: every Button / CheckBox / OptionButton across the 10 tabs picks up the larger font + padding via the theme. Inline-overridden labels grow via `UiScale.size()`.
+
 ### v0.14.7 — Phase 13g: IA cleanup + screen-reader labels
 
 **Why**
