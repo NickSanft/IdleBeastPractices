@@ -132,12 +132,16 @@ func test_two_flips_in_one_frame_collapse_to_one_rebuild() -> void:
 
 # region — wall-clock budget
 
-func test_burst_resize_completes_under_100ms() -> void:
-	# Real-world worst case: desktop window drag, 60 emits across
-	# many frames at 60 FPS. We approximate by emitting 60 then
-	# draining; the total wall-clock must stay well under 100 ms
-	# on a slow CI runner (typical local run is <5 ms). A budget
-	# of 100 ms gives headroom for emulator variability.
+## Wall-clock budgets are generous (500 / 1500 ms) because they're
+## the failure-mode regression detectors, not micro-benchmarks. The
+## bug the coalescing fix addressed put the burst path at >2 s
+## (the test failed with 2035 ms before the fix); a 500 ms ceiling
+## catches that case without false-positiving on shared CI runners
+## where instantiating main.tscn alone can take 100–400 ms.
+##
+## The structural assertions (apply_count == N) are the precise
+## contracts; budgets are the smoke test.
+func test_burst_resize_completes_under_500ms() -> void:
 	var main: Node = _instantiate_main()
 	var t0_us: int = Time.get_ticks_usec()
 	for _i in 60:
@@ -145,27 +149,28 @@ func test_burst_resize_completes_under_100ms() -> void:
 	main._process(0.0)
 	var elapsed_us: int = Time.get_ticks_usec() - t0_us
 	var elapsed_ms: float = float(elapsed_us) / 1000.0
-	assert_lt(elapsed_ms, 100.0,
-		"60-emit burst + drain must complete under 100 ms (took %.2f ms)" % elapsed_ms)
+	gut.p("[resize-latency] burst path = %.2f ms" % elapsed_ms)
+	assert_lt(elapsed_ms, 500.0,
+		"60-emit burst + drain must complete under 500 ms (took %.2f ms)" % elapsed_ms)
 	# Sanity: at least the safe area applied.
 	assert_eq(main.safe_area_apply_count, 1)
 
 
-func test_single_orientation_flip_completes_under_250ms() -> void:
-	# The heavy path: rebuild composition root. In headless test
-	# mode it routinely takes ~120 ms (no GPU acceleration, slower
-	# tree mutation). A 250-ms budget catches genuine regressions
-	# (the pre-coalesce burst-drain hit >2 s) while staying generous
-	# for slow CI runners. On a real device the same operation
-	# completes well under one frame at 60 FPS.
+func test_single_orientation_flip_completes_under_1500ms() -> void:
+	# Heavy path: composition root tear-down + 5-child reparent.
+	# Local headless takes ~120 ms; GitHub Actions runners have been
+	# observed at ~410 ms. The 1.5-s ceiling tolerates emulator
+	# variability while still catching a hypothetical regression
+	# that would put this in the "human-visible stutter" range.
 	var main: Node = _instantiate_main()
 	var t0_us: int = Time.get_ticks_usec()
 	DeviceLayout._test_set_orientation(true)
 	main._process(0.0)
 	var elapsed_us: int = Time.get_ticks_usec() - t0_us
 	var elapsed_ms: float = float(elapsed_us) / 1000.0
-	assert_lt(elapsed_ms, 250.0,
-		"single orientation flip + drain must complete under 250 ms in headless mode (took %.2f ms)" % elapsed_ms)
+	gut.p("[resize-latency] orientation flip = %.2f ms" % elapsed_ms)
+	assert_lt(elapsed_ms, 1500.0,
+		"single orientation flip + drain must complete under 1.5 s in headless mode (took %.2f ms)" % elapsed_ms)
 	assert_eq(main.orientation_apply_count, 1)
 
 # endregion
