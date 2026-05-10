@@ -359,8 +359,25 @@ func _apply_mobile_default_theme() -> void:
 	mobile_theme.set_font_size("font_size", "Label", int(round(16.0 * scale)))
 	mobile_theme.set_font_size("font_size", "RichTextLabel", int(round(16.0 * scale)))
 
-	# CheckBox / OptionButton inherit Button styling so they get the
-	# same hit-box bump. Sliders need an explicit grabber bump.
+	# Phase 13d (v0.14.5): CheckBox and OptionButton are NOT subclasses
+	# of Button in Godot's theme system — the previous comment claiming
+	# inheritance was wrong. Without explicit styling, accessibility
+	# CheckBoxes in settings_view rendered at ~33 dp, well below
+	# Material's 48 dp floor. Apply the same content_margin StyleBoxFlat
+	# the buttons get + matching font_size so the tap target picks up
+	# the same hit-box bump.
+	mobile_theme.set_stylebox("normal", "CheckBox", btn_normal)
+	mobile_theme.set_stylebox("hover", "CheckBox", btn_hover)
+	mobile_theme.set_stylebox("pressed", "CheckBox", btn_pressed)
+	mobile_theme.set_stylebox("disabled", "CheckBox", btn_disabled)
+	mobile_theme.set_font_size("font_size", "CheckBox", int(round(18.0 * scale)))
+	mobile_theme.set_stylebox("normal", "OptionButton", btn_normal)
+	mobile_theme.set_stylebox("hover", "OptionButton", btn_hover)
+	mobile_theme.set_stylebox("pressed", "OptionButton", btn_pressed)
+	mobile_theme.set_stylebox("disabled", "OptionButton", btn_disabled)
+	mobile_theme.set_font_size("font_size", "OptionButton", int(round(18.0 * scale)))
+
+	# Sliders need an explicit grabber bump.
 	var slider_grabber := StyleBoxFlat.new()
 	slider_grabber.bg_color = Color(0.92, 0.92, 0.96)
 	slider_grabber.corner_radius_top_left = 12

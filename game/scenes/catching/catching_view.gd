@@ -473,15 +473,21 @@ func _build_drops_2x_button() -> void:
 	# (set_anchors_preset + manual position is fragile with Control siblings).
 	# Mouse-filter STOP so taps on the button do not fall through to
 	# _gui_input as a monster click.
+	#
+	# v0.14.5 (Phase 13d): height is `UiScale.tap_target()` (48 dp) +
+	# 20 dp gesture-bar margin, so the button never falls under
+	# Material's accessibility floor regardless of density. Pre-fix the
+	# height was hardcoded at 44 dp (offset_top = -64, offset_bottom = -20).
+	var bottom_margin: int = 20
 	_drops_2x_button = Button.new()
 	_drops_2x_button.anchor_left = 1.0
 	_drops_2x_button.anchor_top = 1.0
 	_drops_2x_button.anchor_right = 1.0
 	_drops_2x_button.anchor_bottom = 1.0
 	_drops_2x_button.offset_left = -220
-	_drops_2x_button.offset_top = -64
+	_drops_2x_button.offset_top = -float(UiScale.tap_target() + bottom_margin)
 	_drops_2x_button.offset_right = -20
-	_drops_2x_button.offset_bottom = -20
+	_drops_2x_button.offset_bottom = -float(bottom_margin)
 	_drops_2x_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	_drops_2x_button.pressed.connect(_on_drops_2x_pressed)
 	add_child(_drops_2x_button)

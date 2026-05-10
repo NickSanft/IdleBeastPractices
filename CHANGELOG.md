@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.14.5 — Phase 13d: Touch-target sweep
+
+**Why**
+
+The Phase-13 audit flagged a few interactive Controls that fell under Material's 48 dp tap-target floor. Now that the design viewport adapts to landscape and density (v0.14.3) and `UiScale.tap_target()` returns the canonical 48 dp, this release walks the tree, finds the offenders, and pins the floor with a regression test.
+
+**Audit findings + fixes**
+
+- **`drops_2x_button` (catching view)** — was 44 dp tall (`offset_top = -64, offset_bottom = -20`). Now uses `UiScale.tap_target() + 20 dp gesture-bar margin`, so its height is exactly the Material floor. The button anchors bottom-right and previously rendered as an undersized rewarded-video toggle.
+- **CheckBox + OptionButton theming** — the existing mobile-theme comment claimed "CheckBox / OptionButton inherit Button styling" but **that's not how Godot themes work**: each is its own theme type. Without explicit styleboxes, the four accessibility CheckBoxes in `settings_view` (Reduce Motion, Haptics, Hold-to-Tap, Color-Blind) rendered at ~33 dp. Now both `CheckBox` and `OptionButton` get the same `btn_normal/hover/pressed/disabled` styleboxes + `font_size = 18 * font_scale` as Buttons, so the entire settings view picks up the tap-target bump uniformly.
+- **`bestiary_card` pills** were investigated and intentionally NOT changed — they're `Label` children of a tappable card. Tapping the pill registers as tapping the card (which opens the detail panel). Their tooltips don't fire on touch, but that's a desktop-only nicety; making them tappable on their own would only conflict with the card-level handler.
+
+**Tests — `test_tap_targets.gd` (2 cases)**
+
+The first test walks the live `main.tscn` tree and finds every Control where:
+- `Button` AND `disabled == false`, OR
+- `mouse_filter == STOP` AND has a `gui_input` listener,
+
+filters out anything not currently `is_visible_in_tree()` (skips popup contents like welcome-back / sell-all dialogs that the user only encounters via `popup_centered`), and asserts each survivor has `effective_height >= UiScale.tap_target()`. A future maintainer who adds a 30-dp Button fails the test by name with the offender's class + size.
+
+The second test pins `UiScale.tap_target()` returning the design-dp constant 48 regardless of `dpi_bucket` — density is the engine's job (via `Window.content_scale_factor`), not the helper's.
+
+**Pre-push checklist**
+
+- Full GUT suite: **418/418 pass** (+2 from this phase)
+- Tap-target floor surveyed across all primary views; no offenders remain in the visible tree
+
 ### v0.14.4 — Phase 13c.4: Secondary screens get responsive multi-column grids
 
 **Why**
