@@ -87,7 +87,15 @@ func _ready() -> void:
 	# The labels themselves stay; we just retarget their font_size
 	# theme override.
 	Settings.accessibility_settings_changed.connect(_apply_font_sizes)
-	DeviceLayout.layout_changed.connect(_apply_font_sizes)
+	# v0.15.1 (Phase 14b): the DeviceLayout.layout_changed subscription
+	# was load-bearing pre-v0.14.3, when UiScale.size() multiplied by
+	# `dpi_bucket`. After v0.14.3 moved density to
+	# `Window.content_scale_factor`, UiScale.size only depends on
+	# `Settings.font_scale`. Subscribing to layout_changed would
+	# unnecessarily re-apply 10 theme calls per card on every viewport
+	# resize — for 60 bestiary cards × 60 burst emits the cost hit
+	# ~2 s in the test_burst_resize_completes_under_100ms test.
+	# Removed; the Settings handler above is sufficient.
 
 
 func _apply_font_sizes() -> void:

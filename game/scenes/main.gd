@@ -190,6 +190,31 @@ var _orientation_root: Control
 ## every orientation flip.
 var _currency_bar: Control
 var _quest_strip: Control
+
+## v0.15.1 (Phase 14b) — resize-latency coalescing.
+##
+## Pre-coalesce, every `DeviceLayout.layout_changed` emit ran both
+## `_apply_safe_area_margins` AND `_apply_orientation_layout`
+## immediately. A desktop window drag fires `size_changed` dozens
+## of times per second; on Android, a foldable mid-fold can fire
+## several times during the animation; each emit triggered a full
+## composition-root tear-down + rebuild (queue_free old root,
+## allocate new VBox/HBox, re-parent five persistent children).
+##
+## Now: handlers just set the matching dirty flag. `_process` drains
+## once per frame. AND: orientation root only rebuilds if
+## `DeviceLayout.is_landscape` actually flipped from the last
+## applied value — most resize events change only safe area, not
+## orientation, so the heavy rebuild stays rare.
+##
+## Test counters expose `safe_area_apply_count` /
+## `orientation_apply_count` for the resize-latency regression
+## tests. Reset by `reset_layout_apply_counters()`.
+var _safe_area_dirty: bool = false
+var _orientation_dirty: bool = false
+var _last_applied_landscape: bool = false
+var safe_area_apply_count: int = 0
+var orientation_apply_count: int = 0
 ## Width of the left-side rail in landscape mode. v0.14.8 bumped
 ## 80 → 88 dp so the rail matches the new bottom-nav 72-dp portrait
 ## height plus a small visual buffer — keeps icons and labels from
@@ -202,9 +227,12 @@ func _build_ui() -> void:
 	_safe_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_safe_margin)
 	_apply_safe_area_margins()
-	DeviceLayout.layout_changed.connect(_apply_safe_area_margins)
-	# Phase 13c.2: rebuild root layout on orientation change.
-	DeviceLayout.layout_changed.connect(_apply_orientation_layout)
+	_last_applied_landscape = DeviceLayout.is_landscape
+	# v0.15.1 (Phase 14b) — both subscribers route through a single
+	# dirty-flag handler. `_process` drains the flags once per frame,
+	# coalescing burst-resize events (desktop drag, foldable mid-fold)
+	# into one safe-area apply + (at most) one orientation rebuild.
+	DeviceLayout.layout_changed.connect(_on_layout_changed)
 
 	# Build the persistent children once. They get re-parented on
 	# every orientation flip — see _apply_orientation_layout().
@@ -302,105 +330,50 @@ func _build_ui() -> void:
 		add_child(_touch_debug_overlay)
 
 
-## Project-wide theme assigned to the root window so every Control
-## inherits mobile-friendly defaults — bigger buttons, larger fonts.
-## Per-control `add_theme_*_override` calls already in the codebase
-## still take precedence; this just raises the floor everywhere else.
+## v0.15.1 (Phase 14b) — root theme is now the Dusk pixel-RPG
+## Amethyst theme. The function name + the
+## `Settings.accessibility_settings_changed` connection are kept so
+## any code that referenced this path still works; the function
+## body just loads `amethyst.tres` and assigns it to the root.
 ##
-## v0.8.3: user reported on Galaxy Z Fold7 (Android 16) that buttons
-## were too small to reliably hit and the tab bar was hard to scroll
-## through. Applied across the board.
+## The DuskThemeBuilder + `assets/themes/dusk/amethyst.tres` already
+## carry the Phase-13d tap-target tweaks (CheckBox + OptionButton
+## styleboxes + tap-target-sized content_margin), and the inline
+## `add_theme_font_size_override("font_size", UiScale.size(N))` call
+## sites from Phase 13a still compound the user's font_scale
+## accessibility slider on top.
+##
+## Pre-fix this function constructed a parchment-styled theme from
+## scratch. That theme is gone in 14b; per-scene cosmetic migration
+## (parchment palette references in inline color overrides etc.)
+## lands per-screen in Phase 14c–f.
 func _apply_mobile_default_theme() -> void:
-	# Local var renamed from `theme` to `mobile_theme` to avoid
-	# shadowing Control.theme (which is in scope here because
-	# Main extends Control).
-	#
-	# v0.11.1 (Phase 11b): applies Settings.font_scale to the base
-	# font sizes. Players can boost text up to 150 % via the
-	# accessibility slider for vision support. Inline font_size
-	# overrides on individual labels are NOT scaled — that's a
-	# documented limitation; theme-level scaling reaches the bulk of
-	# default-styled labels and the bottom-nav, which is the most
-	# important text. Subscribes to Settings for live re-application.
-	var mobile_theme := Theme.new()
 	if not Settings.accessibility_settings_changed.is_connected(_on_accessibility_settings_changed):
 		Settings.accessibility_settings_changed.connect(_on_accessibility_settings_changed)
+	var dusk_theme: Theme = load("res://assets/themes/dusk/amethyst.tres")
+	if dusk_theme == null:
+		push_error("[main] failed to load amethyst.tres — falling back to default")
+		return
 
-	# Buttons: tap target sized for the popular-Android-idle
-	# "comfortable" range (~58 dp via UiScale.tap_target() which is
-	# 48 × BASE_SCALE). v0.14.8 bumped content_margin_top/bottom from
-	# 14 → 18 dp so a Button with theme font_size = UiScale.size(18)
-	# (which lands near 22 dp at default font_scale) clears the
-	# tap_target floor with breathing room. Pre-bump the buttons sat
-	# on Material's 48 dp minimum, which felt cramped vs the
-	# 56–64 dp Egg Inc / Idle Heroes / AdVenture Capitalist norm.
-	var btn_normal := StyleBoxFlat.new()
-	btn_normal.bg_color = Color(0.22, 0.24, 0.30)
-	btn_normal.content_margin_top = 18.0
-	btn_normal.content_margin_bottom = 18.0
-	btn_normal.content_margin_left = 22.0
-	btn_normal.content_margin_right = 22.0
-	btn_normal.corner_radius_top_left = 6
-	btn_normal.corner_radius_top_right = 6
-	btn_normal.corner_radius_bottom_left = 6
-	btn_normal.corner_radius_bottom_right = 6
-	var btn_hover: StyleBoxFlat = btn_normal.duplicate(true)
-	btn_hover.bg_color = Color(0.28, 0.30, 0.38)
-	var btn_pressed: StyleBoxFlat = btn_normal.duplicate(true)
-	btn_pressed.bg_color = Color(0.34, 0.38, 0.48)
-	var btn_disabled: StyleBoxFlat = btn_normal.duplicate(true)
-	btn_disabled.bg_color = Color(0.18, 0.18, 0.20)
-
-	mobile_theme.set_stylebox("normal", "Button", btn_normal)
-	mobile_theme.set_stylebox("hover", "Button", btn_hover)
-	mobile_theme.set_stylebox("pressed", "Button", btn_pressed)
-	mobile_theme.set_stylebox("disabled", "Button", btn_disabled)
-	# v0.14.8 — Font sizes route through `UiScale.size(N)` so they
-	# pick up BASE_SCALE alongside Settings.font_scale (Phase 11b).
-	# A theme `font_size = 18` design value renders at
-	# `round(18 × 1.20 × font_scale)` = 22 px at default font_scale,
-	# matching the 20–22 sp button text typical of popular Android
-	# idle games.
-	mobile_theme.set_font_size("font_size", "Button", UiScale.size(18))
-
-	# Labels: bump up for phone readability. Custom-styled labels
-	# (currency_bar, peniber overlay) override per-control.
-	mobile_theme.set_font_size("font_size", "Label", UiScale.size(16))
-	mobile_theme.set_font_size("font_size", "RichTextLabel", UiScale.size(16))
-
-	# Phase 13d (v0.14.5): CheckBox and OptionButton are NOT subclasses
-	# of Button in Godot's theme system — the previous comment claiming
-	# inheritance was wrong. Without explicit styling, accessibility
-	# CheckBoxes in settings_view rendered at ~33 dp, well below
-	# Material's 48 dp floor. Apply the same content_margin StyleBoxFlat
-	# the buttons get + matching font_size so the tap target picks up
-	# the same hit-box bump.
-	mobile_theme.set_stylebox("normal", "CheckBox", btn_normal)
-	mobile_theme.set_stylebox("hover", "CheckBox", btn_hover)
-	mobile_theme.set_stylebox("pressed", "CheckBox", btn_pressed)
-	mobile_theme.set_stylebox("disabled", "CheckBox", btn_disabled)
-	mobile_theme.set_font_size("font_size", "CheckBox", UiScale.size(18))
-	mobile_theme.set_stylebox("normal", "OptionButton", btn_normal)
-	mobile_theme.set_stylebox("hover", "OptionButton", btn_hover)
-	mobile_theme.set_stylebox("pressed", "OptionButton", btn_pressed)
-	mobile_theme.set_stylebox("disabled", "OptionButton", btn_disabled)
-	mobile_theme.set_font_size("font_size", "OptionButton", UiScale.size(18))
-
-	# Sliders need an explicit grabber bump.
+	# Slider grabber — Dusk doesn't define this yet (handoff focused
+	# on the core controls). Bolt on a temporary "bright ink" grabber
+	# so the audio sliders in Settings stay tappable. Phase 14g
+	# polish will integrate this into DuskThemeBuilder properly.
 	var slider_grabber := StyleBoxFlat.new()
-	slider_grabber.bg_color = Color(0.92, 0.92, 0.96)
-	slider_grabber.corner_radius_top_left = 12
-	slider_grabber.corner_radius_top_right = 12
-	slider_grabber.corner_radius_bottom_left = 12
-	slider_grabber.corner_radius_bottom_right = 12
+	var palette := PaletteDusk.amethyst()
+	slider_grabber.bg_color = palette["ink"]
+	slider_grabber.corner_radius_top_left = 0
+	slider_grabber.corner_radius_top_right = 0
+	slider_grabber.corner_radius_bottom_left = 0
+	slider_grabber.corner_radius_bottom_right = 0
 	slider_grabber.content_margin_top = 8
 	slider_grabber.content_margin_bottom = 8
 	slider_grabber.content_margin_left = 8
 	slider_grabber.content_margin_right = 8
-	mobile_theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
-	mobile_theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
+	dusk_theme.set_stylebox("grabber_area", "HSlider", slider_grabber)
+	dusk_theme.set_stylebox("grabber_area_highlight", "HSlider", slider_grabber)
 
-	get_tree().root.theme = mobile_theme
+	get_tree().root.theme = dusk_theme
 
 
 ## Phase 11b — Settings.accessibility_settings_changed handler.
@@ -410,6 +383,40 @@ func _apply_mobile_default_theme() -> void:
 ## each animation/haptic, so they don't need a re-apply step.
 func _on_accessibility_settings_changed() -> void:
 	_apply_mobile_default_theme()
+
+
+## v0.15.1 (Phase 14b) — layout_changed handler. Sets dirty flags
+## so `_process` can drain them once per frame regardless of how
+## many `size_changed` events the OS fired this frame.
+func _on_layout_changed() -> void:
+	_safe_area_dirty = true
+	_orientation_dirty = true
+
+
+## v0.15.1 — drain dirty flags. Safe-area apply runs whenever the
+## flag is set (cheap — 4 theme constants). Orientation rebuild
+## only runs when `is_landscape` actually flipped from the last
+## applied value (heavy — composition root tear-down + 5 child
+## reparents). The "flip only" check is what makes a desktop window
+## resize cheap: drag fires hundreds of size_changed events but
+## landscape rarely flips, so the rebuild stays at zero.
+func _process(_delta: float) -> void:
+	if _safe_area_dirty:
+		_safe_area_dirty = false
+		_apply_safe_area_margins()
+	if _orientation_dirty:
+		_orientation_dirty = false
+		if DeviceLayout.is_landscape != _last_applied_landscape:
+			_last_applied_landscape = DeviceLayout.is_landscape
+			_apply_orientation_layout()
+
+
+## Test helper — reset counters before a per-frame resize burst.
+## Live gameplay never calls this; only the latency regression test
+## does, before staging the burst.
+func reset_layout_apply_counters() -> void:
+	safe_area_apply_count = 0
+	orientation_apply_count = 0
 
 
 ## Phase 13b — re-apply DeviceLayout.safe_area to the root margin
@@ -427,6 +434,7 @@ func _apply_safe_area_margins() -> void:
 	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
 	if view_size.x <= 0.0 or view_size.y <= 0.0:
 		return
+	safe_area_apply_count += 1
 	var top: int = int(max(0.0, safe.position.y))
 	var left: int = int(max(0.0, safe.position.x))
 	var right: int = int(max(0.0, view_size.x - (safe.position.x + safe.size.x)))
@@ -756,6 +764,7 @@ func _build_nav_buttons() -> void:
 func _apply_orientation_layout() -> void:
 	if _safe_margin == null:
 		return
+	orientation_apply_count += 1
 	# Detach persistent children from any current parent so they can
 	# be safely re-added under the new composition root. `remove_child`
 	# is a no-op if the parent is null.

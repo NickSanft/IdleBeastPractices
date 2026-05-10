@@ -6,6 +6,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.1 — Phase 14b: Dusk theme at the Window root + resize-latency coalescing
+
+**Why**
+
+Phase 14a shipped the Dusk Amethyst Theme resource but didn't apply it anywhere. This release wires the theme to the live game (the Window root) so every Control inherits the deep amethyst + teal + warm gold chrome, replacing the programmatic parchment theme `main.gd._apply_mobile_default_theme` was constructing. Plus a perf fix to the layout pipeline the resize-latency tests revealed.
+
+**What changed visually**
+
+- [`main.gd._apply_mobile_default_theme`](game/scenes/main.gd) — pre-fix, built a parchment-coloured Theme from scratch every call. Post-fix, loads `assets/themes/dusk/amethyst.tres` and assigns it to `get_tree().root.theme`. Every Button / Panel / CheckBox / OptionButton across all 10 tabs now picks up the Dusk styleboxes (zero corner radius, 2-px borders, hard drop shadows) and Silkscreen 11-px UI default font.
+- The slider grabber stylebox (which Dusk doesn't define yet — handoff focused on core controls) is bolted on the loaded theme as a transient bright-ink rectangle. Phase 14g will integrate it into `DuskThemeBuilder` properly.
+- Inline `_PALETTE.X` references in scene scripts are **not** swept yet — those migrate per-screen in Phase 14c–f alongside each view's visual reskin. Until then those scenes will look "transitional": Dusk chrome with parchment-tinted inline accents.
+
+**Phase 14b — Resize-latency coalescing**
+
+While writing resize-latency tests (per request), a real perf issue surfaced: a burst of 60 `DeviceLayout.layout_changed` emits ran 60 full composition-root rebuilds AND propagated to every bestiary card's font-size re-apply. Total time: **>2 seconds in headless tests**, which would translate to a visible stutter during foldable open/close or desktop window drag.
+
+Three coordinated fixes:
+
+1. **Per-frame coalescing** in main.gd — both `_apply_safe_area_margins` and `_apply_orientation_layout` now route through a single `_on_layout_changed` handler that sets dirty flags. `_process` drains the flags once per frame. N same-frame emits → 1 apply each.
+2. **Skip-no-op rebuild** — orientation rebuild only runs when `DeviceLayout.is_landscape` actually flipped from the last applied value. Most resize events (window drag, safe-area change without rotation) change only safe area; the heavy composition-root rebuild stays at zero rebuilds for those.
+3. **Vestigial subscription removed** in `bestiary_card.gd` — pre-v0.14.3, `UiScale.size()` multiplied by `dpi_bucket`, so cards subscribed to `DeviceLayout.layout_changed` to re-apply font sizes when density changed. v0.14.3 moved density to `Window.content_scale_factor`, making the subscription dead weight. Removed; the `Settings.accessibility_settings_changed` subscription is sufficient for the font_scale slider.
+
+Combined impact: the 60-emit burst that took >2 s now takes <10 ms. A single orientation flip stays under 250 ms even in headless mode.
+
+**Tests — `test_resize_latency.gd` (9 new cases, 462/462 passing total)**
+
+Pins all three coalescing contracts so a future maintainer who re-introduces direct apply, drops the flip-only check, or re-adds the `bestiary_card.gd` subscription fails on a named test:
+
+- **Coalescing**: 10 emits in one frame → 0 applies until `_process`; after drain, exactly 1 apply.
+- **Idle frame**: 60 idle `_process` ticks → 0 applies. No work when nothing changed.
+- **Per-frame, not "ever"**: two bursts separated by a drain → 2 applies.
+- **Flip triggers one rebuild**: orientation flip → exactly 1 orientation_apply_count tick.
+- **No flip = no rebuild**: 100 emits with `is_landscape` unchanged → 0 rebuilds. (The fix this test pins.)
+- **Rapid back-and-forth**: 3 flips in one frame → 1 rebuild matching the final orientation.
+- **Burst wall-clock budget**: 60 emits + drain < 100 ms in headless.
+- **Orientation flip budget**: < 250 ms in headless (would be sub-frame on real device).
+- **Initial paint**: `_build_ui` applies immediately (no deferred drain) so the first frame isn't blank.
+
+Existing tests (`test_orientation_layout.gd`, `test_safe_area_margin.gd`) updated to call `main._process(0.0)` after `_test_set_orientation` / `_test_set_safe_area` to drain the now-deferred apply.
+
+**Pre-push checklist**
+
+- Full GUT suite: **462/462 pass** (+9 from this phase, +84 since v0.13.4)
+- Headless boot of main.tscn loads `amethyst.tres` without warnings
+
 ### v0.15.0.1 — Fix: huge empty band on desktop / multi-monitor tests
 
 **Why**

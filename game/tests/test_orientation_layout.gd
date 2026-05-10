@@ -57,6 +57,9 @@ func test_orientation_flip_rebuilds_root() -> void:
 	# Boot in portrait, flip to landscape, assert root container type
 	# changed AND the persistent TabContainer instance is still alive
 	# in the new tree.
+	#
+	# v0.15.1 — orientation flips now coalesce through main._process,
+	# so the test must drain a frame after the flip before asserting.
 	DeviceLayout._test_set_orientation(false)
 	var main: Node = _instantiate_main()
 	var portrait_root: Control = main.get("_orientation_root")
@@ -64,6 +67,7 @@ func test_orientation_flip_rebuilds_root() -> void:
 	var tabs_id: int = main.get("_tabs").get_instance_id()
 
 	DeviceLayout._test_set_orientation(true)
+	main._process(0.0)
 
 	var landscape_root: Control = main.get("_orientation_root")
 	assert_ne(landscape_root.get_instance_id(), portrait_root_id,
@@ -92,6 +96,7 @@ func test_tab_children_survive_orientation_flip() -> void:
 		pre_flip_ids.append(child.get_instance_id())
 
 	DeviceLayout._test_set_orientation(true)
+	main._process(0.0)
 
 	var post_tabs: TabContainer = main.get("_tabs")
 	assert_eq(post_tabs.get_child_count(), pre_flip_count,
@@ -110,6 +115,7 @@ func test_active_tab_survives_orientation_flip() -> void:
 	assert_eq(tabs.current_tab, 1)
 
 	DeviceLayout._test_set_orientation(true)
+	main._process(0.0)
 
 	assert_eq(tabs.current_tab, 1,
 		"active tab must survive the flip — TabContainer instance is reparented, not recreated")

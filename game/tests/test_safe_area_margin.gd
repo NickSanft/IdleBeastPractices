@@ -84,6 +84,8 @@ func test_safe_area_change_propagates_to_margins() -> void:
 	DeviceLayout._test_set_safe_area(Rect2(
 			Vector2(0, float(status_bar)),
 			Vector2(view_size.x, view_size.y - float(status_bar + gesture_bar))))
+	# v0.15.1 — layout_changed coalesces through main._process.
+	main._process(0.0)
 
 	assert_eq(margin.get_theme_constant("margin_top"), status_bar,
 		"status bar should push content down by %d px" % status_bar)
@@ -104,6 +106,7 @@ func test_landscape_notch_inset_propagates() -> void:
 	DeviceLayout._test_set_safe_area(Rect2(
 			Vector2(float(notch), 0),
 			Vector2(view_size.x - float(notch), view_size.y)))
+	main._process(0.0)
 
 	assert_eq(margin.get_theme_constant("margin_left"), notch)
 	assert_eq(margin.get_theme_constant("margin_right"), 0,
