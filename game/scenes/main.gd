@@ -353,9 +353,20 @@ func _build_ui() -> void:
 func _apply_mobile_default_theme() -> void:
 	if not Settings.accessibility_settings_changed.is_connected(_on_accessibility_settings_changed):
 		Settings.accessibility_settings_changed.connect(_on_accessibility_settings_changed)
-	var dusk_theme: Theme = load("res://assets/themes/dusk/amethyst.tres")
+	# Phase 14f — subscribe to theme_changed so the Settings palette
+	# picker actually swaps the live theme without a scene reload.
+	if not Settings.theme_changed.is_connected(_on_theme_changed):
+		Settings.theme_changed.connect(_on_theme_changed)
+	# Phase 14f — load the .tres matching the player's chosen palette.
+	# Defaults to amethyst.tres on a fresh save (Settings.theme_id =
+	# "amethyst"). On disk-load this reflects the persisted choice.
+	var theme_path: String = "res://assets/themes/dusk/%s.tres" % Settings.theme_id
+	var dusk_theme: Theme = load(theme_path)
 	if dusk_theme == null:
-		push_error("[main] failed to load amethyst.tres — falling back to default")
+		push_error("[main] failed to load %s — falling back to amethyst" % theme_path)
+		dusk_theme = load("res://assets/themes/dusk/amethyst.tres")
+	if dusk_theme == null:
+		push_error("[main] failed to load amethyst.tres — using default")
 		return
 
 	# Slider grabber — Dusk doesn't define this yet (handoff focused
@@ -394,6 +405,15 @@ func _apply_mobile_default_theme() -> void:
 ## each animation/haptic, so they don't need a re-apply step.
 func _on_accessibility_settings_changed() -> void:
 	_apply_mobile_default_theme()
+
+
+## Phase 14f — Settings.theme_changed handler. Re-applies the .tres
+## matching the new `theme_id` to both the window root and Main's
+## subtree, then notifies the bottom nav to repaint its per-state
+## styleboxes (which read from PaletteDusk.active()).
+func _on_theme_changed() -> void:
+	_apply_mobile_default_theme()
+	_apply_nav_styleboxes()
 
 
 ## v0.15.1 (Phase 14b) — layout_changed handler. Sets dirty flags
@@ -774,8 +794,102 @@ func _build_nav_buttons() -> void:
 	_more_button.tooltip_text = "More tabs"
 	_more_button.pressed.connect(_on_more_pressed)
 
+	# Phase 14f — apply the styles.css `.tabbar` per-state styleboxes.
+	# Each primary nav button gets a `normal` (bg-deep + ink_mute text)
+	# and a `pressed`/`hover` (gold inset top bar + card_2 gradient bg
+	# + gold text) variant. Read from PaletteDusk.active() so a theme
+	# switch in Settings repaints the nav without code changes here.
+	_apply_nav_styleboxes()
+
 	# Initial selection: Catch (the home / main loop tab).
 	_set_active_nav("Catch")
+
+
+## Phase 14f — applies styles.css `.tabbar button` styleboxes to every
+## nav button. Called once at build time + again on Settings.theme_changed
+## so a palette swap repaints the bar live.
+##
+## styles.css contract:
+##   .tabbar button (normal)
+##     bg: var(--bg-deep)
+##     color: var(--ink-mute)
+##     border-right: 1px dashed var(--border-soft) (omitted in Godot —
+##       no per-edge dashed StyleBoxFlat support; we ship a solid
+##       border instead)
+##
+##   .tabbar button[data-active=true] (pressed / current tab)
+##     color: var(--gold)
+##     bg: linear-gradient(180deg, card_2, card)  → flat card_2 below
+##     box-shadow: inset 0 2px 0 var(--gold)  → 2-px gold top border
+##     box-shadow: inset 0 -2px 0 #00000080  → 2-px black bottom
+func _apply_nav_styleboxes() -> void:
+	if _nav_buttons.is_empty():
+		return
+	var palette: Dictionary = PaletteDusk.active()
+
+	# Normal state: flat bg_deep + ink_mute text + soft 1-px right border.
+	var normal_sb := StyleBoxFlat.new()
+	normal_sb.bg_color = palette["bg_deep"]
+	normal_sb.border_color = palette["border_soft"]
+	normal_sb.border_width_right = 1
+	normal_sb.border_width_top = 2   # styles.css `.tabbar` border-top
+	normal_sb.border_width_left = 0
+	normal_sb.border_width_bottom = 0
+	normal_sb.set_corner_radius_all(0)
+	normal_sb.content_margin_left = 6.0
+	normal_sb.content_margin_right = 6.0
+	normal_sb.content_margin_top = 8.0
+	normal_sb.content_margin_bottom = 8.0
+
+	# Hover state: subtle bg lift to bg_2 (slightly brighter purple).
+	var hover_sb: StyleBoxFlat = normal_sb.duplicate()
+	hover_sb.bg_color = palette["bg_2"]
+
+	# Pressed / active state: card_2 bg, 2-px gold inset top bar, dark
+	# inset bottom. styles.css uses a linear gradient card_2→card; flat
+	# card_2 is the cleanest StyleBoxFlat approximation.
+	var pressed_sb := StyleBoxFlat.new()
+	pressed_sb.bg_color = palette["card_2"]
+	pressed_sb.border_color = palette["gold"]
+	pressed_sb.border_width_top = 2
+	pressed_sb.border_width_right = 1
+	pressed_sb.border_width_left = 0
+	pressed_sb.border_width_bottom = 0
+	pressed_sb.set_corner_radius_all(0)
+	pressed_sb.content_margin_left = 6.0
+	pressed_sb.content_margin_right = 6.0
+	pressed_sb.content_margin_top = 8.0
+	pressed_sb.content_margin_bottom = 8.0
+	# Approximate the inset `box-shadow: inset 0 -2px 0 #00000080` via
+	# a slight shadow_offset; in practice the gold top border + card_2
+	# bg already telegraph "this is the active tab" clearly.
+
+	var ink_mute: Color = palette["ink_mute"]
+	var gold: Color = palette["gold"]
+
+	for btn in _nav_buttons.values():
+		btn.add_theme_stylebox_override("normal", normal_sb)
+		btn.add_theme_stylebox_override("hover", hover_sb)
+		btn.add_theme_stylebox_override("pressed", pressed_sb)
+		# Toggle buttons also paint a `pressed` stylebox while held
+		# AND a `hover_pressed` while hovered-while-active. Both should
+		# match the active state.
+		btn.add_theme_stylebox_override("hover_pressed", pressed_sb)
+		btn.add_theme_color_override("font_color", ink_mute)
+		btn.add_theme_color_override("font_pressed_color", gold)
+		btn.add_theme_color_override("font_hover_color", ink_mute)
+		btn.add_theme_color_override("font_hover_pressed_color", gold)
+		btn.add_theme_color_override("font_focus_color", gold)
+
+	# More button uses the same styling — but it's a non-toggle Button
+	# so only the normal/hover states apply. The pressed state still
+	# paints during the brief moment of tap-down for visual confirmation.
+	if _more_button != null:
+		_more_button.add_theme_stylebox_override("normal", normal_sb)
+		_more_button.add_theme_stylebox_override("hover", hover_sb)
+		_more_button.add_theme_stylebox_override("pressed", pressed_sb)
+		_more_button.add_theme_color_override("font_color", ink_mute)
+		_more_button.add_theme_color_override("font_pressed_color", gold)
 
 
 ## Phase 13c.2 — orientation-aware root composition.

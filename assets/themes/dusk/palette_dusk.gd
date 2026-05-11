@@ -56,6 +56,39 @@ static func by_id(id_str: String) -> Dictionary:
 	return _amethyst()
 
 
+## Phase 14f — returns the palette dict matching the currently-active
+## Dusk variant (`Settings.theme_id`). New code should prefer
+## `PaletteDusk.active()` over `PaletteDusk.amethyst()` so a theme
+## switch in Settings actually swaps the inline color overrides at
+## runtime. Existing code that hardcodes `amethyst()` will continue to
+## render Amethyst-colored highlights regardless of theme_id — those
+## sites migrate to `.active()` as scenes are touched in 14f / 14g.
+static func active() -> Dictionary:
+	# Defensive: Settings is an autoload + always available in-game,
+	# but unit tests / one-off SceneTree runs may instantiate a
+	# PaletteDusk before autoloads are registered. Fall back to
+	# Amethyst (the default theme_id) in that case.
+	if not Engine.has_singleton("Settings") and not _settings_is_loaded():
+		return _amethyst()
+	var id: String = Settings.theme_id if _settings_is_loaded() else "amethyst"
+	return by_id(id)
+
+
+## Detect whether the `Settings` autoload is actually attached to the
+## scene tree. `Engine.has_singleton` would only return true for
+## native singletons; for GDScript autoloads we check the root via
+## `_settings_is_loaded`. Wrapped so the editor-time tooling that
+## reads palette tokens at .tres-build time doesn't crash.
+static func _settings_is_loaded() -> bool:
+	var root := Engine.get_main_loop()
+	if root == null:
+		return false
+	if not (root is SceneTree):
+		return false
+	var st: SceneTree = root
+	return st.root.has_node("Settings")
+
+
 # region — palette definitions
 
 static func _amethyst() -> Dictionary:

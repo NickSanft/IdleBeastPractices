@@ -6,6 +6,56 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.5 — Phase 14f: Dusk tab-bar + runtime palette switcher (Amethyst / Twilight / Ember)
+
+**Why**
+
+The bottom nav was the last piece of catch-screen chrome still painted with Godot's default Button stylebox — a flat dark bar with no gold-pressed-state for the active tab. Phase 14f reskins it per styles.css `.tabbar` (bg-deep base + gold inset top bar on the active tab + card_2 gradient bg) and adds the runtime palette switcher that's been part of the plan since Phase 14a shipped the three .tres files: Amethyst (default purple), Twilight (deep teal), Ember (rose plum).
+
+**What changed**
+
+- **`Settings.theme_id` new field** — String, defaults to `"amethyst"`. One of `THEME_AMETHYST` / `THEME_TWILIGHT` / `THEME_EMBER`. Persisted to `settings.cfg` under the `[theme]` section. `set_theme_id(id)` setter clamps unknown ids back to Amethyst (defensive against a future palette removal breaking a save) and emits the new `theme_changed` signal.
+- **`PaletteDusk.active()` new helper** — reads `Settings.theme_id` and returns the matching palette dict. Existing code keeps calling `.amethyst()` and renders Amethyst-colored highlights; new code calls `.active()` so palette swaps actually swap inline color overrides. `_settings_is_loaded()` guards the autoload lookup so editor-time tooling that runs before Settings is registered doesn't crash.
+- **`main.gd._apply_mobile_default_theme` reads `Settings.theme_id`** — loads `res://assets/themes/dusk/<theme_id>.tres` at startup. Subscribes to `Settings.theme_changed` so a runtime palette swap (`Settings.set_theme_id`) re-applies the theme to both the window root and Main's subtree without a scene reload.
+- **`main.gd._build_nav_buttons` + new `_apply_nav_styleboxes`** — per-state styleboxes match styles.css `.tabbar button`:
+  - **normal**: `bg_deep` fill + 2-px top border (the tab-bar's gold-bordered separator from the content above) + 1-px `border_soft` right border + 8-px vertical padding for tap-target
+  - **hover**: `bg_2` fill (subtle lift)
+  - **pressed / hover_pressed**: `card_2` fill + 2-px gold top border (the active-tab gold inset bar per styles.css `[data-active] { box-shadow: inset 0 2px 0 var(--gold) }`)
+  - **font colors**: `ink_mute` normal, `gold` pressed/focus
+  - Active nav button shows the gold inset bar via `Button.button_pressed = true` (toggle_mode preserved). Called again on `theme_changed` so a palette swap repaints the bar live.
+- **`settings_view.gd` Theme section new** — sits at the top of Settings so the whole rest of the screen demos the choice the moment you tap a palette. Three toggle-Buttons in an HBox:
+  - Each button is itself tinted to its palette's `card` color (Amethyst purple / Twilight teal / Ember rose) so the picker reads as a tactile palette demo strip
+  - Active button: 2-px gold border + `card_2` bg + gold text (matches the `.tabbar [data-active]` look for a consistent "this is the active state" affordance)
+  - 58-dp tap-target floor (`UiScale.tap_target()`)
+- **`settings_view.gd` parchment palette sweep** — 8 lingering `_PALETTE.SEPIA_MID` / `_PALETTE.BLOOD_RUBY` references → `PaletteDusk.active()` tokens (`ink_dim` for secondary text, `danger` for the wipe-save destructive cue). `palette_colors.gd` preload is gone from this file.
+
+**Tests — 14 new (test_theme_picker) + 4 visual-regression assertions, 534/534 passing total**
+
+- **`test_theme_picker.gd` (14 new)** covers the full theme-switcher loop:
+  - **Settings.theme_id contract**: default value, setter clamps unknown ids, setter emits `theme_changed` on real changes (not no-ops), persistence round-trip via `save_to_disk` / `load_from_disk`
+  - **PaletteDusk.active()**: returns Amethyst by default, Twilight when theme_id flips, Ember when flips again — each verified by token comparison against the canonical palette
+  - **settings_view picker**: renders 3 buttons (one per VALID_THEME_IDS), initial pressed state matches `Settings.theme_id`, pressing a button propagates through to `Settings.set_theme_id`
+  - **main.gd repaint**: persisted theme_id loads the matching .tres at boot; `theme_changed` swaps `get_tree().root.theme.resource_path` live; nav button stylebox bg_color updates to the new palette's `bg_deep` after a swap
+- **`test_visual_regression.gd` gains 4 new structural assertions**:
+  - `nav_buttons_paint_with_dusk_bg_deep_stylebox` — pins the styles.css `.tabbar` bg per primary nav button
+  - `nav_active_button_paints_with_gold_top_border` — pins the styles.css `[data-active] { box-shadow: inset 0 2px 0 var(--gold) }` semantic via the pressed stylebox border
+  - `settings_view_does_not_load_parchment_palette` — file-content lint guarding against `palette_colors.gd` regression in settings_view
+  - `palette_dusk_active_reads_settings_theme_id` — pins the central indirection that lets a Settings palette swap reach inline color overrides
+
+**Caught a real regression**
+
+The first full-suite run after the changes showed a single flake on a stale `user://settings.cfg` (a previous test had written a non-default `theme_id` and reset only in-memory, not on disk). Two consecutive clean runs after fixing the test's `Settings.save_to_disk()` reset confirm the state-leakage is gone.
+
+**Migration notes for follow-up work**
+
+Scenes that still hardcode `PaletteDusk.amethyst()` for inline color overrides (currency_chip, tier ribbon, monster_instance, peniber_ribbon, intro overlay, bestiary_card, catching_background) continue to render Amethyst-colored highlights regardless of the active palette. Their `Theme.tres`-driven chrome (panel bg, button bg, button states, fonts) DOES follow the active palette via the `theme = load(...)` swap at the root, which is the loudest visual signal. Migrating each scene to `.active()` + subscribing to `theme_changed` for inline overrides is scoped as a 14g polish pass — would be a multi-file chrome sweep and not all scenes benefit (e.g., the catching_background shader has fixed-color uniforms).
+
+**Pre-push checklist**
+
+- Full GUT suite: **534/534 pass** (+18 from this phase)
+- API surface preserved: no caller of `PaletteDusk.amethyst()` had to change
+- Settings.cfg persists `[theme]` section; existing saves load with `theme_id = "amethyst"` (the default for an unset key)
+
 ### v0.15.4 — Phase 14e: Dusk Peniber dialog ribbon + first-launch intro overlay
 
 **Why**

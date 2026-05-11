@@ -492,6 +492,75 @@ func test_peniber_intro_dot_count_matches_beats() -> void:
 # endregion
 
 
+# region — Phase 14f bottom nav repaint + Settings theme picker
+#
+# v0.15.5 — Phase 14f swaps the parchment-era flat tab bar for the
+# styles.css `.tabbar` look (bg-deep base + per-state gold inset bar
+# on the active tab) and adds a 3-button palette switcher in Settings.
+# Structural assertions catch the regression class where someone
+# reverts the styleboxes or forgets to subscribe to theme_changed.
+
+
+func test_nav_buttons_paint_with_dusk_bg_deep_stylebox() -> void:
+	# styles.css `.tabbar` bg: var(--bg-deep). After main._ready, every
+	# primary nav button must have a `normal` stylebox sourced from
+	# the active palette's bg_deep. A regression that drops the
+	# stylebox override falls back to the theme's default button bg
+	# (card_2) — visible as a much-brighter tab bar.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var main: Node = _instantiate_main()
+	await wait_frames(2)
+	var nav_buttons: Dictionary = main._nav_buttons
+	var expected: Color = PaletteDusk.amethyst()["bg_deep"]
+	for btn_name in nav_buttons:
+		var btn: Button = nav_buttons[btn_name]
+		var sb: StyleBoxFlat = btn.get_theme_stylebox("normal")
+		assert_eq(sb.bg_color, expected,
+			"%s nav button normal stylebox must paint bg_deep per styles.css `.tabbar`" % btn_name)
+
+
+func test_nav_active_button_paints_with_gold_top_border() -> void:
+	# styles.css `.tabbar button[data-active=true]`:
+	#   box-shadow: inset 0 2px 0 var(--gold)
+	# In Godot terms: pressed stylebox has a 2-px gold top border.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var main: Node = _instantiate_main()
+	await wait_frames(2)
+	var nav_buttons: Dictionary = main._nav_buttons
+	var expected_gold: Color = PaletteDusk.amethyst()["gold"]
+	for btn_name in nav_buttons:
+		var btn: Button = nav_buttons[btn_name]
+		var sb: StyleBoxFlat = btn.get_theme_stylebox("pressed")
+		assert_eq(sb.border_color, expected_gold,
+			"%s pressed stylebox border must be Dusk gold per styles.css `[data-active=true]`" % btn_name)
+		assert_eq(sb.border_width_top, 2,
+			"%s pressed stylebox must have a 2-px top border (gold inset bar)" % btn_name)
+
+
+func test_settings_view_does_not_load_parchment_palette() -> void:
+	# v0.15.5 sweep: settings_view's parchment _PALETTE refs are gone.
+	# Mirrors the popup-sweep lint test above so a future maintainer
+	# who re-introduces palette_colors.gd fails by file:line.
+	var f := FileAccess.open("res://game/scenes/ui/settings_view.gd", FileAccess.READ)
+	assert_not_null(f)
+	var content: String = f.get_as_text()
+	f.close()
+	assert_false(content.contains("palette_colors.gd"),
+		"settings_view must NOT preload the parchment palette_colors.gd — use PaletteDusk")
+
+
+func test_palette_dusk_active_reads_settings_theme_id() -> void:
+	# PaletteDusk.active() is the central indirection that lets a
+	# Settings palette swap reach inline color overrides. If a
+	# refactor removes the Settings.theme_id read, this test fails.
+	Settings.theme_id = Settings.THEME_TWILIGHT
+	var active: Dictionary = PaletteDusk.active()
+	assert_eq(active["bg_deep"], PaletteDusk.twilight()["bg_deep"])
+	Settings.theme_id = Settings.THEME_AMETHYST
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:

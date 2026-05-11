@@ -6,6 +6,10 @@ signal audio_settings_changed
 ## UI subscribers (theme font-size, reduce-motion-gated tweens) can
 ## refresh without a full scene reload.
 signal accessibility_settings_changed
+## Phase 14f — emitted whenever the active Dusk palette changes
+## (Amethyst / Twilight / Ember). Subscribers re-resolve their cached
+## palette colors and rebuild any inline stylebox overrides.
+signal theme_changed
 
 const SETTINGS_PATH := "user://settings.cfg"
 
@@ -55,6 +59,16 @@ const HOLD_TAP_RATE_MAX := 16.0
 ## color so players who can't distinguish certain colors still parse
 ## the state. Defaults off — color-blind users opt in via Settings.
 var colorblind_mode: bool = false
+
+## Phase 14f — Dusk palette identifier. One of "amethyst" / "twilight"
+## / "ember" per PaletteDusk.by_id(). Drives both the Theme.tres
+## assignment at the window root and the live `PaletteDusk.active()`
+## lookup that scenes use for inline color overrides. Persisted.
+const THEME_AMETHYST := "amethyst"
+const THEME_TWILIGHT := "twilight"
+const THEME_EMBER := "ember"
+const VALID_THEME_IDS: Array[String] = [THEME_AMETHYST, THEME_TWILIGHT, THEME_EMBER]
+var theme_id: String = THEME_AMETHYST
 
 # Dev toggles — not persisted to disk. Bound to keyboard shortcuts in main.gd.
 # Default off so production builds use the real catch threshold (25) and
@@ -144,6 +158,20 @@ func set_colorblind_mode(value: bool) -> void:
 	save_to_disk()
 
 
+## Phase 14f — switch the active Dusk palette. Unknown ids fall back
+## to Amethyst (matching PaletteDusk.by_id behaviour) so persisted
+## values from a future palette set that's been removed don't break
+## startup. Emits `theme_changed` so main.gd + live UI subscribers
+## reload the matching `.tres` and re-resolve cached palette colors.
+func set_theme_id(value: String) -> void:
+	var clamped: String = value if VALID_THEME_IDS.has(value) else THEME_AMETHYST
+	if theme_id == clamped:
+		return
+	theme_id = clamped
+	theme_changed.emit()
+	save_to_disk()
+
+
 func _ready() -> void:
 	load_from_disk()
 
@@ -164,6 +192,10 @@ func load_from_disk() -> void:
 	hold_tap_rate_hz = cfg.get_value("accessibility", "hold_tap_rate_hz", hold_tap_rate_hz)
 	colorblind_mode = cfg.get_value("accessibility", "colorblind_mode", colorblind_mode)
 	battle_speed_index = cfg.get_value("gameplay", "battle_speed_index", battle_speed_index)
+	# Phase 14f: load Dusk palette id with a safety net for unknown
+	# values (a future palette removal shouldn't crash startup).
+	var loaded_theme: String = cfg.get_value("theme", "id", theme_id)
+	theme_id = loaded_theme if VALID_THEME_IDS.has(loaded_theme) else THEME_AMETHYST
 
 
 func save_to_disk() -> void:
@@ -178,4 +210,5 @@ func save_to_disk() -> void:
 	cfg.set_value("accessibility", "hold_tap_rate_hz", hold_tap_rate_hz)
 	cfg.set_value("accessibility", "colorblind_mode", colorblind_mode)
 	cfg.set_value("gameplay", "battle_speed_index", battle_speed_index)
+	cfg.set_value("theme", "id", theme_id)
 	cfg.save(SETTINGS_PATH)
