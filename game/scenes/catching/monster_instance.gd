@@ -333,12 +333,57 @@ func play_catch_and_despawn() -> void:
 	flash_tween.tween_callback(_start_catch_despawn_tween)
 
 
+## Phase 14g — styles.css `mon-catch` keyframes:
+##   0%:   scale(1)   rotate(0°)    opacity(1)
+##   60%:  scale(1.2) rotate(+8°)
+##   100%: scale(0.1) rotate(-20°)  opacity(0)   translateY(+24)
+##
+## Total duration 360 ms ease-in. Reads like a startled-snatch + drop:
+## the monster expands and turns one way, then shrinks-and-twists the
+## opposite way as it disappears downward. Replaces the parchment-era
+## flat fade.
+##
+## `reduce_motion` keeps the original 18-frame fade behaviour — no
+## scale punch, no rotation, just a clean alpha-out.
 func _start_catch_despawn_tween() -> void:
+	if Settings.reduce_motion:
+		_play_reduced_catch_despawn()
+		return
+
+	# Phase 1 (0→60%, 0..216 ms): scale up to 1.2 + tilt +8°. The
+	# sprite's scale magnitude was `_facing * _RENDER_SCALE` (e.g.
+	# +3.0 or -3.0); multiply by 1.2 for the punch, preserving the
+	# facing sign so a left-facing monster stays left-facing.
+	var base_scale_x: float = float(_facing) * _RENDER_SCALE
+	var t: Tween = create_tween()
+	t.set_ease(Tween.EASE_IN)
+	var phase1_secs: float = 0.216   # 60% of 360 ms
+	t.set_parallel(true)
+	t.tween_property(_sprite, "scale", Vector2(base_scale_x * 1.2, _RENDER_SCALE * 1.2), phase1_secs)
+	t.tween_property(_sprite, "rotation_degrees", 8.0, phase1_secs)
+
+	# Phase 2 (60→100%, 216..360 ms): scale crashes to 0.1, rotation
+	# swings to -20°, sprite drops +24 px, alpha fades to 0.
+	var phase2_secs: float = 0.144   # 40% of 360 ms
+	var start_y: float = _sprite.position.y
+	t.chain().set_parallel(true)
+	t.tween_property(_sprite, "scale", Vector2(base_scale_x * 0.1, _RENDER_SCALE * 0.1), phase2_secs)
+	t.tween_property(_sprite, "rotation_degrees", -20.0, phase2_secs)
+	t.tween_property(_sprite, "position:y", start_y + 24.0, phase2_secs)
+	t.tween_property(_sprite, "modulate:a", 0.0, phase2_secs)
+
+	t.chain().tween_callback(func() -> void:
+		caught_self.emit(self)
+		queue_free())
+
+
+## reduce_motion fallback: matches the pre-14g flat fade so motion-
+## sensitive players don't see the new scale/rotate punch.
+func _play_reduced_catch_despawn() -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(_sprite, "scale", Vector2(float(_facing) * _RENDER_SCALE * 1.4, _RENDER_SCALE * 1.4), 0.15)
 	tween.tween_property(_sprite, "modulate:a", 0.0, 0.18)
 	tween.chain().tween_callback(func() -> void:
 		caught_self.emit(self)
-		queue_free()
-	)
+		queue_free())

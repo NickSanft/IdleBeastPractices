@@ -116,6 +116,9 @@ func _ready() -> void:
 	_apply_tier_palette(_current_tier())
 	if EventBus.has_signal("tier_unlocked"):
 		EventBus.tier_unlocked.connect(_on_tier_unlocked)
+	# Phase 14g — repaint the map shader's bg / accent uniforms when
+	# the player swaps palette in Settings.
+	Settings.theme_changed.connect(_on_theme_changed)
 	# Track viewport size so the shader's `viewport_px` uniform stays
 	# in sync with the actual draw area. styles.css's pixel-scale
 	# overlays (16-px band, 4-px scanline) need this to keep their
@@ -185,6 +188,12 @@ func _on_tier_unlocked(_tier: int) -> void:
 	_apply_tier_palette(_current_tier())
 
 
+## Phase 14g — Settings.theme_changed handler. Re-applies the shader
+## uniforms with the new palette's bg / accent tokens.
+func _on_theme_changed() -> void:
+	_apply_tier_palette(_current_tier())
+
+
 func _current_tier() -> int:
 	if Engine.is_editor_hint():
 		return 1
@@ -201,7 +210,10 @@ func _current_tier() -> int:
 func _apply_tier_palette(tier: int) -> void:
 	if _map_material == null:
 		return
-	var palette: Dictionary = _DUSK.amethyst()
+	# Phase 14g — read the currently-active palette so a Settings palette
+	# swap reaches the shader uniforms. The map's base colors all come
+	# from this lookup; the per-tier band picks one accent token from it.
+	var palette: Dictionary = _DUSK.active()
 	# Pass the base bg / bg_2 verbatim — the stripe stays the same
 	# Dusk amethyst regardless of tier; only the *accent* glow shifts
 	# per tier band for a subtle visual progression cue.

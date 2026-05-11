@@ -561,6 +561,97 @@ func test_palette_dusk_active_reads_settings_theme_id() -> void:
 # endregion
 
 
+# region — Phase 14g polish: L-brackets + float-gain + catch anim + toast
+#
+# v0.15.6 — Phase 14g completes the Dusk pixel-RPG look with the
+# deferred polish: gold L-bracket corners on every pixel-card, a
+# scale-punch float-gain animation, a scale+rotate catch despawn,
+# and a gold-bordered toast. These tests pin the structural contracts.
+
+const _GOLD_BRACKETS_SCRIPT := preload("res://game/scenes/ui/gold_brackets.gd")
+const _FLOATING_NUMBER_SCENE_14G := preload("res://game/scenes/ui/floating_number.tscn")
+const _TOAST_SCENE := preload("res://game/scenes/ui/toast.tscn")
+
+
+func test_currency_chip_carries_gold_brackets() -> void:
+	# Every currency pill is a pixel-card per styles.css; the gold
+	# L-bracket corner trim is part of the chrome. A refactor that
+	# drops the brackets falls back to a card with no RPG-window trim.
+	var chip: PanelContainer = _CURRENCY_CHIP_SCENE.instantiate()
+	add_child_autofree(chip)
+	chip.configure("G", Color("#f5c46b"), "Gold", "")
+	await wait_frames(1)
+	assert_not_null(chip._brackets,
+		"currency_chip must carry a gold-brackets decoration child")
+	assert_eq(chip._brackets.get_script(), _GOLD_BRACKETS_SCRIPT,
+		"_brackets must be a GoldBrackets Control")
+
+
+func test_floating_number_uses_uitiny_variation() -> void:
+	# styles.css `.float-gain`: var(--font-ui) 11 px. UiTiny is the
+	# Silkscreen variation in dusk_theme_builder.
+	var label: Label = _FLOATING_NUMBER_SCENE_14G.instantiate()
+	add_child_autofree(label)
+	label.call("configure", "1", false)
+	await wait_frames(1)
+	assert_eq(label.theme_type_variation, &"UiTiny",
+		"float-gain must use UiTiny (Silkscreen) variation per styles.css")
+
+
+func test_toast_repaints_on_theme_changed() -> void:
+	# The toast banner's stylebox (card bg + 2-px gold border) reads
+	# from PaletteDusk.active() and must update on Settings.theme_changed.
+	# A regression that drops the subscription would leave the toast
+	# painted with the previous palette after a Settings swap.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var toast: CanvasLayer = _TOAST_SCENE.instantiate()
+	add_child_autofree(toast)
+	await wait_frames(1)
+	var sb0: StyleBoxFlat = toast._banner.get_theme_stylebox("panel")
+	assert_eq(sb0.bg_color, PaletteDusk.amethyst()["card"])
+	Settings.set_theme_id(Settings.THEME_EMBER)
+	await wait_frames(1)
+	var sb1: StyleBoxFlat = toast._banner.get_theme_stylebox("panel")
+	assert_eq(sb1.bg_color, PaletteDusk.ember()["card"],
+		"toast must repaint its bg with the new palette's card token on theme_changed")
+	# Reset for following tests.
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_tier_ribbon_repaints_on_theme_changed() -> void:
+	# Phase 14g migration: the tier ribbon's badge bg + bar fill +
+	# ribbon border are now sourced from PaletteDusk.active(). A
+	# palette swap must update the cached stylebox bg_color +
+	# _bar_fill.color so the ribbon visually matches the new palette.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var ribbon: PanelContainer = _NEXT_GOAL_CHIP_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(2)
+	assert_eq(ribbon._bar_fill.color, PaletteDusk.amethyst()["teal"])
+	Settings.set_theme_id(Settings.THEME_EMBER)
+	await wait_frames(1)
+	assert_eq(ribbon._bar_fill.color, PaletteDusk.ember()["teal"],
+		"tier ribbon fill must repaint with the new palette's teal on theme_changed")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_catching_background_repaints_on_theme_changed() -> void:
+	# Map shader uniforms (bg / accent) must follow palette swaps.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var bg_scene := preload("res://game/scenes/catching/catching_background.tscn")
+	var bg = bg_scene.instantiate()
+	add_child_autofree(bg)
+	await wait_frames(1)
+	Settings.set_theme_id(Settings.THEME_TWILIGHT)
+	await wait_frames(1)
+	var bg_color: Color = bg._map_material.get_shader_parameter("bg_color")
+	assert_almost_eq(bg_color.r, PaletteDusk.twilight()["bg"].r, 0.001,
+		"map shader bg_color must follow Settings.theme_id after theme_changed")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:

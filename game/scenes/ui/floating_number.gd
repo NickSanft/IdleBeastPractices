@@ -1,36 +1,146 @@
-## Floating "+12 g" feedback that tweens up and fades on every catch.
+## Phase 14g — Dusk float-gain reskin.
 ##
-## Self-frees when the tween completes. The catching view spawns one of these
-## per catch, parented near the monster's position.
+## Reskinned per `docs/design_handoff_theming/reference_files/styles.css`
+## `.float-gain` block. Replaces the parchment-era "+12 g" Label
+## tween (drift-up + fade) with the pixel-RPG version: Silkscreen 11
+## px, 1-px hard black drop-shadow, scale-punch + lift on spawn,
+## drift-up + fade on exit. Item floats use teal (drops). Gold floats
+## use gold (currency). Shiny gets an extra ✨ prefix per the existing
+## `is_shiny` path.
+##
+## styles.css contract:
+##   font: var(--font-ui), 11 px
+##   color: var(--gold)   (currency)
+##   color: var(--teal)   (`.float-gain.item` — item drops)
+##   text-shadow: 1px 1px 0 #000, 2px 2px 0 #000000aa
+##   animation: float-up 1100ms ease-out forwards
+##
+## @keyframes float-up:
+##   0%:   translateY(0)   scale(0.7)   opacity(0)
+##   20%:  translateY(-8)  scale(1.1)   opacity(1)
+##   100%: translateY(-56) scale(1.0)   opacity(0)
+##
+## The pivot at `size * 0.5` is critical — without it the scale
+## animation pivots from the top-left and the number sweeps off
+## sideways. v0.10.b had this; preserved.
 extends Label
 
-const _DRIFT_PIXELS := 56.0
-const _DURATION := 1.0
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
+
+const _DURATION := 1.1   # styles.css 1100ms
+const _DRIFT_PIXELS := 56.0   # styles.css final translateY -56
+const _LIFT_PIXELS := 8.0     # styles.css 20% keyframe translateY -8
+
+## Configures the visual then returns self for fluent setup at the
+## call site. `is_item` paints teal (drops) instead of gold; `is_shiny`
+## adds a ✨ prefix and bumps font size for the rare-catch celebration.
+##
+## Backwards-compat: pre-14g callers pass only `(gold_text, is_shiny)`.
+## The 3rd `is_item` flag defaults to false so those calls keep painting
+## gold for currency.
+func configure(gold_text: String, is_shiny: bool = false, is_item: bool = false) -> Label:
+	var palette: Dictionary = _DUSK.active()
+	# styles.css: `+N g` for currency, `+1 ItemName` for item drops.
+	# Caller can already pass an item-formatted string for is_item=true;
+	# we just don't add the trailing " g".
+	if is_item:
+		text = gold_text   # caller pre-formats: "+1 Mushroom" etc.
+	else:
+		text = "+" + gold_text + " g"
+	if is_shiny:
+		text = "✨ " + text
+
+	# styles.css ink: gold for currency, teal for items. is_shiny gets
+	# a slightly brighter gold (uses the same gold token — the bright
+	# affect comes from the ✨ + size bump, not a different hue).
+	if is_item:
+		add_theme_color_override("font_color", palette["teal"])
+	else:
+		add_theme_color_override("font_color", palette["gold"])
+
+	# 1-px hard drop shadow per styles.css `text-shadow: 1px 1px 0 #000`.
+	# Godot Label exposes a single shadow color/offset via theme
+	# overrides. The styles.css second 2-px shadow is approximated by
+	# the bumped offset on shiny.
+	add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
+	add_theme_constant_override("shadow_offset_x", 1)
+	add_theme_constant_override("shadow_offset_y", 1)
+
+	if is_shiny:
+		add_theme_font_size_override("font_size", UiScale.size(13))
+	else:
+		add_theme_font_size_override("font_size", UiScale.size(11))
+
+	# Use UiTiny (Silkscreen) variation per styles.css `font-ui`.
+	theme_type_variation = &"UiTiny"
+	return self
 
 
 func _ready() -> void:
-	# Defaults; the spawner overrides text/modulate.
-	add_theme_font_size_override("font_size", UiScale.size(18))
 	z_index = 50
+	# Center the scale + pivot transforms on the label's own midpoint,
+	# not its top-left, so the scale animation feels like a punch out
+	# of the catch point rather than a sweep off to the right.
 	pivot_offset = size * 0.5
+
 	# v0.11.1 (Phase 11b): reduce_motion users see the number for a
-	# brief beat then it fades — no upward drift.
-	var tween: Tween = create_tween()
-	tween.set_parallel(true)
-	if not Settings.reduce_motion:
-		tween.tween_property(self, "position:y", position.y - _DRIFT_PIXELS, _DURATION)
-	tween.tween_property(self, "modulate:a", 0.0, _DURATION).set_delay(_DURATION * 0.4)
-	tween.chain().tween_callback(queue_free)
+	# brief beat with NO scale punch and NO drift — same intent
+	# (catch registered, gold awarded) without motion that triggers
+	# vestibular sensitivity.
+	if Settings.reduce_motion:
+		_play_reduced_motion()
+		return
+
+	_play_full_motion()
 
 
-## Configures the visual based on the gold amount and shiny flag, then
-## returns self for fluent setup at the call site.
-func configure(gold_text: String, is_shiny: bool) -> Label:
-	text = "+" + gold_text + " g"
-	if is_shiny:
-		text = "✨ " + text
-		modulate = Color(1.0, 0.95, 0.55)
-		add_theme_font_size_override("font_size", UiScale.size(22))
-	else:
-		modulate = Color(1.0, 0.86, 0.4)
-	return self
+## Phase 14g styles.css `float-up` keyframes:
+##   0%:   translateY(0)   scale(0.7)   opacity(0)
+##   20%:  translateY(-8)  scale(1.1)   opacity(1)  (~220 ms)
+##   100%: translateY(-56) scale(1.0)   opacity(0)  (~1100 ms)
+##
+## Implementation: chain two parallel tweens. Phase 1 (0→20%) is the
+## punch-out; phase 2 (20%→100%) is the drift-up + fade-out.
+##
+## ease-out applied to both phases so the punch decelerates and the
+## drift slows as it rises.
+func _play_full_motion() -> void:
+	var start_y: float = position.y
+	# Start state per 0% keyframe.
+	scale = Vector2(0.7, 0.7)
+	modulate.a = 0.0
+
+	var t: Tween = create_tween()
+	t.set_ease(Tween.EASE_OUT)
+
+	# Phase 1 (0→20%, 0..220 ms): punch up to scale 1.1 + fade in +
+	# small lift.
+	var phase1: float = _DURATION * 0.2
+	t.set_parallel(true)
+	t.tween_property(self, "scale", Vector2(1.1, 1.1), phase1)
+	t.tween_property(self, "modulate:a", 1.0, phase1)
+	t.tween_property(self, "position:y", start_y - _LIFT_PIXELS, phase1)
+
+	# Phase 2 (20→100%, 220..1100 ms): settle to scale 1.0, drift to
+	# -56 px, fade to 0.
+	var phase2: float = _DURATION * 0.8
+	t.chain().set_parallel(true)
+	t.tween_property(self, "scale", Vector2.ONE, phase2)
+	t.tween_property(self, "position:y", start_y - _DRIFT_PIXELS, phase2)
+	t.tween_property(self, "modulate:a", 0.0, phase2)
+
+	# Free the node once everything settles. `set_parallel(false)` on a
+	# fresh `chain()` segment so the callback fires AFTER the parallel
+	# phase 2 finishes, not in parallel with it.
+	t.chain().tween_callback(queue_free)
+
+
+## reduce_motion path: hold the number at full opacity briefly, then
+## fade. No scale punch, no drift. Same total duration as the full
+## motion so the call site's timing assumptions hold.
+func _play_reduced_motion() -> void:
+	modulate.a = 1.0
+	scale = Vector2.ONE
+	var t: Tween = create_tween()
+	t.tween_property(self, "modulate:a", 0.0, _DURATION * 0.4).set_delay(_DURATION * 0.6)
+	t.tween_callback(queue_free)

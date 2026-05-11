@@ -6,6 +6,80 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.6 — Phase 14g: Polish pass (gold L-brackets, float-gain, catch animation, toast, palette wiring)
+
+**Why**
+
+Phase 14a–14f shipped the Dusk pixel-RPG look across the full app surface. Phase 14g handles the deferred polish items that needed the rest of the system in place first: the gold L-bracket "RPG window" corner trim, the float-gain scale-punch keyframes, the catch despawn scale+rotate sequence, the gold-bordered toast, plus the palette migration that completes the runtime Settings switcher's reach.
+
+**What changed**
+
+- **`gold_brackets.gd` new reusable Control** — drops 4 L-shaped 6×2 + 2×6 px gold rects at every corner of any parent Control per styles.css `.pixel-card::before`. Renders via `_draw` (1 Control, 8 `draw_rect` calls — cheaper than 8 child ColorRects) and inset by -2 px past the parent's border to read as "RPG window" trim. Reads gold from `PaletteDusk.active()` and subscribes to `Settings.theme_changed` for live palette swap. mouse_filter = IGNORE so taps fall through.
+  - Wired into `currency_chip` (every currency pill now wears the L-bracket trim — Gold/RP/Prestige)
+  - Tier ribbon intentionally skipped (slim variant per styles.css `.tier-ribbon`, not a pixel-card)
+  - Bestiary cards + Peniber ribbon are 14h candidates if user feedback wants them
+
+- **`floating_number.gd` reskinned per styles.css `.float-gain`** — replaced the parchment-era drift-up + delayed-fade Label with the Dusk three-phase keyframes:
+  - 0%: scale 0.7, opacity 0 (starts invisible)
+  - 20% (~220 ms): scale 1.1, opacity 1, lift -8 px (punch-in peak)
+  - 100% (~1100 ms): scale 1.0, opacity 0, drift -56 px
+  - **Gold** for currency (`+12 g`), **teal** for item drops (`+1 Mushroom`) — `is_item` flag added to `configure(gold_text, is_shiny, is_item)`
+  - UiTiny (Silkscreen) theme_type_variation; 1-px hard black drop shadow via font_shadow theme overrides
+  - reduce_motion path preserved: hold at full alpha then fade, no scale punch / drift
+
+- **Monster catch animation per styles.css `mon-catch` keyframes** (`monster_instance._start_catch_despawn_tween`):
+  - 0%: scale 1.0, rotation 0°, opacity 1
+  - 60% (~216 ms): scale 1.2, rotation +8° (startled-snatch lift)
+  - 100% (~360 ms): scale 0.1, rotation -20°, drop +24 px, opacity 0 (twist-and-drop disappear)
+  - Reads like "startled, expanded, then yanked sideways into the net" instead of the parchment-era flat fade
+  - reduce_motion fallback: keeps the pre-14g 18-frame fade behaviour so motion-sensitive players see the simpler version
+
+- **`toast.gd` reskinned per styles.css `.toast`** — gold-bordered card-on-card banner:
+  - bg = `card`, 2-px gold border, gold text (was: dark text on parchment bg)
+  - Anchored 96 px from top (clears HUD + tier ribbon)
+  - 240 ms slide-in + 1.6 s hold + 240 ms slide-out (was: 220 ms + 3 s — tighter cadence so toasts read as secondary beats during rapid-fire chains)
+  - UiCaption theme_type_variation (Silkscreen 9 px)
+  - Subscribes to `Settings.theme_changed` so a palette swap repaints the gold border + card bg live
+  - Public API preserved: `show_toast(text, duration)` + queue semantics unchanged
+
+- **`PaletteDusk.active()` migration in 2 more scenes** — completes the Phase 14f runtime palette switcher's reach:
+  - **`next_goal_chip` (tier ribbon)**: 7 `_DUSK.amethyst()` calls → `.active()`. New `_on_theme_changed` rebuilds the badge stylebox, bar bg border, fill ColorRect color, and the bbcode gold highlight in the name line. Subscribed via `EventBus`-style exit_tree cleanup.
+  - **`catching_background`**: shader uniforms (bg / bg_2 / accent / horizon / gold) now resolve through `.active()`. New `_on_theme_changed` re-runs `_apply_tier_palette` with the current tier so the live shader reflects the new palette.
+
+**Tests — 5 new + 5 visual-regression assertions + 1 rewritten, 546/546 passing total**
+
+- **`test_gold_brackets.gd` (4 new)** — pins decoration-only contract (mouse_filter = IGNORE), -2 px inset per styles.css, gold token sourced from active palette (not hardcoded), repaints on theme_changed
+- **`test_floating_number.gd` rewritten** for the new keyframe contract:
+  - `test_starts_at_zero_opacity_and_small_scale` — initial state pins the 0% keyframe (catches the parchment-era flat-show regression)
+  - `test_is_item_paints_teal_not_gold` — pins the styles.css `.float-gain.item` color
+  - `test_currency_float_paints_gold` — pins the styles.css `.float-gain` color
+  - `test_reduce_motion_holds_then_fades` — pins the accessibility branch
+- **`test_visual_regression.gd` gains 5 new structural assertions**:
+  - `currency_chip_carries_gold_brackets` — pins the new L-bracket decoration child
+  - `floating_number_uses_uitiny_variation` — pins the typography variation
+  - `toast_repaints_on_theme_changed` — pins the live palette swap subscription
+  - `tier_ribbon_repaints_on_theme_changed` — pins the fill ColorRect retint on palette swap
+  - `catching_background_repaints_on_theme_changed` — pins the shader uniform refresh
+
+**Catches a real regression**
+
+`gold_brackets.gd` initial static factory used `var brackets := load(...).new()` which Godot couldn't type-infer — the compiler bounced the entire `currency_chip.gd` because `gold_brackets.gd` failed to parse. Fixed by adding explicit `var script: GDScript = ...` + `var brackets: Control = script.new()` annotations. 16 cascading "Unexpected Errors" failures collapsed to clean once that parse error was resolved.
+
+The original `test_floating_number.test_drift_tween_fires_on_ready` asserted `modulate.a == 1.0` after 1 frame — true under the parchment-era flat-show animation, but false under the styles.css 0% keyframe (`opacity: 0`). Rewriting the test to assert the keyframe contract (starts at 0 + scale 0.7) caught the intended visual change and pinned the new contract.
+
+**Deferred to follow-up patches**
+
+- L-brackets on Peniber ribbon + bestiary cards (low-impact compared to currency pills; can land in a follow-up patch if user wants them)
+- Soft 24-px gold glow on the toast + intro overlay title (Godot Label/StyleBoxFlat shadow API doesn't support soft blur natively; would require a separate ColorRect-with-shader trick)
+- Catching screen vignette props (small ASCII labels at fixed % positions per styles.css `.vignette`); low gameplay impact
+- Pixel-art Peniber sprite (still a separate art commission per `PHASED_RESKIN_PLAN.md`)
+
+**Pre-push checklist**
+
+- Full GUT suite: **546/546 pass** (+12 from this phase)
+- No new lint warnings
+- API surface preserved: `floating_number.configure` is a *superset* (added optional `is_item` 3rd arg defaulting to false); every existing call site continues to render gold currency
+
 ### v0.15.5 — Phase 14f: Dusk tab-bar + runtime palette switcher (Amethyst / Twilight / Ember)
 
 **Why**

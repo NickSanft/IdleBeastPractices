@@ -25,6 +25,10 @@ extends PanelContainer
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
 const _TIER_DEBUG_THRESHOLD := 2
 const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
+# Tier ribbon is intentionally NOT a pixel-card (handoff uses a slim
+# variant — translucent black bg, no chunky 2-px border + drop shadow,
+# no gold L-bracket corners). The corner trim lives on the currency
+# pills + Peniber ribbon + bestiary cards instead.
 
 var _badge_label: Label
 var _name_label: RichTextLabel
@@ -50,7 +54,7 @@ func _ready() -> void:
 	# treatment is reserved for the currency pills + cards proper.
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.0, 0.0, 0.0, 0.4)
-	sb.border_color = _DUSK.amethyst()["border_soft"]
+	sb.border_color = _DUSK.active()["border_soft"]
 	sb.border_width_bottom = 2
 	sb.set_corner_radius_all(0)
 	sb.content_margin_left = 10.0
@@ -72,15 +76,15 @@ func _ready() -> void:
 	_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_badge_label.custom_minimum_size = Vector2(28, 22)
-	_badge_label.add_theme_color_override("font_color", _DUSK.amethyst()["ink"])
+	_badge_label.add_theme_color_override("font_color", _DUSK.active()["ink"])
 	_badge_label.add_theme_font_size_override("font_size", UiScale.size(9))
 	# Wrap the label in a PanelContainer so the 1-px border + card_2 bg
 	# of `.badge` is faithful to styles.css. The badge stylebox is
 	# distinct from the ribbon stylebox above.
 	var badge_panel := PanelContainer.new()
 	var badge_sb := StyleBoxFlat.new()
-	badge_sb.bg_color = _DUSK.amethyst()["card_2"]
-	badge_sb.border_color = _DUSK.amethyst()["border"]
+	badge_sb.bg_color = _DUSK.active()["card_2"]
+	badge_sb.border_color = _DUSK.active()["border"]
 	badge_sb.set_border_width_all(1)
 	badge_sb.set_corner_radius_all(0)
 	badge_sb.content_margin_left = 6.0
@@ -123,7 +127,7 @@ func _ready() -> void:
 	_bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bar_bg_sb := StyleBoxFlat.new()
 	bar_bg_sb.bg_color = Color(0.0, 0.0, 0.0, 0.5)
-	bar_bg_sb.border_color = _DUSK.amethyst()["border_soft"]
+	bar_bg_sb.border_color = _DUSK.active()["border_soft"]
 	bar_bg_sb.set_border_width_all(1)
 	bar_bg_sb.set_corner_radius_all(0)
 	# `Panel` reads `panel` from its own theme cascade; override the
@@ -133,7 +137,7 @@ func _ready() -> void:
 	hbox.add_child(_bar_bg)
 
 	_bar_fill = ColorRect.new()
-	_bar_fill.color = _DUSK.amethyst()["teal"]
+	_bar_fill.color = _DUSK.active()["teal"]
 	_bar_fill.anchor_left = 0.0
 	_bar_fill.anchor_top = 0.0
 	_bar_fill.anchor_right = 0.0   # bar is 0% wide until _refresh sets it
@@ -153,6 +157,10 @@ func _ready() -> void:
 	EventBus.monster_caught.connect(_on_monster_caught)
 	EventBus.tier_completed.connect(_on_tier_completed)
 	EventBus.game_loaded.connect(_refresh)
+	# Phase 14g — repaint the ribbon when the player swaps palette.
+	# The badge stylebox + bar bg border + fill color all read from
+	# `_DUSK.active()`, so a palette switch requires a stylebox rebuild.
+	Settings.theme_changed.connect(_on_theme_changed)
 	_refresh()
 
 
@@ -163,6 +171,44 @@ func _exit_tree() -> void:
 		EventBus.tier_completed.disconnect(_on_tier_completed)
 	if EventBus.game_loaded.is_connected(_refresh):
 		EventBus.game_loaded.disconnect(_refresh)
+	if Settings.theme_changed.is_connected(_on_theme_changed):
+		Settings.theme_changed.disconnect(_on_theme_changed)
+
+
+## Phase 14g — repaint when Settings.theme_id flips. Rebuilds the
+## styleboxes that snapshot palette colors at _ready, plus retints the
+## fill ColorRect + recomputes the bbcode gold highlight via _refresh.
+func _on_theme_changed() -> void:
+	var palette: Dictionary = _DUSK.active()
+	# Rebuild ribbon stylebox border.
+	var sb: StyleBoxFlat = get_theme_stylebox("panel")
+	if sb != null:
+		var new_sb: StyleBoxFlat = sb.duplicate()
+		new_sb.border_color = palette["border_soft"]
+		add_theme_stylebox_override("panel", new_sb)
+	# Badge ink + bg.
+	if _badge_label != null:
+		_badge_label.add_theme_color_override("font_color", palette["ink"])
+		var badge_panel: PanelContainer = _badge_label.get_parent() as PanelContainer
+		if badge_panel != null:
+			var badge_sb: StyleBoxFlat = badge_panel.get_theme_stylebox("panel")
+			if badge_sb != null:
+				var new_badge_sb: StyleBoxFlat = badge_sb.duplicate()
+				new_badge_sb.bg_color = palette["card_2"]
+				new_badge_sb.border_color = palette["border"]
+				badge_panel.add_theme_stylebox_override("panel", new_badge_sb)
+	# Bar bg border.
+	if _bar_bg != null:
+		var bar_sb: StyleBoxFlat = _bar_bg.get_theme_stylebox("panel")
+		if bar_sb != null:
+			var new_bar_sb: StyleBoxFlat = bar_sb.duplicate()
+			new_bar_sb.border_color = palette["border_soft"]
+			_bar_bg.add_theme_stylebox_override("panel", new_bar_sb)
+	# Fill color.
+	if _bar_fill != null:
+		_bar_fill.color = palette["teal"]
+	# _refresh rebuilds the bbcode name line (gold highlight color).
+	_refresh()
 
 
 func _on_monster_caught(_id: String, _ix: int, _is_shiny: bool, _src: String) -> void:
@@ -193,7 +239,7 @@ func _refresh() -> void:
 	# uses gold for the highlighted token; we wrap the remaining-count
 	# number in [color=...] to match.
 	var tier_name: String = _tier_name(tier)
-	var gold_hex: String = _DUSK.amethyst()["gold"].to_html(false)
+	var gold_hex: String = _DUSK.active()["gold"].to_html(false)
 	if missing.size() > 0:
 		_name_label.text = "%s · [color=#%s]%d species left[/color]" % [tier_name, gold_hex, missing.size()]
 	else:

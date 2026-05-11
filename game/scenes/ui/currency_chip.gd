@@ -56,6 +56,9 @@ var _glyph_label: Label
 var _lbl_label: Label
 var _value_label: Label
 var _progress: ProgressBar
+## Phase 14g — gold L-bracket corner trim per styles.css `.pixel-card::before`.
+const _GOLD_BRACKETS := preload("res://game/scenes/ui/gold_brackets.gd")
+var _brackets: Control
 
 enum _Kind { NONE, INT, BIG }
 
@@ -125,6 +128,11 @@ func _ready() -> void:
 	_progress.step = 0.0   # smooth interpolation, not snap
 	_progress.visible = false
 	stack.add_child(_progress)
+
+	# Phase 14g — gold L-bracket corner trim on every currency pill.
+	# Added last so it renders on top of the panel's stylebox.
+	_brackets = _GOLD_BRACKETS.new()
+	add_child(_brackets)
 
 	_refresh_label()
 
