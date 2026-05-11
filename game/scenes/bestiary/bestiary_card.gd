@@ -21,11 +21,18 @@
 ## Silhouettes for unseen species use a `ShaderMaterial` that samples
 ## texture alpha and outputs near-black RGB — works on top of the
 ## existing recolor placeholders without needing per-species art.
+##
+## Phase 14d: swept from the parchment palette to Dusk. Tier band
+## ribbon, name/count colors, and pill accents all read from
+## `PaletteDusk.amethyst()` so the card sits on the Dusk theme
+## without bright-on-bright legibility problems. The "perfected"
+## border now uses the Dusk gold instead of brass; square corners
+## (the handoff explicitly drops the 4-px corner radius).
 extends PanelContainer
 
 signal card_tapped(monster_id: StringName)
 
-const _PALETTE := preload("res://game/resources/palette_colors.gd")
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
 const _SPRITE_DISPLAY_SCALE := 2.0
 const _SPRITE_BOX: Vector2 = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
@@ -40,13 +47,14 @@ void fragment() {
 }
 """
 
-# Tier-band colors (color the top ribbon by every-5-tiers band).
-const _BAND_COLORS := {
-	0: Color(0.72, 0.55, 0.20, 1.0),   # tiers 1-5  brass
-	1: Color(0.75, 0.78, 0.82, 1.0),   # tiers 6-10 silver
-	2: Color(0.95, 0.78, 0.30, 1.0),   # tiers 11-15 gold
-	3: Color(0.20, 0.18, 0.22, 1.0),   # tiers 16-20 obsidian
-}
+# Tier-band ribbon colors. Phase 14d remap to Dusk accents:
+#   band 0 (1-5)   teal     — early-game cool
+#   band 1 (6-10)  gold     — mid-game warm
+#   band 2 (11-15) magenta  — late-game horizon
+#   band 3 (16-20) rose     — endgame danger accent
+# Keys are palette token names so a theme picker (Phase 14f) can swap
+# palettes without re-encoding the ribbon mapping.
+const _BAND_ACCENTS := ["teal", "gold", "magenta", "rose"]
 
 enum SlotState { LOCKED, SEEN, CAPTURED, PERFECTED }
 
@@ -148,7 +156,10 @@ func _build_layout() -> void:
 	_qmark_label = Label.new()
 	_qmark_label.text = "?"
 	_qmark_label.add_theme_font_size_override("font_size", UiScale.size(36))
-	_qmark_label.modulate = Color(0.45, 0.4, 0.32)
+	# Phase 14d: locked-state "?" was a parchment sepia. Dusk equivalent
+	# is `ink_mute` (muted purple-ink), which still reads as "unseen"
+	# against the card_2 bg without breaking palette identity.
+	_qmark_label.modulate = _DUSK.amethyst()["ink_mute"]
 	_qmark_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_qmark_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_qmark_label.custom_minimum_size = _SPRITE_BOX
@@ -163,7 +174,10 @@ func _build_layout() -> void:
 	_count_label = Label.new()
 	_count_label.add_theme_font_size_override("font_size", UiScale.size(12))
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_count_label.modulate = _PALETTE.SEPIA_MID
+	# Phase 14d: count line was `SEPIA_MID` in the parchment era. Use
+	# `ink_dim` (muted purple) so the metadata reads as secondary text
+	# without low-contrast against the dark card bg.
+	_count_label.modulate = _DUSK.amethyst()["ink_dim"]
 	vbox.add_child(_count_label)
 
 	_slot_row = HBoxContainer.new()
@@ -176,10 +190,21 @@ func _build_layout() -> void:
 	# touching the scene tree. The glyph + tooltip text are static,
 	# only modulate (filled vs dim) and the colorblind-mode suffix
 	# change between refreshes.
-	_pill_seen = _build_pill("◇", _PALETTE.SAGE_GREEN, "Seen")
-	_pill_normal = _build_pill("✦", _PALETTE.BRASS_ACCENT, "Normal")
-	_pill_shiny = _build_pill("✧", _PALETTE.BLOOD_RUBY, "Shiny")
-	_pill_variant = _build_pill("⬢", _PALETTE.DUSK_BLUE, "Variant")
+	#
+	# Phase 14d palette remap (each accent had a parchment-era semantic
+	# we preserve):
+	#   SAGE_GREEN  (seen)   → teal     (cool / discovery)
+	#   BRASS_ACCENT(normal) → gold     (caught / common gain)
+	#   BLOOD_RUBY  (shiny)  → magenta  (rare / horizon-glow)
+	#   DUSK_BLUE   (variant)→ ink_dim  (variant is a metaprogression
+	#                                    accent; staying within the
+	#                                    ink range keeps it from
+	#                                    competing with the gold/teal)
+	var palette: Dictionary = _DUSK.amethyst()
+	_pill_seen = _build_pill("◇", palette["teal"], "Seen")
+	_pill_normal = _build_pill("✦", palette["gold"], "Normal")
+	_pill_shiny = _build_pill("✧", palette["magenta"], "Shiny")
+	_pill_variant = _build_pill("⬢", palette["ink_dim"], "Variant")
 	_slot_row.add_child(_pill_seen)
 	_slot_row.add_child(_pill_normal)
 	_slot_row.add_child(_pill_shiny)
@@ -237,10 +262,14 @@ func refresh() -> void:
 
 	if seen:
 		_name_label.text = "%s — Tier %d" % [monster.display_name, monster.tier]
-		_name_label.modulate = _PALETTE.INK_BLACK
+		# Phase 14d: seen → `ink` (bright Dusk text), unseen → `ink_mute`
+		# so the lock state still reads at a glance against the dark
+		# card bg. INK_BLACK / SEPIA_MID (parchment era) would have been
+		# dark-on-dark + faded-on-dark respectively.
+		_name_label.modulate = _DUSK.amethyst()["ink"]
 	else:
 		_name_label.text = "??? — Tier %d" % monster.tier
-		_name_label.modulate = _PALETTE.SEPIA_MID
+		_name_label.modulate = _DUSK.amethyst()["ink_mute"]
 
 	# Count line: only meaningful once seen. Phrasing matches the prior
 	# tests' fixtures so the regression suite keeps passing.
@@ -253,11 +282,15 @@ func refresh() -> void:
 
 	# Slot pills — four states (seen | normal | shiny | variant).
 	# Built once in _build_layout; refresh() just flips fill state +
-	# (when colorblind_mode is on) the redundant ✓/· suffix.
-	_update_pill(_pill_seen, "◇", seen, _PALETTE.SAGE_GREEN)
-	_update_pill(_pill_normal, "✦", normal_count > 0, _PALETTE.BRASS_ACCENT)
-	_update_pill(_pill_shiny, "✧", shiny_count > 0, _PALETTE.BLOOD_RUBY)
-	_update_pill(_pill_variant, "⬢", variant_owned, _PALETTE.DUSK_BLUE)
+	# (when colorblind_mode is on) the redundant ✓/· suffix. Phase 14d:
+	# the accent colors here mirror the ones used at build time in
+	# _build_layout (teal / gold / magenta / ink_dim) so the refresh
+	# path doesn't fight the build path over color identity.
+	var palette: Dictionary = _DUSK.amethyst()
+	_update_pill(_pill_seen, "◇", seen, palette["teal"])
+	_update_pill(_pill_normal, "✦", normal_count > 0, palette["gold"])
+	_update_pill(_pill_shiny, "✧", shiny_count > 0, palette["magenta"])
+	_update_pill(_pill_variant, "⬢", variant_owned, palette["ink_dim"])
 
 	# Perfected = all four slots filled. Border tint is overridden on
 	# the panel via a StyleBoxFlat copy so the change is per-card,
@@ -268,9 +301,14 @@ func refresh() -> void:
 
 func _band_color_for_tier(tier: int) -> Color:
 	# Integer division by design: tiers 1-5 → band 0, 6-10 → 1, etc.
+	# Phase 14d remap: the band index keys into `_BAND_ACCENTS` (palette
+	# token names) and the actual Color is resolved via the active Dusk
+	# palette. This means a future palette switch (14f) automatically
+	# moves every bestiary card's ribbon without code changes here.
 	@warning_ignore("integer_division")
-	var band: int = clamp((tier - 1) / 5, 0, _BAND_COLORS.size() - 1)
-	return _BAND_COLORS[band]
+	var band: int = clamp((tier - 1) / 5, 0, _BAND_ACCENTS.size() - 1)
+	var accent_key: String = _BAND_ACCENTS[band]
+	return _DUSK.amethyst()[accent_key]
 
 
 ## Returns the LOCKED/SEEN/CAPTURED/PERFECTED state given the monster
@@ -317,7 +355,15 @@ func _update_pill(label: Label, glyph: String, filled: bool, color: Color) -> vo
 		label.text = "%s%s" % [glyph, "✓" if filled else "·"]
 	else:
 		label.text = glyph
-	label.modulate = color if filled else Color(0.55, 0.5, 0.4, 0.45)
+	# Phase 14d: empty-state pill was a desaturated sepia. Dusk
+	# equivalent is `ink_mute` at 45% alpha — still legible as
+	# "absent" against the dark card_2 bg without the parchment-era
+	# warm-yellow leak.
+	if filled:
+		label.modulate = color
+	else:
+		var mute: Color = _DUSK.amethyst()["ink_mute"]
+		label.modulate = Color(mute.r, mute.g, mute.b, 0.45)
 
 
 ## Override the panel's StyleBox per-card so the perfected border
@@ -327,17 +373,17 @@ func _apply_perfected_border(perfected: bool) -> void:
 		# Drop any per-card override so the theme StyleBox shows through.
 		remove_theme_stylebox_override("panel")
 		return
+	# Phase 14d: perfected border now reads from the Dusk palette —
+	# `card` bg + `gold` border. Corner radius drops to 0 (handoff is
+	# explicit: square corners across the whole Dusk pixel-RPG look).
+	# Border thickens to 3 px to keep the "perfected" affordance loud
+	# against the default 2-px theme border.
+	var palette: Dictionary = _DUSK.amethyst()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = _PALETTE.PARCHMENT
-	sb.border_color = _PALETTE.BRASS_ACCENT  # gold-ish brass
-	sb.border_width_left = 3
-	sb.border_width_top = 3
-	sb.border_width_right = 3
-	sb.border_width_bottom = 3
-	sb.corner_radius_top_left = 4
-	sb.corner_radius_top_right = 4
-	sb.corner_radius_bottom_right = 4
-	sb.corner_radius_bottom_left = 4
+	sb.bg_color = palette["card"]
+	sb.border_color = palette["gold"]
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(0)
 	sb.content_margin_left = 8.0
 	sb.content_margin_top = 8.0
 	sb.content_margin_right = 8.0

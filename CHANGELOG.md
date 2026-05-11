@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.3 — Phase 14d: Dusk map background + monster pixel-card chrome + bestiary palette sweep
+
+**Why**
+
+Phase 14c brought the HUD strip (currency pills + tier ribbon) to the Dusk pixel-RPG look. Phase 14d does the rest of the catch screen: the parchment dawn/dusk parallax background → stripe + scanline + radial-glow shader per styles.css `.map`, the bare 32×32 monster sprite → 92-px sprite-card with a small "NAME · T<tier>" pixel label, and finally the bestiary card sweep that v0.15.1.3 user-report screenshot 2 flagged but didn't fix.
+
+**What changed**
+
+- **`catching_background.gd` reskin** — Phase-10b parchment construction (3 ParallaxLayers + 2 jagged silhouette polygons + dawn/dusk shader gradient) replaced with a single fullscreen `ColorRect` driven by one fragment shader that paints the styles.css `.map` stack:
+  - Repeating 16-px horizontal bands (`bg` / `bg_2`)
+  - Vertical column hairline every 17 px at 12 % alpha (the "pixel grid" feel)
+  - Radial teal glow at 50 % / 30 % (the "horizon glow")
+  - Magenta horizon at top + gold corner spark at 12 % / 14 % (`.map::before` overlays)
+  - 4-px-tall scanline pattern multiplied at 0.35 strength (`.map::after`)
+  - Per-tier band accent: bands 1-5 teal / 6-10 gold / 11-15 magenta / 16-20 rose drive only the radial accent glow, keeping the base stripe Amethyst across all 20 tiers
+  - Scroll happens shader-side via a `scroll_x` uniform — same gentle drift, no per-frame `scroll_offset` thrash. `reduce_motion` freezes the uniform.
+- **`monster_instance.gd` pixel-card chrome** — wraps the existing 32×32 sprite in a 92-px sprite-card per styles.css `.mon`. New `_name_card` Label (UiTiny / Silkscreen 7px) inside a `PanelContainer` with a 70 %-black bg + 1-px Dusk border, positioned below the sprite. Text format: `"WISPLET · T2"`. Panel auto-centers horizontally via the `Control.resized` signal so it tracks the sprite origin regardless of the eventual label width. Existing wander / bob / direction-flip animations untouched; catch despawn hides the label immediately so it doesn't linger past the sprite fade.
+- **`bestiary_card.gd` + `bestiary_card_detail.gd` palette sweep** — every `_PALETTE.PARCHMENT / SEPIA_* / BRASS_ACCENT / BLOOD_RUBY / SAGE_GREEN / DUSK_BLUE / INK_BLACK` reference → `PaletteDusk.amethyst()[token]`. Tier-band ribbon colors swap from the parchment brass/silver/gold/obsidian set to Dusk's teal/gold/magenta/rose (driven by palette token names so a future palette switcher in 14f swaps the whole bestiary ribbon strip for free). The "perfected" border drops its 4-px corner radius to 0 and tints to Dusk gold instead of brass. Empty-pill alpha changes from sepia-mid 45 % to ink-mute 45 % to read against the dark card bg.
+
+**Tests — 11 new + 1 rewritten, 492/492 passing total**
+
+- `test_catching_background.gd` **fully rewritten** for the new shader-driven structure. Old Phase-10b tests asserted Sky/Mid/Near nodes + `_sky_material.get_shader_parameter("top_color")`; the new tests pin `_map_rect` + `_map_material` + the per-band accent lookup via a new `_test_current_accent_key()` seam. New cases:
+  - `test_instantiates_with_map_shader_layer` — single ColorRect, no parallax-layer remnants
+  - `test_map_rect_has_shader_material` — material wired
+  - `test_tier_palette_routes_through_band_accent` — tier 1 → teal, tier 11 → magenta
+  - `test_shader_bg_color_matches_dusk_palette` — uniform vs `PaletteDusk.amethyst()["bg"]`
+  - `test_scroll_uniform_advances_in_process` — shader scroll_x ticks (replaces the old parallax `scroll_offset.x` ambient drift)
+  - `test_reduce_motion_freezes_scroll` — accessibility regression guard
+- `test_visual_regression.gd` gains 5 new structural assertions guarding the Phase-14d sweep:
+  - `monster_instance_renders_pixel_card_name_label` — pins UiTiny variation + UPPERCASE format
+  - `monster_instance_name_card_panel_has_dark_bg_with_dusk_border` — pins rgba(0,0,0,0.7) bg + 1-px Dusk border per styles.css `.mon .label`
+  - `catching_background_uses_dusk_bg_palette` — uniform sourced from PaletteDusk
+  - `bestiary_card_does_not_load_parchment_palette` — file-content lint guarding against `palette_colors.gd` regression in both bestiary scripts
+  - `bestiary_card_tier_ribbon_paints_dusk_accent` — tier 1 ribbon = Dusk teal (band 0)
+
+**Catches the user-report screenshot 2 from v0.15.1.3**
+
+> "Bestiary entries are not the right color for the theme"
+
+`bestiary_card.gd` was the largest remaining parchment-palette holdout — 8 references across name/count/ribbon/pill colors. The Phase-14d sweep moves all of them to PaletteDusk tokens (teal/gold/magenta/ink-dim/ink/ink-mute). The new `bestiary_card_does_not_load_parchment_palette` lint test will fail by file:line if a future maintainer re-introduces `palette_colors.gd` in either script.
+
+**Deferred to later phases**
+
+- Per-tier vignette props (small ASCII labels at fixed % positions, 7px UI font, 50% opacity per styles.css `.vignette`) — the gameplay signal is weak compared to the bg / scanline / monster-card chrome that ships here. Picking up in 14g polish along with the gold L-bracket card corners.
+- The 92-px monster-card chrome currently shows the existing sprite + new label only. The styles.css `.mon .body` 56×56 colored body + `.mon .hp` 64-px HP bar are battle-screen elements, not catch-screen; battle UI reskin is part of 14g.
+
+**Pre-push checklist**
+
+- Full GUT suite: **492/492 pass** (+7 from this phase)
+- No new lint warnings; all parchment palette refs in the bestiary subtree gone
+
 ### v0.15.2 — Phase 14c: Dusk pixel-RPG catch-screen chrome (currency pills + tier ribbon)
 
 **Why**

@@ -3,11 +3,21 @@
 ## Owns its own wander state machine and tap_progress accumulator. The
 ## containing CatchingView listens to `tapped` and `caught_self` to
 ## resolve catches via CatchingSystem and update GameState.
+##
+## Phase 14d — Dusk pixel-card chrome. Per
+## `docs/design_handoff_theming/reference_files/styles.css` `.mon`:
+## a 92-px-wide sprite-card with the 32×32 monster sprite on top
+## (kept as-is — handoff explicit about reusing existing pixel art)
+## and an 8-px Silkscreen "NAME · T2" label below, on a 70%-black bg
+## with a 1-px border. The whole monster (sprite + label) participates
+## in the wander state machine: the sprite walks/bobs/flips while the
+## label tracks the parent's translation.
 extends Node2D
 
 signal tapped(instance: Node2D)
 signal caught_self(instance: Node2D)
 
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 const _WANDER_SPEED_PX_PER_SEC := 60.0
 const _PAUSE_TIME_RANGE := Vector2(0.4, 1.4)
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
@@ -38,6 +48,13 @@ var _area: Area2D
 var _collision: CollisionShape2D
 var _tap_particles: CPUParticles2D
 var _catch_particles: CPUParticles2D
+## Phase 14d: pixel-card label below the sprite — Silkscreen 8 px on
+## a 70%-black bg with a 1-px Dusk border. Built once in _ready and
+## retargeted in `_apply_monster()` when the bound MonsterResource
+## changes. `Label2D` is the right primitive: it lives in 2D space
+## next to the sprite and inherits the parent's transform.
+var _name_card: Label
+var _name_card_panel: PanelContainer
 
 var _state: int = _State.WANDER
 var _target_pos: Vector2
@@ -82,9 +99,55 @@ func _ready() -> void:
 	_catch_particles = _make_particles(Color(0.6, 1.0, 0.85), 24, 0.55, 100.0, 220.0, 2.0, 4.0)
 	add_child(_catch_particles)
 
+	_build_name_card()
+
 	if monster != null:
 		_apply_monster()
 	_pick_new_target()
+
+
+## Phase 14d: builds the small "NAME · T2" pixel-card label below the
+## sprite, per styles.css `.mon .label` (Silkscreen 8 px on rgba(0,0,0,0.7)
+## with a 1-px Dusk border). The panel auto-centers horizontally relative
+## to the monster's origin once its size settles (via `resized` signal).
+func _build_name_card() -> void:
+	_name_card_panel = PanelContainer.new()
+	_name_card_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.0, 0.0, 0.0, 0.7)
+	sb.border_color = _DUSK.amethyst()["border"]
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left = 4.0
+	sb.content_margin_right = 4.0
+	sb.content_margin_top = 2.0
+	sb.content_margin_bottom = 2.0
+	_name_card_panel.add_theme_stylebox_override("panel", sb)
+	# Position below the sprite. Sprite center is at (0,0) and renders
+	# 96 px tall (32 × _RENDER_SCALE), so its bottom edge is at y = +48.
+	# Add a 6-px gap, then re-center horizontally once layout settles.
+	_name_card_panel.position = Vector2(0, 54)
+	_name_card_panel.resized.connect(_recenter_name_card)
+	add_child(_name_card_panel)
+
+	_name_card = Label.new()
+	_name_card.theme_type_variation = "UiTiny"   # Silkscreen 7 px
+	_name_card.add_theme_color_override("font_color", _DUSK.amethyst()["ink"])
+	_name_card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_name_card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Default text until _apply_monster() runs.
+	_name_card.text = "—"
+	_name_card_panel.add_child(_name_card)
+
+
+## Recenters the name card panel so its horizontal middle aligns with
+## the monster's origin (which is also where the 96 px sprite is
+## centered). `Control.resized` fires after the panel's size settles,
+## which is exactly when we can read `_name_card_panel.size.x`.
+func _recenter_name_card() -> void:
+	if _name_card_panel == null:
+		return
+	_name_card_panel.position.x = -_name_card_panel.size.x * 0.5
 
 
 func _make_particles(
@@ -123,6 +186,11 @@ func _apply_monster() -> void:
 		return
 	_sprite.texture = monster.sprite
 	_sprite.modulate = monster.tint
+	# Phase 14d: drive the pixel-card label. styles.css uses uppercase
+	# letter-spaced text — match with .to_upper(). Format mirrors the
+	# handoff's "WISPLET · T2" example.
+	if _name_card != null:
+		_name_card.text = "%s · T%d" % [monster.display_name.to_upper(), monster.tier]
 
 
 func _process(delta: float) -> void:
@@ -245,6 +313,13 @@ func play_catch_and_despawn() -> void:
 	_state = _State.CAUGHT
 	_area.input_pickable = false
 	_catch_particles.restart()
+	# Phase 14d: hide the name card immediately on catch so it doesn't
+	# linger past the sprite's fade-and-shrink. The sprite tween below
+	# handles modulate.a; doing the same on a PanelContainer means
+	# tweening the panel's `modulate.a`, which is cheaper to just
+	# hide outright since the catch despawn is a one-way trip.
+	if _name_card_panel != null:
+		_name_card_panel.visible = false
 	# Kill any in-flight scale animation (tap bump or direction flip)
 	# so the catch despawn isn't fighting them for the same property.
 	if _scale_tween != null and _scale_tween.is_valid():

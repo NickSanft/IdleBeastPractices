@@ -1,12 +1,21 @@
-## Phase 10b — smoke tests for the catching screen parallax background.
+## Phase 14d — smoke tests for the Dusk map background.
 ##
-## Doesn't try to exercise visual scroll (that needs a viewport + render
-## frames). Verifies the scene structure: a ParallaxBackground root with
-## a Sky / Mid / Near layer, and that the sky shader's color uniforms
-## switch when the tier palette is reapplied.
+## The Phase-10b implementation built three ParallaxLayers (Sky / Mid /
+## Near) with two polygons for the parchment dawn/dusk vista. Phase 14d
+## replaces all of that with a single fullscreen `ColorRect` driven by
+## a fragment shader that paints the styles.css `.map` stack (stripes +
+## scanline + radial glows). Tests pin the new structure:
+##
+##   - root still a ParallaxBackground at layer < 0 (catch UI sits in front)
+##   - one `ColorRect` child with a `ShaderMaterial`
+##   - shader uniforms reflect the Dusk palette
+##   - tier-band index drives the accent glow (1→teal, 11→magenta)
+##   - shader `scroll_x` uniform advances on each frame when motion is on
+##   - `reduce_motion` freezes the scroll uniform
 extends GutTest
 
 const _SCENE := preload("res://game/scenes/catching/catching_background.tscn")
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 
 
 func before_each() -> void:
@@ -15,56 +24,86 @@ func before_each() -> void:
 	Settings.reduce_motion = false
 
 
-func test_instantiates_with_three_parallax_layers() -> void:
+func test_instantiates_with_map_shader_layer() -> void:
 	var bg: ParallaxBackground = _SCENE.instantiate()
 	add_child_autofree(bg)
 	await wait_frames(1)
-	assert_true(bg is ParallaxBackground, "root must be a ParallaxBackground")
+	assert_true(bg is ParallaxBackground,
+			"root keeps the ParallaxBackground type for save-compat + tier-event hookup")
 	assert_eq(bg.layer, -2, "background must render behind sibling Controls (layer < 0)")
-	assert_not_null(bg.get_node_or_null("Sky"))
-	assert_not_null(bg.get_node_or_null("Mid"))
-	assert_not_null(bg.get_node_or_null("Near"))
+	assert_not_null(bg._map_rect, "map ColorRect must be built in _ready")
+	assert_true(bg._map_rect is ColorRect,
+			"Phase 14d uses a single fullscreen ColorRect, not three parallax layers")
 
 
-func test_sky_layer_has_shader_material() -> void:
+func test_map_rect_has_shader_material() -> void:
 	var bg: ParallaxBackground = _SCENE.instantiate()
 	add_child_autofree(bg)
 	await wait_frames(1)
-	var sky_layer := bg.get_node("Sky")
-	# The sky ColorRect lives one level under the layer.
-	var color_rect: ColorRect = null
-	for child in sky_layer.get_children():
-		if child is ColorRect:
-			color_rect = child
-			break
-	assert_not_null(color_rect, "Sky ParallaxLayer must contain a ColorRect")
-	assert_true(color_rect.material is ShaderMaterial,
-			"sky ColorRect must have a ShaderMaterial for the gradient")
+	assert_true(bg._map_rect.material is ShaderMaterial,
+			"map ColorRect must have a ShaderMaterial that paints the styles.css `.map` stack")
+	assert_not_null(bg._map_material,
+			"_map_material reference must be live for tier-palette swaps")
 
 
-func test_tier_palette_updates_sky_uniforms() -> void:
+func test_tier_palette_routes_through_band_accent() -> void:
+	# Tier 1 → band 0 (teal accent), tier 11 → band 2 (magenta horizon-leaning).
+	# Pin the band lookup behaviour by checking the public test seam
+	# rather than reading shader uniforms (which need a render frame).
 	var bg = _SCENE.instantiate()
 	add_child_autofree(bg)
 	await wait_frames(1)
-	var sky_mat: ShaderMaterial = bg._sky_material
-	assert_not_null(sky_mat, "_sky_material must be set after _ready")
-	# Tier 1 uses band 0 (dawn).
+
+	GameState.current_max_tier = 1
 	bg._apply_tier_palette(1)
-	var dawn_top: Color = sky_mat.get_shader_parameter("top_color")
-	# Tier 11 lands in band 2 (dusk) — should differ from dawn.
+	assert_eq(bg._test_current_accent_key(), "teal",
+			"tier 1 must use the teal accent (band 0 — early Bog Hollow cool)")
+
+	GameState.current_max_tier = 11
 	bg._apply_tier_palette(11)
-	var dusk_top: Color = sky_mat.get_shader_parameter("top_color")
-	assert_true(dawn_top != dusk_top,
-			"sky top_color must shift between tier bands (dawn != dusk)")
+	assert_eq(bg._test_current_accent_key(), "magenta",
+			"tier 11 must use the magenta accent (band 2 — late horizon-leaning)")
 
 
-func test_scroll_offset_advances_in_process() -> void:
-	# The background owns a slow ambient scroll. After a real-time wait
-	# the scroll_offset.x should have advanced past zero.
+func test_shader_bg_color_matches_dusk_palette() -> void:
+	# After _apply_tier_palette, the shader's `bg_color` uniform must
+	# carry the Dusk `bg` token. This catches a regression where the
+	# parchment fallback color sneaks back into the shader uniforms.
 	var bg = _SCENE.instantiate()
 	add_child_autofree(bg)
 	await wait_frames(1)
-	var initial: float = bg.scroll_offset.x
+	bg._apply_tier_palette(1)
+	var bg_color: Color = bg._map_material.get_shader_parameter("bg_color")
+	var expected: Color = _DUSK.amethyst()["bg"]
+	assert_almost_eq(bg_color.r, expected.r, 0.001)
+	assert_almost_eq(bg_color.g, expected.g, 0.001)
+	assert_almost_eq(bg_color.b, expected.b, 0.001)
+
+
+func test_scroll_uniform_advances_in_process() -> void:
+	# The shader-side scroll uniform replaces the old
+	# `ParallaxBackground.scroll_offset.x` ambient drift. After a real-time
+	# wait the `scroll_x` uniform should have advanced past zero.
+	var bg = _SCENE.instantiate()
+	add_child_autofree(bg)
+	await wait_frames(1)
+	var initial: float = bg._map_material.get_shader_parameter("scroll_x")
 	await wait_seconds(0.4)
-	assert_gt(bg.scroll_offset.x, initial,
-			"ambient scroll should advance scroll_offset.x within 0.4s")
+	var after: float = bg._map_material.get_shader_parameter("scroll_x")
+	assert_gt(after, initial,
+			"ambient scroll should advance shader uniform `scroll_x` within 0.4s")
+
+
+func test_reduce_motion_freezes_scroll() -> void:
+	# Accessibility: reduce_motion users must NOT see any background
+	# drift. The shader `scroll_x` uniform stays at whatever value it
+	# was when reduce_motion flipped on.
+	var bg = _SCENE.instantiate()
+	add_child_autofree(bg)
+	await wait_frames(1)
+	Settings.reduce_motion = true
+	var initial: float = bg._map_material.get_shader_parameter("scroll_x")
+	await wait_seconds(0.4)
+	var after: float = bg._map_material.get_shader_parameter("scroll_x")
+	assert_almost_eq(after, initial, 0.001,
+			"reduce_motion must freeze the shader scroll_x uniform")

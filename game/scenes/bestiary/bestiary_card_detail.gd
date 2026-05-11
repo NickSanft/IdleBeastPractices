@@ -8,7 +8,7 @@
 ## without reaching into the modal's internals.
 extends PopupPanel
 
-const _PALETTE := preload("res://game/resources/palette_colors.gd")
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
 const _SPRITE_DISPLAY_SCALE := 4.0
 const _SPRITE_BOX: Vector2 = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
@@ -51,7 +51,8 @@ func bind_monster(monster: MonsterResource) -> void:
 	if seen:
 		var tier_label := Label.new()
 		tier_label.text = "Tier %d" % monster.tier
-		tier_label.modulate = _PALETTE.SEPIA_MID
+		# Phase 14d: SEPIA_MID → `ink_dim` per the bestiary_card sweep.
+		tier_label.modulate = _DUSK.amethyst()["ink_dim"]
 		tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tier_label.add_theme_font_size_override("font_size", UiScale.size(14))
 		vbox.add_child(tier_label)
@@ -91,7 +92,11 @@ void fragment() {
 		var flavor := Label.new()
 		flavor.text = monster.flavor_text
 		flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		flavor.modulate = _PALETTE.SEPIA_DARK
+		# Phase 14d: SEPIA_DARK was a strong sepia for primary body text;
+		# Dusk equivalent is `ink` (bright purple-white) since the
+		# parchment-era "dark text on light bg" inverts on the dusk
+		# popup bg.
+		flavor.modulate = _DUSK.amethyst()["ink"]
 		flavor.add_theme_font_size_override("font_size", UiScale.size(14))
 		flavor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		vbox.add_child(flavor)
@@ -107,7 +112,10 @@ void fragment() {
 			var quote_label := Label.new()
 			quote_label.text = "“%s”" % quote
 			quote_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			quote_label.modulate = _PALETTE.SEPIA_MID
+			# Phase 14d: SEPIA_MID → `ink_dim` for secondary quote text.
+			# Peniber quotes stay slightly dimmed so they read as
+			# flavor rather than primary content.
+			quote_label.modulate = _DUSK.amethyst()["ink_dim"]
 			quote_label.add_theme_font_size_override("font_size", UiScale.size(13))
 			quote_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			vbox.add_child(quote_label)

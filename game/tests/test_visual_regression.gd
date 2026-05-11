@@ -293,6 +293,124 @@ func test_tier_ribbon_badge_renders_with_displaysmall_variation() -> void:
 # endregion
 
 
+# region — Phase 14d catching bg + monster card + bestiary palette
+#
+# v0.15.3 — Phase 14d brings the catching-screen visuals to Dusk:
+# stripe + scanline + radial-glow background, 92-px pixel-card chrome
+# around each monster, and the bestiary card sweep that the v0.15.1.3
+# screenshot user-report flagged but didn't fix.
+#
+# Structural assertions catch the regression class where someone
+# reverts to the parchment-era palette references without going through
+# the styles.css source of truth.
+
+const _MONSTER_INSTANCE_SCENE := preload("res://game/scenes/catching/monster_instance.tscn")
+const _BESTIARY_CARD_SCENE := preload("res://game/scenes/bestiary/bestiary_card.tscn")
+
+
+func test_monster_instance_renders_pixel_card_name_label() -> void:
+	# styles.css `.mon .label`: 8-px Silkscreen UPPERCASE on a 70%-black
+	# bg with a 1-px border. Pin the typography variation + the text
+	# format so a refactor can't silently drop the chrome.
+	var inst: Node2D = _MONSTER_INSTANCE_SCENE.instantiate()
+	var m := MonsterResource.new()
+	m.id = &"test_mon"
+	m.display_name = "Wisplet"
+	m.tier = 2
+	m.tint = Color.WHITE
+	inst.monster = m
+	add_child_autofree(inst)
+	await wait_frames(2)
+	assert_not_null(inst._name_card, "monster_instance must build a name card label")
+	assert_not_null(inst._name_card_panel, "name card must be wrapped in a PanelContainer")
+	assert_eq(inst._name_card.theme_type_variation, &"UiTiny",
+		"name card label must use UiTiny variation (Silkscreen 7px) per styles.css")
+	assert_eq(inst._name_card.text, "WISPLET · T2",
+		"name card text format must be 'UPPERCASE · T<tier>' per styles.css `.mon .label`")
+
+
+func test_monster_instance_name_card_panel_has_dark_bg_with_dusk_border() -> void:
+	# styles.css: rgba(0,0,0,0.7) bg + 1-px var(--border) (Dusk border).
+	# Catches a regression where the panel stylebox falls back to the
+	# theme default (which would paint a card bg + 2-px border — wrong
+	# affordance for a small in-world label).
+	var inst: Node2D = _MONSTER_INSTANCE_SCENE.instantiate()
+	var m := MonsterResource.new()
+	m.id = &"test_mon"
+	m.display_name = "Test"
+	m.tier = 1
+	inst.monster = m
+	add_child_autofree(inst)
+	await wait_frames(2)
+	var sb: StyleBoxFlat = inst._name_card_panel.get_theme_stylebox("panel")
+	assert_not_null(sb, "name card panel must override its stylebox to match styles.css")
+	assert_almost_eq(sb.bg_color.a, 0.7, 0.01,
+		"name card panel bg must be 70%% transparent (styles.css `.mon .label`)")
+	# Border color must be the Dusk border token, not the theme default.
+	var expected_border: Color = PaletteDusk.amethyst()["border"]
+	assert_eq(sb.border_color, expected_border,
+		"name card border must use the Dusk `border` token")
+	assert_eq(sb.border_width_top, 1,
+		"name card border must be 1 px (styles.css `.mon .label`)")
+
+
+func test_catching_background_uses_dusk_bg_palette() -> void:
+	# Phase 14d shader uniform `bg_color` must come from
+	# `PaletteDusk.amethyst()["bg"]`, not a parchment hardcoded color.
+	# This catches a regression where the parchment sky shader leaks back.
+	var bg_scene := preload("res://game/scenes/catching/catching_background.tscn")
+	var bg = bg_scene.instantiate()
+	add_child_autofree(bg)
+	await wait_frames(1)
+	bg._apply_tier_palette(1)
+	var bg_color: Color = bg._map_material.get_shader_parameter("bg_color")
+	var expected: Color = PaletteDusk.amethyst()["bg"]
+	assert_almost_eq(bg_color.r, expected.r, 0.001,
+		"map shader bg_color must match the Dusk `bg` palette token")
+	assert_almost_eq(bg_color.g, expected.g, 0.001)
+	assert_almost_eq(bg_color.b, expected.b, 0.001)
+
+
+func test_bestiary_card_does_not_load_parchment_palette() -> void:
+	# v0.15.1.3 user-report screenshot 2 flagged bestiary entries still
+	# parchment-colored. Phase 14d sweeps both bestiary scripts to
+	# `_DUSK`. Pin the file contents directly so a future maintainer
+	# who re-adds `palette_colors.gd` fails by name. Mirrors the
+	# popup-sweep test above.
+	for path in [
+		"res://game/scenes/bestiary/bestiary_card.gd",
+		"res://game/scenes/bestiary/bestiary_card_detail.gd",
+	]:
+		var f := FileAccess.open(path, FileAccess.READ)
+		assert_not_null(f, "%s must exist" % path)
+		var content: String = f.get_as_text()
+		f.close()
+		assert_false(content.contains("palette_colors.gd"),
+			"%s must NOT preload the parchment palette_colors.gd — use PaletteDusk instead" % path)
+
+
+func test_bestiary_card_tier_ribbon_paints_dusk_accent() -> void:
+	# styles.css drives the tier ribbon via the Dusk palette accents,
+	# not the parchment brass/silver/gold/obsidian set. A tier-1 card's
+	# ribbon must paint the teal accent (band 0 — early Bog Hollow cool).
+	ContentRegistry.ensure_loaded()
+	var card: PanelContainer = _BESTIARY_CARD_SCENE.instantiate()
+	add_child_autofree(card)
+	# Build a tier-1 stub monster — avoids depending on a specific
+	# content-registry id that might shift across content seeds.
+	var m := MonsterResource.new()
+	m.id = &"test_t1"
+	m.display_name = "Test"
+	m.tier = 1
+	card.set_monster(m)
+	await wait_frames(2)
+	var expected: Color = PaletteDusk.amethyst()["teal"]
+	assert_eq(card._ribbon.color, expected,
+		"tier 1 ribbon must paint the Dusk `teal` accent (band 0)")
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:
