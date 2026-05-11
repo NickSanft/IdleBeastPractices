@@ -1,10 +1,18 @@
-## Phase 10c — currency_chip behaviour.
+## Phase 14c — currency_chip behaviour (Dusk pixel-RPG variant).
 ##
 ## The chip should:
 ##   1. Snap immediately when set_*_value is called with animate=false.
 ##   2. Tween through intermediate values when animate=true.
 ##   3. Hide its progress bar when fraction is < 0.
 ##   4. Land on the target value once the tween completes.
+##   5. Render the configured glyph character + label text from
+##      configure(glyph, accent, label, tooltip).
+##
+## 14c rewrite notes: the old parchment-era chip exposed a single
+## `_value_label` that contained the prefix + value (e.g. "Gold 123").
+## The Dusk chip splits these into `_lbl_label` (UPPERCASE prefix in
+## UiTiny) and `_value_label` (the numeric value alone). Tests now
+## assert against both labels independently.
 extends GutTest
 
 const _SCENE := preload("res://game/scenes/ui/currency_chip.tscn")
@@ -13,12 +21,8 @@ const _SCENE := preload("res://game/scenes/ui/currency_chip.tscn")
 func _new_chip() -> PanelContainer:
 	var chip: PanelContainer = _SCENE.instantiate()
 	add_child_autofree(chip)
-	# Phase 10c chips assume the icon is non-null; supply a 4×4 stub so
-	# texture_changed signals don't fire on null.
-	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 1))
-	var tex := ImageTexture.create_from_image(img)
-	chip.configure(tex, Color.GOLD, "Test", "tooltip")
+	# 14c uses a glyph character (not a texture) for the colored cell.
+	chip.configure("G", Color.GOLD, "Test", "tooltip")
 	return chip
 
 
@@ -96,13 +100,43 @@ func test_progress_bar_visible_and_clamped() -> void:
 			"negative fractions hide the bar even after a prior visible call")
 
 
-func test_configure_updates_label_prefix() -> void:
+func test_configure_renders_glyph_and_label() -> void:
+	# 14c rewrite: the chip splits the prefix label from the numeric
+	# value. After configure("G", ..., "Test", ...), the glyph cell
+	# should show "G" and the lbl above the value should show "TEST"
+	# (UPPERCASE per styles.css `.currency .lbl`).
 	var chip := _new_chip()
 	await wait_frames(1)
 	chip.set_int_value(7, false)
 	await wait_frames(1)
-	assert_string_contains(chip._value_label.text, "Test")
-	chip.configure(chip.icon_texture, Color.RED, "Renamed", "")
-	chip.set_int_value(8, false)
+	assert_eq(chip._glyph_label.text, "G",
+			"glyph cell must render the configured character")
+	assert_eq(chip._lbl_label.text, "TEST",
+			"label must render UPPERCASE per styles.css `.currency .lbl`")
+	assert_string_contains(chip._value_label.text, "7",
+			"value label must contain the numeric value")
+
+
+func test_configure_reapplies_glyph_and_label_at_runtime() -> void:
+	# Calling configure() again should swap the glyph + label live.
+	var chip := _new_chip()
 	await wait_frames(1)
-	assert_string_contains(chip._value_label.text, "Renamed")
+	chip.configure("R", Color.RED, "Renamed", "")
+	await wait_frames(1)
+	assert_eq(chip._glyph_label.text, "R")
+	assert_eq(chip._lbl_label.text, "RENAMED")
+	# The glyph stylebox's bg_color should now be the new accent.
+	var sb: StyleBoxFlat = chip._glyph_panel.get_theme_stylebox("panel")
+	assert_eq(sb.bg_color, Color.RED,
+			"glyph cell stylebox bg should retint to the new accent color")
+
+
+func test_configure_glyph_uses_dark_ink_for_legibility() -> void:
+	# styles.css `.currency .glyph { color: #2b1a05 }` — dark ink on
+	# the bright accent bg. The chip overrides font_color regardless
+	# of the theme variation, since "DisplaySmall" defaults to gold.
+	var chip := _new_chip()
+	await wait_frames(1)
+	var ink: Color = chip._glyph_label.get_theme_color("font_color")
+	assert_eq(ink, Color("#2b1a05"),
+			"glyph ink must be dark (#2b1a05) for legibility on the accent bg")

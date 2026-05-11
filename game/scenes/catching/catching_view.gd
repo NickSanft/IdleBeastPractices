@@ -451,19 +451,25 @@ func _award_tier_completion(catch_tier: int) -> void:
 
 
 ## Phase 11d: surface tier-completion progress so the player always
-## knows what they're working toward. Anchored top-right; reads
-## current tier + monsters_caught and renders a compact progress
-## chip via next_goal_chip.gd. Self-subscribes to EventBus.
+## knows what they're working toward. The widget renders the current
+## tier + how close the player is to completing every species at that
+## tier; it self-subscribes to EventBus.
+##
+## Phase 14c: the widget was reskinned from a compact top-right chip
+## into a full-width "tier ribbon" per styles.css `.tier-ribbon`,
+## which sits below the currency bar. Anchoring is now full-width at
+## the top of the catching view (12 px gutter L/R, fixed ~40 px tall)
+## so the badge + name + progress bar can lay out left-to-right.
 func _build_next_goal_chip() -> void:
 	var chip: PanelContainer = _NEXT_GOAL_CHIP.instantiate()
-	chip.anchor_left = 1.0
+	chip.anchor_left = 0.0
 	chip.anchor_top = 0.0
 	chip.anchor_right = 1.0
 	chip.anchor_bottom = 0.0
-	chip.offset_left = -200
+	chip.offset_left = 12
 	chip.offset_top = 12
 	chip.offset_right = -12
-	chip.offset_bottom = 56
+	chip.offset_bottom = 52
 	add_child(chip)
 
 

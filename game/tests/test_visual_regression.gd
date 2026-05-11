@@ -199,6 +199,100 @@ func _walk_for_legacy_theme(dir_path: String, out: Array[String]) -> void:
 # endregion
 
 
+# region — Phase 14c chip + ribbon styling sticks
+#
+# v0.15.2 — the Dusk-era currency chip (`.currency`) and tier ribbon
+# (`.tier-ribbon`) replace the parchment-era texture-icon chip and
+# top-right next-goal pill. The visible bug class these tests catch:
+#
+#   - currency_chip rebuilt with `theme_type_variation` ("DisplaySmall"
+#     for glyph, "UiTiny" for the UPPERCASE lbl). A future maintainer
+#     who drops the variation would silently render with the default
+#     Silkscreen 11 font, losing the pixel-RPG glyph effect.
+#   - The colored glyph cell must retint per accent_color via the
+#     per-instance StyleBoxFlat in `_apply_glyph_stylebox`. If that
+#     wiring breaks, every chip falls back to the theme's panel bg
+#     (uniform dark purple) and the gold/teal/magenta identity is lost.
+#   - The tier ribbon must hold its `_bar_fill` ColorRect (not a Godot
+#     ProgressBar) — the styles.css fill is a custom teal→magenta
+#     gradient, which a vanilla ProgressBar can't render cleanly. If a
+#     refactor switches back to ProgressBar, the gradient handoff
+#     intent is lost; this test fails on the type check.
+#
+# These are structural assertions, not pixel diffs — they survive
+# tiny render-engine changes while still catching the regression.
+
+const _CURRENCY_CHIP_SCENE := preload("res://game/scenes/ui/currency_chip.tscn")
+const _NEXT_GOAL_CHIP_SCENE := preload("res://game/scenes/ui/next_goal_chip.tscn")
+
+
+func test_currency_chip_glyph_uses_displaysmall_variation() -> void:
+	var chip: PanelContainer = _CURRENCY_CHIP_SCENE.instantiate()
+	add_child_autofree(chip)
+	chip.configure("G", Color("#f5c46b"), "Gold", "")
+	await wait_frames(1)
+	# The glyph cell renders the chunky Press Start 2P character per
+	# styles.css `.currency .glyph`. Pinning the theme_type_variation
+	# guards against the variation getting dropped during a refactor —
+	# default Silkscreen 11 would visually flatten the chip.
+	assert_eq(chip._glyph_label.theme_type_variation, &"DisplaySmall",
+		"currency_chip glyph must use DisplaySmall variation (Press Start 2P) per styles.css")
+	assert_eq(chip._lbl_label.theme_type_variation, &"UiTiny",
+		"currency_chip lbl must use UiTiny variation (Silkscreen 7px) per styles.css")
+
+
+func test_currency_chip_retints_glyph_cell_per_accent_color() -> void:
+	# Three chips with three different accents — each must paint its
+	# glyph cell with the requested color. Catches a regression where
+	# `_apply_glyph_stylebox` stops getting called on configure().
+	var gold: PanelContainer = _CURRENCY_CHIP_SCENE.instantiate()
+	add_child_autofree(gold)
+	gold.configure("G", Color("#f5c46b"), "Gold", "")
+	var teal: PanelContainer = _CURRENCY_CHIP_SCENE.instantiate()
+	add_child_autofree(teal)
+	teal.configure("R", Color("#5fd3c2"), "Rancher", "")
+	var magenta: PanelContainer = _CURRENCY_CHIP_SCENE.instantiate()
+	add_child_autofree(magenta)
+	magenta.configure("P", Color("#d96fb8"), "Prestige", "")
+	await wait_frames(1)
+	var gold_sb: StyleBoxFlat = gold._glyph_panel.get_theme_stylebox("panel")
+	var teal_sb: StyleBoxFlat = teal._glyph_panel.get_theme_stylebox("panel")
+	var magenta_sb: StyleBoxFlat = magenta._glyph_panel.get_theme_stylebox("panel")
+	assert_eq(gold_sb.bg_color, Color("#f5c46b"),
+		"gold chip glyph cell must paint with the gold accent")
+	assert_eq(teal_sb.bg_color, Color("#5fd3c2"),
+		"teal chip glyph cell must paint with the teal accent")
+	assert_eq(magenta_sb.bg_color, Color("#d96fb8"),
+		"magenta chip glyph cell must paint with the magenta accent")
+
+
+func test_tier_ribbon_uses_colorrect_fill_not_progressbar() -> void:
+	# styles.css `.tier-ribbon` fill is a teal→magenta linear gradient,
+	# which a vanilla Godot ProgressBar can't paint. Pin the type so a
+	# future refactor doesn't quietly downgrade to ProgressBar and
+	# strand the gradient intent in 14g polish.
+	var ribbon: PanelContainer = _NEXT_GOAL_CHIP_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(1)
+	assert_true(ribbon._bar_fill is ColorRect,
+		"tier ribbon fill must be a ColorRect (anchor_right-tweened) to leave room for a gradient texture overlay in 14g")
+	assert_true(ribbon._name_label is RichTextLabel,
+		"tier ribbon name label must be RichTextLabel so the gold-highlight bbcode renders")
+
+
+func test_tier_ribbon_badge_renders_with_displaysmall_variation() -> void:
+	# styles.css `.tier-ribbon .badge` uses the chunky Press Start 2P
+	# font for the T-badge. DisplaySmall (Press Start 2P 10px) is the
+	# correct variation per dusk_theme_builder.
+	var ribbon: PanelContainer = _NEXT_GOAL_CHIP_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(1)
+	assert_eq(ribbon._badge_label.theme_type_variation, &"DisplaySmall",
+		"tier ribbon badge must use DisplaySmall variation (Press Start 2P) per styles.css")
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:

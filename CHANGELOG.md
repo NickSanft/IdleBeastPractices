@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.2 — Phase 14c: Dusk pixel-RPG catch-screen chrome (currency pills + tier ribbon)
+
+**Why**
+
+Phase 14b shipped the Dusk theme application (palette + fonts + safe-area + popup sweep), but most surface-level chrome still rendered with the parchment-era layouts wrapped in Dusk colors. Phase 14c brings the catch-screen chrome up to the styles.css handoff so the player sees pixel-RPG identity on the screen they spend the most time on: currency pills with colored glyph cells (Gold/Rancher/Prestige) and a horizontal tier ribbon below them with a teal progress sweep.
+
+**What changed**
+
+- **`currency_chip.gd` rebuilt per styles.css `.currency`**: parchment-era texture icon → colored 22×22 glyph cell (Press Start 2P "G"/"R"/"P" character on a gold/teal/magenta bg with a 1-px darker border) + a UPPERCASE 7-px Silkscreen label above the value. Three theme variations drive the typography stack: `DisplaySmall` for the glyph, `UiTiny` for the label, default theme (Silkscreen 11) for the value. The accent-color tint comes from a per-instance `StyleBoxFlat` rebuilt on `configure()` so the gold pill, RP pill, and prestige pill each paint their own bg. API broke from `configure(texture, accent, prefix, tooltip)` → `configure(glyph_char, accent, label, tooltip)`.
+- **`currency_bar.gd` updated to pass glyph characters**: gold = "G" + Dusk gold, RP = "R" + Dusk teal, prestige = "P" + Dusk magenta. The texture preloads + parchment palette references are gone.
+- **`next_goal_chip.gd` rebuilt as the tier ribbon per styles.css `.tier-ribbon`**: the old top-right compact chip became a horizontal full-width ribbon below the currency bar — `[T-badge | Tier name · N species left | 8-px progress bar | %]`. The T-badge is its own PanelContainer with `card_2` bg + 1-px border (matching styles.css `.tier-ribbon .badge`). The progress bar is a `Panel` (NOT `PanelContainer` — Containers force-fit their children and break anchor-tween fills) with a `ColorRect` fill child that drives its `anchor_right` 0→1 to sweep the bar; teal→magenta gradient texture is deferred to 14g polish, 14c ships a flat teal fill. The name line uses `RichTextLabel + bbcode` so the highlighted token (species count / catch progress) renders in gold per styles.css `<b>` styling. Tier names from styles.css hardcoded for the named 3: Bog Hollow / Whisper Glade / Ash Reach.
+- **`catching_view.gd._build_next_goal_chip` reanchored**: was a 200-px-wide top-right pill; now a full-width horizontal bar (`anchor_left=0, anchor_right=1, 12-px gutter`) below where the currency bar sits.
+
+**Tests — 13 new + 3 rewritten, 485/485 passing total**
+
+- `test_currency_chip.gd` rewritten for the new API (`configure(glyph, accent, label, tooltip)`). Asserts glyph cell renders the configured character, label renders UPPERCASE, glyph cell stylebox retints to the accent color, glyph ink is dark for legibility on bright bg.
+- `test_next_goal_chip.gd` rewritten to match the new tier ribbon structure (`_badge_label`, `_name_label` RichTextLabel, `_bar_fill` ColorRect, `_pct_label`). New cases pin the badge text format, the tier name lookup, the percent rendering, and the `anchor_right` fill semantics.
+- `test_visual_regression.gd` gains 4 new structural assertions for the chip + ribbon. These guard:
+  - `currency_chip_glyph_uses_displaysmall_variation` — pins both `theme_type_variation` strings so a refactor can't silently drop the chunky Press Start 2P glyph + Silkscreen lbl.
+  - `currency_chip_retints_glyph_cell_per_accent_color` — proves `_apply_glyph_stylebox` actually paints with the requested color on three distinct chips (gold/teal/magenta).
+  - `tier_ribbon_uses_colorrect_fill_not_progressbar` — type-checks `_bar_fill is ColorRect` and `_name_label is RichTextLabel` so the 14g gradient-texture overlay still has a place to land.
+  - `tier_ribbon_badge_renders_with_displaysmall_variation` — pins the T-badge typography.
+
+**Catches a real regression the tests found**
+
+`test_progress_bar_advances_with_catches` failed on the first run with `anchor_right = 0.0` instead of 0.6. Root cause: I initially built `_bar_bg` as a `PanelContainer`, which in Godot is a `Container` and force-fits its children via `fit_child_in_rect` every frame — overwriting the `anchor_right` value the `_refresh()` tween was setting. Switched to plain `Panel` (a non-Container `Control`) which preserves anchored fill. The test pinned the fraction post-fix.
+
+`test_every_tappable_meets_material_floor` then caught a second regression: the new `_name_label` `RichTextLabel` defaults to `mouse_filter = STOP` and auto-wires gui_input when `bbcode_enabled = true` (for `[url]` handling), so the 15-px-tall info label failed the 58-dp Material floor sweep. Fixed by setting `mouse_filter = MOUSE_FILTER_IGNORE` — the ribbon text isn't interactive.
+
+**Deferred to later phases**
+
+- `auto_net_widget` per styles.css `.autonet` — the handoff shows a "level / next level" progression card with an upgrade button. The current game doesn't have a "net level" concept (offline progression is driven by `OfflineProgressSystem` + `active_net` rather than a level-based widget), so wiring this would require a gameplay design decision separate from theming. Marking as out-of-scope for 14c.
+- Teal→magenta gradient texture for the tier ribbon fill (`GradientTexture1D` overlay clipped via the fill rect width). 14c ships a flat teal fill that already conveys progress; the gradient is a polish item for 14g.
+- Bestiary card parchment-bg sweep continues in Phase 14d (full bestiary reskin).
+
+**Pre-push checklist**
+
+- Full GUT suite: **485/485 pass** (+8 from this phase)
+- API break (`configure` signature change) is fully internal — only `currency_bar.gd` is a caller, and it was updated in lockstep with the chip
+
 ### v0.15.1.3 — Fix: parchment-Background bleed-through + Upgrades/Crafting cards spilling past viewport
 
 **Why**

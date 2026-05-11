@@ -14,10 +14,10 @@
 extends PanelContainer
 
 const _CURRENCY_CHIP_SCENE := preload("res://game/scenes/ui/currency_chip.tscn")
-const _PALETTE := preload("res://game/resources/palette_colors.gd")
-const _COIN_ICON := preload("res://assets/sprites/icons/coin.png")
-const _RP_ICON := preload("res://assets/sprites/icons/rancher_point.png")
-const _PRESTIGE_ICON := preload("res://assets/sprites/icons/prestige.png")
+# v0.15.2 (Phase 14c) — chips now use a colored glyph cell + char
+# instead of a texture icon, per styles.css `.currency .glyph`.
+# Three accent colors come from Dusk's gold / teal / magenta.
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 
 var _gold_chip: PanelContainer
 var _rp_chip: PanelContainer
@@ -43,26 +43,27 @@ func _ready() -> void:
 	hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(hbox)
 
+	# v0.15.2 — three pixel-RPG currency pills per styles.css `.currency`.
+	# Each is a colored glyph cell + UPPERCASE label above + animated
+	# value below. Tooltips preserved from Phase 13g for screen readers.
+	var palette: Dictionary = _DUSK.amethyst()
+
 	_gold_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_gold_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(_gold_chip)
-	# v0.14.7 (Phase 13g): every currency chip now has a tooltip, so
-	# screen readers + long-press users can identify each chip.
-	# Pre-fix the gold chip's tooltip was "" while RP and Prestige
-	# had labels.
-	_gold_chip.configure(_COIN_ICON, _PALETTE.BRASS_ACCENT, "Gold", "Gold currency")
+	_gold_chip.configure("G", palette["gold"], "Gold", "Gold currency")
 
 	_rp_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_rp_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rp_chip.visible = false
 	hbox.add_child(_rp_chip)
-	_rp_chip.configure(_RP_ICON, _PALETTE.DUSK_BLUE, "RP", "Rancher Points")
+	_rp_chip.configure("R", palette["teal"], "Rancher", "Rancher Points")
 
 	_prestige_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_prestige_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_prestige_chip.visible = false
 	hbox.add_child(_prestige_chip)
-	_prestige_chip.configure(_PRESTIGE_ICON, _PALETTE.BLOOD_RUBY, "P", "Prestige cycles completed")
+	_prestige_chip.configure("P", palette["magenta"], "Prestige", "Prestige cycles completed")
 
 	EventBus.currency_changed.connect(_on_currency_changed)
 	EventBus.prestige_triggered.connect(_on_prestige_triggered)

@@ -1,8 +1,19 @@
-## Phase 11d — next_goal_chip surfaces tier completion progress.
+## Phase 14c — tier ribbon (formerly `next_goal_chip`) behaviour.
 ##
-## Verifies the chip's two text modes ("species left to find" before
-## all species are seen, "X / N catches" after) and that catching a
-## monster live updates the bar.
+## The ribbon should:
+##   1. Report missing-species count when not every species at the
+##      current tier has been seen yet.
+##   2. Switch to "X / N catches" mode once every species is seen.
+##   3. Advance its fill bar as `max_count` grows toward the threshold.
+##   4. Clamp the bar fill at 1.0 even past the threshold.
+##   5. Render the correct T-badge for the current max tier.
+##   6. Use the styles.css tier names for tiers 1–3.
+##
+## 14c rewrite notes: the old chip used a single `_label` + Godot
+## `ProgressBar` (`_bar`). The Dusk ribbon splits into `_badge_label`,
+## `_name_label` (RichTextLabel with bbcode), `_bar_fill` (ColorRect
+## anchored fill), and `_pct_label`. Tests now assert against each
+## piece independently.
 extends GutTest
 
 const _SCENE := preload("res://game/scenes/ui/next_goal_chip.tscn")
@@ -16,25 +27,25 @@ func before_each() -> void:
 
 func test_starts_with_species_left_message() -> void:
 	# Fresh state — no monsters caught means every tier-1 species is
-	# "left to find". Chip should report that count, not catch progress.
+	# "left to find". Ribbon should report that count, not catch progress.
 	var chip: PanelContainer = _SCENE.instantiate()
 	add_child_autofree(chip)
 	await wait_frames(2)
-	assert_string_contains(chip._label.text, "species left to find",
-			"chip should report missing-species count when none are seen")
+	assert_string_contains(chip._name_label.text, "species left",
+			"ribbon should report missing-species count when none are seen")
 
 
 func test_shows_catch_progress_after_seeing_each_species() -> void:
 	# Catch one of each tier-1 species so missing list is empty —
-	# chip should switch to catch progress mode.
+	# ribbon should switch to catch progress mode.
 	for m in ContentRegistry.monsters():
 		if m.tier == 1:
 			GameState.record_catch(m.id, false, "tap")
 	var chip: PanelContainer = _SCENE.instantiate()
 	add_child_autofree(chip)
 	await wait_frames(2)
-	assert_string_contains(chip._label.text, "/ 25 catches",
-			"chip should switch to catch progress once every species is seen")
+	assert_string_contains(chip._name_label.text, "/ 25 catches",
+			"ribbon should switch to catch progress once every species is seen")
 
 
 func test_progress_bar_advances_with_catches() -> void:
@@ -49,12 +60,17 @@ func test_progress_bar_advances_with_catches() -> void:
 	var chip: PanelContainer = _SCENE.instantiate()
 	add_child_autofree(chip)
 	await wait_frames(2)
-	assert_almost_eq(chip._bar.value, 15.0 / 25.0, 0.05,
-			"bar should reflect max_count / threshold (15/25 ≈ 0.6)")
+	# 14c: the fill is a ColorRect whose `anchor_right` is tweened
+	# 0..1. Assert against that, not the (now-removed) ProgressBar.
+	assert_almost_eq(chip._bar_fill.anchor_right, 15.0 / 25.0, 0.05,
+			"bar fill should reflect max_count / threshold (15/25 ≈ 0.6)")
+	# Percent label should round to the same fraction.
+	assert_string_contains(chip._pct_label.text, "60",
+			"pct label should display 60%% at 15/25 catches")
 
 
 func test_bar_clamps_at_one() -> void:
-	# Catch past the threshold — bar shouldn't overflow.
+	# Catch past the threshold — fill shouldn't overflow.
 	for m in ContentRegistry.monsters():
 		if m.tier == 1:
 			for i in 30:
@@ -62,5 +78,38 @@ func test_bar_clamps_at_one() -> void:
 	var chip: PanelContainer = _SCENE.instantiate()
 	add_child_autofree(chip)
 	await wait_frames(2)
-	assert_almost_eq(chip._bar.value, 1.0, 0.001,
-			"bar must cap at 1.0 even when max_count exceeds threshold")
+	assert_almost_eq(chip._bar_fill.anchor_right, 1.0, 0.001,
+			"bar fill must cap at 1.0 even when max_count exceeds threshold")
+	# 100% should also render in the pct label.
+	assert_string_contains(chip._pct_label.text, "100",
+			"pct label should display 100%% past the threshold")
+
+
+func test_badge_shows_current_max_tier() -> void:
+	# styles.css `.tier-ribbon .badge` renders the current tier as
+	# "T1", "T2", etc. The ribbon reads GameState.current_max_tier.
+	GameState.current_max_tier = 2
+	var chip: PanelContainer = _SCENE.instantiate()
+	add_child_autofree(chip)
+	await wait_frames(2)
+	assert_eq(chip._badge_label.text, "T2",
+			"badge should render 'T%%d' for the current max tier")
+
+
+func test_tier_name_lookup_uses_styles_css_labels() -> void:
+	# styles.css names tiers 1–3: Bog Hollow, Whisper Glade, Ash Reach.
+	# Beyond 3 we fall back to "Tier N".
+	GameState.current_max_tier = 1
+	var chip: PanelContainer = _SCENE.instantiate()
+	add_child_autofree(chip)
+	await wait_frames(2)
+	assert_string_contains(chip._name_label.text, "Bog Hollow",
+			"tier 1 should display as 'Bog Hollow' per styles.css")
+
+	# Direct unit-test of the lookup helper to cover the other two tiers
+	# without having to swap GameState in three separate ribbon builds.
+	assert_eq(chip._tier_name(1), "Bog Hollow")
+	assert_eq(chip._tier_name(2), "Whisper Glade")
+	assert_eq(chip._tier_name(3), "Ash Reach")
+	assert_eq(chip._tier_name(7), "Tier 7",
+			"tiers past the named 3 should fall back to 'Tier N'")
