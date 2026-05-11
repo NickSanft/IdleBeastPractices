@@ -107,6 +107,108 @@ func test_nav_buttons_each_fit_their_horizontal_slot() -> void:
 # endregion
 
 
+# region — cards never push their parent past the viewport
+#
+# v0.15.1.3 — user report: "Buttons are off the screen in Upgrades"
+# and "Buttons are off the screen in Crafting". Root cause: card
+# name_labels didn't autowrap, so a wide title (e.g., "CARVE
+# AGITATOR CHARM") forced the card's min_width past its grid column,
+# which forced the grid past viewport.x, which forced the
+# orientation_root VBox past viewport.x, which dragged the bottom
+# nav off-screen.
+#
+# These tests instantiate each affected view, drain layout, and
+# assert that the view's own size.x doesn't exceed the viewport
+# width — proving that no internal widget is forcing a layout spill.
+
+func _view_fits_horizontally(view: Control, view_size: Vector2) -> bool:
+	return view.size.x <= view_size.x + 1.0
+
+
+func test_upgrade_tree_view_fits_in_viewport_width() -> void:
+	var _main: Node = await _instantiate_main_and_drain()
+	# Find the upgrades view in the tab tree.
+	var tabs: TabContainer = _main.get("_tabs")
+	var upgrade_view: Control = tabs.find_child("Upgrades", false, false) as Control
+	assert_not_null(upgrade_view, "Upgrades tab must exist")
+	# Switch tabs to force layout.
+	for i in tabs.get_tab_count():
+		if tabs.get_tab_title(i) == "Upgrades":
+			tabs.current_tab = i
+			break
+	await wait_frames(3)
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	assert_true(_view_fits_horizontally(upgrade_view, view_size),
+		"upgrade_tree view spilled past viewport: size.x=%.1f vs viewport.x=%.1f" % [
+			upgrade_view.size.x, view_size.x,
+		])
+
+
+func test_crafting_view_fits_in_viewport_width() -> void:
+	var _main: Node = await _instantiate_main_and_drain()
+	var tabs: TabContainer = _main.get("_tabs")
+	var crafting_view: Control = tabs.find_child("Crafting", false, false) as Control
+	assert_not_null(crafting_view, "Crafting tab must exist")
+	for i in tabs.get_tab_count():
+		if tabs.get_tab_title(i) == "Crafting":
+			tabs.current_tab = i
+			break
+	await wait_frames(3)
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	assert_true(_view_fits_horizontally(crafting_view, view_size),
+		"crafting view spilled past viewport: size.x=%.1f vs viewport.x=%.1f" % [
+			crafting_view.size.x, view_size.x,
+		])
+
+
+func test_orientation_root_fits_in_viewport_after_tab_switches() -> void:
+	# The composite assertion: walk through every tab, drain, assert
+	# orientation_root never exceeds viewport.x. Pre-fix, switching
+	# to Upgrades or Crafting pushed orientation_root past viewport
+	# and dragged the nav row sideways.
+	var main: Node = await _instantiate_main_and_drain()
+	var tabs: TabContainer = main.get("_tabs")
+	var orientation_root: Control = main.get("_orientation_root")
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	var offenders: Array[String] = []
+	for i in tabs.get_tab_count():
+		var title: String = tabs.get_tab_title(i)
+		tabs.current_tab = i
+		await wait_frames(3)
+		if orientation_root.size.x > view_size.x + 1.0:
+			offenders.append("  tab '%s': orientation_root.size.x=%.1f > viewport.x=%.1f" % [
+				title, orientation_root.size.x, view_size.x,
+			])
+	assert_true(offenders.is_empty(),
+		"orientation_root spilled past viewport on these tabs:\n%s" % "\n".join(offenders))
+
+# endregion
+
+
+# region — background ColorRect uses Dusk, not parchment
+#
+# v0.15.1.3 — user report: "background color isn't correct in the
+# Catch Screen". The Background ColorRect in main.tscn was painted
+# parchment (#d6c79e), so any gap in the foreground content showed
+# parchment underneath. Repainted to Dusk's bg_deep (#0c0820).
+
+func test_main_background_color_is_dusk_bg_deep() -> void:
+	var main: Node = await _instantiate_main_and_drain()
+	# Find the Background ColorRect (direct child of Main per main.tscn).
+	var bg: ColorRect = main.get_node_or_null("Background")
+	assert_not_null(bg, "main.tscn must declare a Background ColorRect")
+	# Dusk bg_deep == #0c0820 == Color(0.047, 0.031, 0.125, 1).
+	# Explicit Color typing because Dictionary lookup returns Variant
+	# and `.r` would otherwise be an unresolved property access.
+	var expected: Color = PaletteDusk.amethyst()["bg_deep"]
+	assert_almost_eq(bg.color.r, expected.r, 0.01,
+		"Background.color.r drifted from Dusk bg_deep (parchment regression?)")
+	assert_almost_eq(bg.color.g, expected.g, 0.01)
+	assert_almost_eq(bg.color.b, expected.b, 0.01)
+
+# endregion
+
+
 # region — Catch nav button is clickable and routes to the catching tab
 
 func test_pressing_catch_nav_button_switches_to_catch_tab() -> void:

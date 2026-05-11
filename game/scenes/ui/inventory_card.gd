@@ -62,10 +62,16 @@ func _ready() -> void:
 	_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sprite_cell.add_child(_icon_rect)
 
+	# v0.15.1.3 — was parchment-era SEPIA_MID / INK_BLACK / SEPIA_DARK
+	# inks (dark colors readable on parchment). On Dusk's dark card
+	# bg they came out near-black-on-dark-purple and were unreadable.
+	# Now Dusk's ink_mute / ink / ink_dim — bright enough to read.
+	var _dusk := PaletteDusk.amethyst()
+
 	_qmark = Label.new()
 	_qmark.text = "?"
 	_qmark.add_theme_font_size_override("font_size", UiScale.size(28))
-	_qmark.modulate = _PALETTE.SEPIA_MID
+	_qmark.modulate = _dusk["ink_mute"]
 	_qmark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_qmark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_qmark.custom_minimum_size = Vector2(40, 40)
@@ -74,7 +80,7 @@ func _ready() -> void:
 
 	_name_label = Label.new()
 	_name_label.add_theme_font_size_override("font_size", UiScale.size(12))
-	_name_label.modulate = _PALETTE.INK_BLACK
+	_name_label.modulate = _dusk["ink"]
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -82,7 +88,7 @@ func _ready() -> void:
 
 	_count_label = Label.new()
 	_count_label.add_theme_font_size_override("font_size", UiScale.size(14))
-	_count_label.modulate = _PALETTE.SEPIA_DARK
+	_count_label.modulate = _dusk["ink_dim"]
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_count_label)
 
@@ -112,17 +118,23 @@ func _refresh() -> void:
 ## override. Doesn't leak back into the global theme — the override
 ## scopes to this PanelContainer only.
 func _apply_rarity_border(rarity: int) -> void:
+	# v0.15.1.3 — was the parchment palette's PARCHMENT for the card
+	# bg, leaving inventory cards tan-colored against the Dusk theme.
+	# Switched to PaletteDusk.amethyst()["card"] so the card reads as
+	# a Dusk-themed surface. Also dropped corner_radius (Dusk handoff
+	# is explicit: square corners are part of the aesthetic).
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = _PALETTE.PARCHMENT
+	var palette := PaletteDusk.amethyst()
+	sb.bg_color = palette["card"]
 	sb.border_color = _RARITY_BORDER_COLORS.get(rarity, _RARITY_BORDER_COLORS[0])
 	sb.border_width_left = 2
 	sb.border_width_top = 2
 	sb.border_width_right = 2
 	sb.border_width_bottom = 3
-	sb.corner_radius_top_left = 4
-	sb.corner_radius_top_right = 4
-	sb.corner_radius_bottom_right = 4
-	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_top_left = 0
+	sb.corner_radius_top_right = 0
+	sb.corner_radius_bottom_right = 0
+	sb.corner_radius_bottom_left = 0
 	sb.content_margin_left = 6.0
 	sb.content_margin_top = 6.0
 	sb.content_margin_right = 6.0

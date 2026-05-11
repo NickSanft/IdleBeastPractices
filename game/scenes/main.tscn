@@ -24,5 +24,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.84, 0.78, 0.62, 1)
+; v0.15.1.3 — was parchment (0.84, 0.78, 0.62) which bled through
+; any gap in the foreground content. Now Dusk `bg_deep` (#0c0820)
+; so any uncovered area reads as "intended dark backdrop" rather
+; than "wrong-themed leak."
+color = Color(0.047, 0.031, 0.125, 1)
 mouse_filter = 2

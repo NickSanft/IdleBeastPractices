@@ -78,6 +78,12 @@ func _refresh() -> void:
 func _build_card(u: UpgradeResource) -> Control:
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# v0.15.1.3 — clip_contents prevents a wider-than-column child
+	# from forcing the card (and its GridContainer parent, and the
+	# orientation_root VBox above THAT) to expand past the viewport.
+	# Without this, a name_label with a long upgrade title pushed
+	# the entire UI rightward and dragged the bottom nav off-screen.
+	card.clip_contents = true
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
 	card.add_child(vbox)
@@ -87,6 +93,12 @@ func _build_card(u: UpgradeResource) -> Control:
 	var name_label := Label.new()
 	name_label.text = "%s   [Lv %d / %d]" % [u.display_name, current_level, u.max_level]
 	name_label.add_theme_font_size_override("font_size", UiScale.size(20))
+	# v0.15.1.3 — autowrap so a long upgrade title wraps to a second
+	# line instead of widening the card past its grid-column slot.
+	# WORD_SMART falls back to character break for tokens longer
+	# than the column (impossible in practice — design names are short).
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()

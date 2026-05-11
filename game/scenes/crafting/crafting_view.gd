@@ -179,6 +179,12 @@ func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 	var name_label := Label.new()
 	name_label.text = recipe.display_name
 	name_label.add_theme_font_size_override("font_size", UiScale.size(20))
+	# v0.15.1.3 — autowrap so long recipe names (CARVE AGITATOR CHARM
+	# etc.) wrap inside the grid column instead of pushing the card,
+	# the grid, the orientation_root VBox, and ultimately the bottom
+	# nav off the viewport.
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(name_label)
 
 	var desc_label := Label.new()
@@ -189,9 +195,15 @@ func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 	vbox.add_child(desc_label)
 
 	# Inputs / cost line — RichTextLabel so BBCode color tags render.
+	# v0.15.1.3 — autowrap is REQUIRED alongside fit_content. Without
+	# it, RichTextLabel sizes to its longest unwrapped line, which
+	# for a recipe like "20× Wisplet Ectoplasm · 1.50K g" can run
+	# wider than the grid-column slot and push the card (and the
+	# whole orientation_root) past the viewport.
 	var inputs_label := RichTextLabel.new()
 	inputs_label.bbcode_enabled = true
 	inputs_label.fit_content = true
+	inputs_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	inputs_label.text = _format_inputs_line(recipe)
 	inputs_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(inputs_label)
@@ -207,6 +219,10 @@ func _build_recipe_card(recipe: CraftingRecipeResource) -> Control:
 			GameState.recipes_crafted)
 	var status_label := Label.new()
 	status_label.text = String(_REASON_LABELS.get(status["reason"], status["reason"]))
+	# v0.15.1.3 — autowrap so "Need more materials" (or any long
+	# status reason) wraps onto two lines inside the column rather
+	# than forcing the HBox row + card past the grid column slot.
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(status_label)
 

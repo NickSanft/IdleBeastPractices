@@ -6,6 +6,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.1.3 — Fix: parchment-Background bleed-through + Upgrades/Crafting cards spilling past viewport
+
+**Why**
+
+User screenshots after v0.15.1.2 showed four concrete issues:
+
+1. Catch screen still shows parchment color in the background where the dusk theme should be
+2. Bestiary / inventory cards still parchment-coloured against the Dusk theme
+3. Upgrade card content extends past the viewport's right edge
+4. Crafting tab shows only 2 nav buttons (Catch + Battle) — the other 3 are off-screen
+
+**Root cause for (3) + (4):** wide card content forced the GridContainer's column width past its design slot, which pushed the orientation_root VBox past viewport.x, which dragged the bottom nav row sideways with it. The Crafting view at 1331 dp wide on a 1280 dp viewport pushed the rightmost nav buttons off-screen. **My new `test_orientation_root_fits_in_viewport_after_tab_switches` test caught it by name.**
+
+**Root cause for (1) + (2):** inline `_PALETTE.PARCHMENT` references on backgrounds + dark-on-dark `_PALETTE.SEPIA_*` text colors haven't been swept to Dusk equivalents yet. Visible anywhere a scene script paints its own background instead of relying on the theme's panel stylebox.
+
+**Fixes**
+
+- **`main.tscn` Background ColorRect**: parchment `Color(0.84, 0.78, 0.62)` → Dusk `bg_deep` (#0c0820). If any foreground content has a gap, the parchment bleed-through is replaced by intended-dark-backdrop.
+- **`upgrade_tree.gd._build_card`**: name_label now `autowrap_mode = WORD_SMART` + `size_flags_horizontal = EXPAND_FILL`. Card also `clip_contents = true` as defense-in-depth so wide content can't push the parent grid past viewport.
+- **`crafting_view.gd._build_recipe_card`**: same autowrap on name_label. PLUS autowrap on the inputs_label (RichTextLabel needs `autowrap_mode = WORD_SMART` even with `fit_content = true` — without it, the label sizes to its longest line). PLUS autowrap on the status_label (e.g., "Need more materials" was forcing the HBox row past the column).
+- **`inventory_card.gd._apply_rarity_border`**: background `_PALETTE.PARCHMENT` → `PaletteDusk.amethyst()["card"]`. Also dropped corner_radius to 0 (Dusk handoff is explicit: square corners). Text colors swept: `SEPIA_MID` → `ink_mute`, `INK_BLACK` → `ink`, `SEPIA_DARK` → `ink_dim`.
+
+**Tests — `test_buttons_on_screen.gd` (4 new cases, 477/477 passing total)**
+
+The new tests caught the regression I was trying to fix:
+
+- `test_upgrade_tree_view_fits_in_viewport_width` — switches to Upgrades tab, drains layout, asserts `upgrade_view.size.x ≤ viewport.x`
+- `test_crafting_view_fits_in_viewport_width` — same for Crafting tab (initially **failed** with `crafting view spilled past viewport: size.x=1331.0 vs viewport.x=1280.0`, which pinpointed the recipe-card layout problem before the fix landed)
+- `test_orientation_root_fits_in_viewport_after_tab_switches` — composite assertion: walks every tab, asserts `_orientation_root.size.x` doesn't exceed viewport on any of them. This is the precise "nav buttons get dragged off-screen" detector.
+- `test_main_background_color_is_dusk_bg_deep` — the Background ColorRect's color is within 0.01 of Dusk's `bg_deep`. A future maintainer who reverts to parchment fails by name.
+
+The crafting fix was incremental — first autowrap pass solved the upgrade tab but Crafting still spilled (`1331.0 vs 1280.0`). The test fail told me exactly where to look; adding autowrap to the RichTextLabel + status_label brought Crafting under the viewport.
+
+**Note** — Issue 2 (bestiary entries parchment-colored) is partially addressed via the inventory_card sweep. Bestiary cards (separate file, `bestiary_card.gd`) still need their own sweep — that's part of Phase 14d (full bestiary reskin) and not in this release.
+
+**Pre-push checklist**
+
+- Full GUT suite: **477/477 pass** (+4 from this fix, my new tests caught the regression they're built to guard)
+
 ### v0.15.1.2 — Fix: 9 popups still using parchment theme; visual regression for off-screen buttons + tab routing
 
 **Why**
