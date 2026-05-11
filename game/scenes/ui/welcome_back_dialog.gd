@@ -26,7 +26,7 @@ func _ready() -> void:
 	# falls back to Godot's default styleboxes (visibly: white-on-parch
 	# RichTextLabel + teal-green button focus that doesn't match the
 	# rest of the parchment/brass UI).
-	theme = preload("res://game/resources/main_theme.tres")
+	theme = preload("res://assets/themes/dusk/amethyst.tres")
 	_body_label = RichTextLabel.new()
 	_body_label.bbcode_enabled = true
 	_body_label.fit_content = true

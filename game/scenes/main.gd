@@ -937,7 +937,7 @@ func _build_more_popup() -> void:
 	# popup falls back to Godot's default styleboxes (visibly: teal-
 	# green focus outlines on the secondary-nav buttons that don't
 	# match the rest of the parchment/brass UI).
-	_more_popup.theme = preload("res://game/resources/main_theme.tres")
+	_more_popup.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	add_child(_more_popup)
 
 	var margins := MarginContainer.new()

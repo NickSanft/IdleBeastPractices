@@ -32,7 +32,7 @@ func _ready() -> void:
 	layer = _SHOW_LAYER
 
 	_banner = PanelContainer.new()
-	_banner.theme = preload("res://game/resources/main_theme.tres")
+	_banner.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	# Anchor to top-center; manual offset_top keeps the slide-in math simple.
 	_banner.anchor_left = 0.5
 	_banner.anchor_right = 0.5

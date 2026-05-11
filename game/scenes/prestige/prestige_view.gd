@@ -66,7 +66,7 @@ func _ready() -> void:
 	_confirm_dialog.dialog_text = ""
 	# Window subtypes don't inherit Control theme cascade — explicit
 	# theme assignment per the v0.10.4 fix.
-	_confirm_dialog.theme = preload("res://game/resources/main_theme.tres")
+	_confirm_dialog.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	_confirm_dialog.confirmed.connect(_on_prestige_confirmed)
 	add_child(_confirm_dialog)
 

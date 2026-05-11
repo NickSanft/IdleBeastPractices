@@ -143,6 +143,62 @@ func test_device_layout_safe_area_matches_post_scale_factor_viewport() -> void:
 # endregion
 
 
+# region — popups + window-subtypes use the Dusk theme, not parchment
+#
+# v0.15.1.2 — 9 popup / dialog / overlay scripts explicitly preloaded
+# `res://game/resources/main_theme.tres` (the parchment theme) and
+# assigned it via `theme = preload(...)`. This was the v0.10.4 fix —
+# Window subtypes don't inherit Control theme cascade, so each popup
+# had to set its own theme. v0.15.1.2 swept all 9 references to the
+# Dusk theme. A future maintainer who re-introduces parchment in a
+# popup fails this lint test by file:line.
+
+func test_no_scene_script_loads_legacy_parchment_theme() -> void:
+	# Walks every `.gd` under `game/scenes/` for the literal
+	# `main_theme.tres` substring. Comment mentions are filtered out
+	# by checking for the `preload(` / `load(` prefix on the same line.
+	var roots: Array[String] = ["res://game/scenes"]
+	var offending: Array[String] = []
+	for r in roots:
+		_walk_for_legacy_theme(r, offending)
+	assert_true(offending.is_empty(),
+		"Found scripts still loading res://game/resources/main_theme.tres — sweep to res://assets/themes/dusk/amethyst.tres:\n%s" % "\n".join(offending))
+
+
+func _walk_for_legacy_theme(dir_path: String, out: Array[String]) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	while true:
+		var entry: String = dir.get_next()
+		if entry == "":
+			break
+		if entry.begins_with("."):
+			continue
+		var full: String = "%s/%s" % [dir_path, entry]
+		if dir.current_is_dir():
+			_walk_for_legacy_theme(full, out)
+			continue
+		if not entry.ends_with(".gd"):
+			continue
+		var f := FileAccess.open(full, FileAccess.READ)
+		if f == null:
+			continue
+		var line_no: int = 0
+		while not f.eof_reached():
+			line_no += 1
+			var line: String = f.get_line()
+			# We only care about LOAD/PRELOAD references — comment
+			# mentions are fine for historical context.
+			if (line.contains("preload(") or line.contains("load(")) and line.contains("main_theme.tres"):
+				out.append("  %s:%d  %s" % [full, line_no, line.strip_edges()])
+		f.close()
+	dir.list_dir_end()
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:

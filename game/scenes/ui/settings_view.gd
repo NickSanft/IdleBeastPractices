@@ -129,7 +129,7 @@ func _on_wipe_pressed() -> void:
 		# ConfirmationDialog is a Window subtype — assign the theme so
 		# its label + buttons paint with the parchment/brass UI rather
 		# than the dark mobile-default theme on get_tree().root.
-		_wipe_confirm.theme = preload("res://game/resources/main_theme.tres")
+		_wipe_confirm.theme = preload("res://assets/themes/dusk/amethyst.tres")
 		_wipe_confirm.confirmed.connect(_on_wipe_confirmed)
 		add_child(_wipe_confirm)
 	_wipe_confirm.popup_centered(Vector2(420, 200))

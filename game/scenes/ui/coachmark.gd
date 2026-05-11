@@ -62,7 +62,7 @@ func _ready() -> void:
 
 	# Hint bubble.
 	_bubble = PanelContainer.new()
-	_bubble.theme = preload("res://game/resources/main_theme.tres")
+	_bubble.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	_bubble.custom_minimum_size = Vector2(_BUBBLE_MIN_WIDTH, 0)
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bubble)

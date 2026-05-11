@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.1.2 — Fix: 9 popups still using parchment theme; visual regression for off-screen buttons + tab routing
+
+**Why**
+
+User report after v0.15.1.1: "*The catch button no longer seems to work, several menus and popups are still using the old theme, and many of the buttons are now off the screen.*"
+
+**Issue 1 — 9 popups still using parchment**
+
+Per the v0.10.4 fix in earlier phases, popups (`AcceptDialog`, `ConfirmationDialog`, `PopupPanel`) need their `theme` set explicitly because `Window`-subtype Controls don't inherit the parent Control theme cascade. Nine scripts preloaded `res://game/resources/main_theme.tres` (the parchment theme) and assigned it to the popup. v0.15.1.1's `self.theme = dusk_theme` on Main reached Main's subtree but NOT these popups — Window subtypes still pointed at parchment.
+
+Swept all 9 references to `res://assets/themes/dusk/amethyst.tres`:
+
+- `welcome_back_dialog.gd` — offline-progress claim dialog
+- `bestiary_card_detail.gd` — bestiary species detail popup
+- `prestige_view.gd` — prestige confirmation dialog
+- `settings_view.gd` — wipe-save confirmation
+- `inventory_panel.gd` — long-press sell-all context menu
+- `main.gd._build_more_popup` — More tab sheet
+- `celebration_overlay.gd` — tier-complete + shiny celebration
+- `coachmark.gd` — tutorial coachmarks
+- `toast.gd` — banner toasts
+
+**Issue 2 — investigation of off-screen buttons + broken catch tap**
+
+Wrote a structural regression test that boots `main.tscn` and walks every visible `Button`, asserting each one's rect sits inside the viewport. **Headless suite passes** — no Button extends off-screen in the test environment. Likely candidates the test rules out:
+
+- Bottom-nav row's 5 buttons sum to viewport width (no overflow)
+- Each nav button has a non-zero EXPAND_FILL slot
+- `Catch` nav button's `pressed.emit()` correctly switches `_tabs.current_tab` to 0
+
+If "catch button doesn't work" is still happening on your device after v0.15.1.2, the cause is likely environment-specific (a popup blocking input, an overlay's mouse_filter stuck at STOP, etc.). The new tests give us instrumentation to chase it down — if the issue reproduces in a specific scenario, plumb the scenario into `test_pressing_catch_nav_button_switches_to_catch_tab` or write a sibling case.
+
+**Tests — 4 new + 1 lint addition, 473/473 passing total**
+
+`test_buttons_on_screen.gd` (3 new):
+- `test_every_visible_button_is_within_viewport` — walks all visible Buttons under Main, asserts each rect is inside the viewport, names the offending edge + pixel offset for any that overflow
+- `test_nav_buttons_each_fit_their_horizontal_slot` — bottom-nav 5 buttons' widths sum to viewport width within tolerance; rightmost button's edge ≤ viewport.x
+- `test_pressing_catch_nav_button_switches_to_catch_tab` — pressing the Catch nav button switches `_tabs.current_tab` to 0
+
+`test_visual_regression.gd::test_no_scene_script_loads_legacy_parchment_theme` (1 new lint, walks all `.gd` under `game/scenes/` for `preload(...) / load(...)` references to `main_theme.tres`; fails with `file:line` if any sneaks back).
+
 ### v0.15.1.1 — Fix: Dusk theme wasn't reaching the live UI + phantom right/bottom margins
 
 **Why**

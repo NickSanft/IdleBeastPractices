@@ -52,7 +52,7 @@ func _ready() -> void:
 	# theme is assigned explicitly because CanvasLayer is a Window-
 	# adjacent context and theme cascade is unreliable.
 	_card = PanelContainer.new()
-	_card.theme = preload("res://game/resources/main_theme.tres")
+	_card.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	_card.set_anchors_preset(Control.PRESET_CENTER)
 	_card.custom_minimum_size = Vector2(360, 0)
 	_card.mouse_filter = Control.MOUSE_FILTER_STOP

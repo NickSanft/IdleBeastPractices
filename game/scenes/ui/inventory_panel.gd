@@ -170,7 +170,7 @@ func _build_context_popup() -> void:
 	_context_popup = PopupPanel.new()
 	# Window subtypes don't inherit Control theme cascade; assign
 	# explicitly per the v0.10.4 fix.
-	_context_popup.theme = preload("res://game/resources/main_theme.tres")
+	_context_popup.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	add_child(_context_popup)
 	var margins := MarginContainer.new()
 	margins.add_theme_constant_override("margin_left", 12)
