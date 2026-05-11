@@ -28,6 +28,11 @@ const STEP_EQUIP_NET := &"equip_net"
 const STEP_COMPLETE_FIRST_TIER := &"complete_first_tier"
 const STEP_ENTER_BATTLE := &"enter_battle"
 const STEP_CRAFT_FIRST_RECIPE := &"craft_first_recipe"
+## Phase 14e: first-launch Peniber intro overlay. Plays the 4-beat
+## intro from `data.js → PENIBER_INTRO` exactly once per save. Reuses
+## the existing TutorialState persistence so a Replay-tutorial in
+## Settings also resets the intro gate.
+const STEP_PENIBER_INTRO_SHOWN := &"peniber_intro_shown"
 
 const ALL_STEPS: Array[StringName] = [
 	STEP_TAP_FIRST_MONSTER,
@@ -36,6 +41,7 @@ const ALL_STEPS: Array[StringName] = [
 	STEP_COMPLETE_FIRST_TIER,
 	STEP_ENTER_BATTLE,
 	STEP_CRAFT_FIRST_RECIPE,
+	STEP_PENIBER_INTRO_SHOWN,
 ]
 
 ## Set of step ids that have been completed. Persisted; consulted by

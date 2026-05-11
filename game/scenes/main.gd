@@ -86,6 +86,9 @@ const _CELEBRATION_OVERLAY := preload("res://game/scenes/ui/celebration_overlay.
 const _TOAST := preload("res://game/scenes/ui/toast.tscn")
 const _COACHMARK := preload("res://game/scenes/ui/coachmark.tscn")
 const _QUEST_STRIP := preload("res://game/scenes/ui/quest_strip.tscn")
+## Phase 14e: first-launch Peniber intro overlay. Gated by
+## TutorialState.STEP_PENIBER_INTRO_SHOWN so it only plays once per save.
+const _PENIBER_INTRO_OVERLAY := preload("res://game/scenes/ui/peniber_intro_overlay.gd")
 var _celebration_overlay: CanvasLayer
 var _toast: CanvasLayer
 var _coachmark: CanvasLayer
@@ -617,9 +620,23 @@ func _install_tutorial_director() -> void:
 	# Defer the first-launch check so the bottom-nav has a settled
 	# rect by the time we call get_global_rect on it.
 	call_deferred("_check_tap_first_monster")
+	# Phase 14e: first-launch Peniber intro overlay. Deferred so the
+	# overlay paints on top of a fully-laid-out scene; checking the
+	# TutorialState gate is cheap enough that the defer doesn't cost
+	# anything visible. If the player has already seen the intro this
+	# is a no-op.
+	call_deferred("_check_peniber_intro")
 	EventBus.currency_changed.connect(_on_currency_changed_tutorial)
 	EventBus.pet_acquired.connect(_on_pet_acquired_tutorial)
 	EventBus.tier_unlocked.connect(_on_tier_unlocked_tutorial)
+
+
+## Phase 14e: show the 4-beat Peniber intro overlay on first launch.
+## Self-gated via TutorialState.STEP_PENIBER_INTRO_SHOWN; subsequent
+## launches are no-ops. The overlay manages its own dismissal +
+## queue_free; we only have to spawn it.
+func _check_peniber_intro() -> void:
+	_PENIBER_INTRO_OVERLAY.show_intro_if_unseen(self)
 
 
 func _check_tap_first_monster() -> void:

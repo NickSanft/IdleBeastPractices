@@ -6,6 +6,63 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.4 — Phase 14e: Dusk Peniber dialog ribbon + first-launch intro overlay
+
+**Why**
+
+The narrator UI was a sepia-toned `narrator_overlay.gd` text bubble with no portrait, no typewriter, and no first-launch onboarding. Phase 14e rebuilds it per styles.css `.peniber` (pixel-card frame + 28×28 portrait + gold "PENIBER" name + VT323 body with a blinking gold caret + typewriter reveal) and adds the first-launch `.intro-overlay` (4-beat intro from `data.js → PENIBER_INTRO`).
+
+**What changed**
+
+- **`narrator_overlay.gd` rebuilt as the Dusk Peniber ribbon.** Same path + same EventBus contract (subscribes to `narrator_line_chosen`, tap-to-dismiss + auto-hide after `VISIBLE_SECONDS`) so every caller in the codebase keeps working. Layout reskin per styles.css `.peniber`:
+  - 28×28 portrait stand-in (Panel with Dusk purple bg + 2-px gold border; real pixel-art portrait is a separate art commission)
+  - Header row: portrait + UPPERCASE gold "PENIBER" name (DisplaySmall / Press Start 2P 10 px) + timestamp (UiTiny / Silkscreen 7 px ink_mute)
+  - Body: `RichTextLabel` with `theme_type_variation = "BodyText"` (VT323 18 px) + typewriter reveal driven by tweening `visible_characters` at 18 ms/char
+  - Caret: 6×14 `ColorRect` (filled gold block, not a glyph) blinking at 600 ms square steps
+  - Animation: 280 ms slide-up + fade-in (translateY 8 → 0 + opacity 0 → 1) per `peniber-in` keyframes
+  - Mood compat: the old `_MOOD_TINTS` table that recolored the whole bubble now subtly tints only the gold name label — body always reads as primary ink for legibility
+  - Mouse-filter contract from v0.8.8 preserved: wrapper IGNORE, bubble flips STOP during display + IGNORE post-fade-out so battle/catch buttons stay tappable underneath
+- **`peniber_intro_overlay.gd` new file** — first-launch 4-beat intro per styles.css `.intro-overlay`:
+  - Dim full-screen backdrop (`rgba(7,5,15,0.92)`)
+  - Title block: "IDLE BEASTS" in DisplayHeading (Press Start 2P 18 px gold) with 2-px black drop shadow, + "T H E   A W A K E N I N G" subtitle (UiCaption / Silkscreen 9 px ink_dim)
+  - Title flicker animation: 4-s loop dropping to 60 % opacity at the 92 % mark (per `title-flicker` keyframes)
+  - Wizard stage (120×160) with a stylized geometric stand-in — 88-px robe + 32-px head with two 4-px black eyes + hat + beard + 8-px gold hat-spark. Real pixel-art Peniber sprite is a separate art commission (`PHASED_RESKIN_PLAN.md` marks it out-of-scope for Phase 14). Wizard floats ±6 px on a 3.4-s ease-in-out loop; hat-spark pulses on a 2-s sine loop.
+  - Dialog bubble: Dusk card + 2-px border, BodyIntro (VT323 19 px) text, 4 page-indicator dots (gold = current, ink_mute = inactive), 58-dp SKIP button. Tap the bubble to advance to the next beat (or fast-forward typewriter if still revealing); SKIP dismisses immediately. After the 4th beat, the overlay emits `intro_dismissed` and frees.
+  - Gold "PENIBER" pin at top-left of bubble (Press Start 2P 10 px, gold bg + gold_dark border, dark ink text per styles.css `.pen-bubble .pin`)
+  - Mood tint shifts the pin color subtly per beat (weary / explaining / dry / exiting) for voice-acting flavor
+- **`TutorialState` gains `STEP_PENIBER_INTRO_SHOWN`** so the intro plays exactly once per save. Reset via the existing Settings "Replay tutorial" button → next launch shows the intro again.
+- **`main.gd._install_tutorial_director`** gains `_check_peniber_intro()` (deferred so the overlay paints over a settled scene). Static factory `PENIBER_INTRO_OVERLAY.show_intro_if_unseen(parent)` self-gates via `TutorialState.should_show` — no-op once seen.
+
+**Tests — 18 new + 6 visual-regression assertions, 516/516 passing total**
+
+- **`test_peniber_ribbon.gd` (7 new)** — pins ribbon structure: portrait + name + timestamp + body + caret all wired; name uses DisplaySmall; body uses BodyText; caret is a 6×14 gold ColorRect; `_show()` triggers typewriter; tap dismisses + returns mouse_filter to IGNORE (v0.8.8 contract regression guard)
+- **`test_peniber_intro_overlay.gd` (11 new)** — pins intro overlay: 4-beat advance via bubble tap, SKIP dismisses, tap during typewriter fast-forwards instead of advancing, TutorialState gate (`show_intro_if_unseen` returns false when already seen / true + adds overlay when not), dot color flips per current beat, title uses DisplayHeading, bubble uses BodyIntro
+- **`test_visual_regression.gd` gains 6 new structural assertions** — pin the typography variations that styles.css specifies so a refactor can't silently flatten the chrome to default Silkscreen 11:
+  - `peniber_ribbon_name_uses_displaysmall_variation`
+  - `peniber_ribbon_body_uses_bodytext_variation`
+  - `peniber_ribbon_caret_is_dusk_gold_colorrect`
+  - `peniber_intro_title_uses_displayheading_variation`
+  - `peniber_intro_bubble_uses_bodyintro_variation`
+  - `peniber_intro_dot_count_matches_beats`
+
+**Catches a real regression**
+
+`test_first_tap_during_typewriter_fast_forwards` initially asserted `visible_characters == 0` after `wait_frames(1)` — but the typewriter tween advances a few characters during that single frame. Fixed the assertion to `visible_characters < text.length()` (still mid-reveal, which is the precondition the fast-forward branch needs).
+
+`test_every_tappable_meets_material_floor` caught the new SKIP button at 31 dp tall (styles.css `.skip` is `padding: 6px 8px` which is small by design, but the mobile 58-dp tap-target floor takes precedence). Bumped `custom_minimum_size` to `UiScale.tap_target() + 12` wide × `UiScale.tap_target()` tall.
+
+**Deferred to later phases**
+
+- Real pixel-art Peniber sprite (the geometric stand-in is acceptable for v0.15.x per `PHASED_RESKIN_PLAN.md`, real art is a separate commission)
+- Gold soft-glow `0 0 24px rgba(245,196,107,0.4)` text-shadow on the intro title — Godot's Label shadow API supports the hard 2-px shadow but not the soft glow. 14g polish item.
+- `clip-path` trapezoid silhouettes for robe / hat / beard — currently rectangular Panel approximations. 14g polish.
+- Pin position is set once on `_ready` rather than tracked against the bubble's live position. A landscape-rotate could drift the pin slightly; fixed-position is fine for portrait. 14g polish if it becomes visible.
+
+**Pre-push checklist**
+
+- Full GUT suite: **516/516 pass** (+24 from this phase)
+- API surface preserved: every existing call site for `narrator_overlay.gd` still works; the EventBus contract (`narrator_line_chosen` payload shape) is unchanged
+
 ### v0.15.3 — Phase 14d: Dusk map background + monster pixel-card chrome + bestiary palette sweep
 
 **Why**

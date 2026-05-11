@@ -411,6 +411,87 @@ func test_bestiary_card_tier_ribbon_paints_dusk_accent() -> void:
 # endregion
 
 
+# region — Phase 14e Peniber ribbon + intro overlay typography
+#
+# v0.15.4 — Phase 14e brings the Peniber dialog ribbon (formerly
+# `narrator_overlay`) and the new first-launch intro overlay up to
+# the Dusk pixel-RPG look. These tests pin the typography variations
+# styles.css specifies — a regression that drops the variation would
+# silently render with default Silkscreen 11, losing the gold name
+# pin / VT323 body / Press Start 2P title identity.
+
+const _NARRATOR_OVERLAY_SCENE := preload("res://game/scenes/ui/narrator_overlay.tscn")
+const _PENIBER_INTRO_SCENE := preload("res://game/scenes/ui/peniber_intro_overlay.tscn")
+
+
+func test_peniber_ribbon_name_uses_displaysmall_variation() -> void:
+	# styles.css `.peniber .name`: Press Start 2P 10 px gold. Pin the
+	# variation so a refactor can't silently flatten the name to default
+	# Silkscreen.
+	var ribbon: Control = _NARRATOR_OVERLAY_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(1)
+	assert_eq(ribbon._name_label.theme_type_variation, &"DisplaySmall",
+		"PENIBER name must use DisplaySmall (Press Start 2P) per styles.css `.peniber .name`")
+
+
+func test_peniber_ribbon_body_uses_bodytext_variation() -> void:
+	# styles.css `.peniber .text`: VT323 17 px ink.
+	var ribbon: Control = _NARRATOR_OVERLAY_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(1)
+	assert_eq(ribbon._text_label.theme_type_variation, &"BodyText",
+		"body must use BodyText (VT323) per styles.css `.peniber .text`")
+
+
+func test_peniber_ribbon_caret_is_dusk_gold_colorrect() -> void:
+	# styles.css `.peniber .caret`: 6×14 filled gold block — must be a
+	# ColorRect (not a Label) so blink toggles don't trigger text-shaping.
+	var ribbon: Control = _NARRATOR_OVERLAY_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(1)
+	assert_true(ribbon._caret_label is ColorRect,
+		"caret must be a ColorRect per styles.css `.peniber .caret`")
+	assert_eq(ribbon._caret_label.color, PaletteDusk.amethyst()["gold"],
+		"caret color must be the Dusk gold token")
+
+
+func test_peniber_intro_title_uses_displayheading_variation() -> void:
+	# styles.css `.intro-overlay .title h1`: Press Start 2P 18 px gold.
+	# Without DisplayHeading variation the title falls back to default
+	# Silkscreen 11 — half the intended size + wrong font.
+	TutorialState.reset()
+	var o: CanvasLayer = _PENIBER_INTRO_SCENE.instantiate()
+	add_child_autofree(o)
+	await wait_frames(1)
+	assert_eq(o._title_label.theme_type_variation, &"DisplayHeading",
+		"intro title must use DisplayHeading (Press Start 2P 18) per styles.css")
+
+
+func test_peniber_intro_bubble_uses_bodyintro_variation() -> void:
+	# styles.css `.intro-overlay .pen-bubble .text`: VT323 19 px.
+	TutorialState.reset()
+	var o: CanvasLayer = _PENIBER_INTRO_SCENE.instantiate()
+	add_child_autofree(o)
+	await wait_frames(1)
+	assert_eq(o._bubble_text.theme_type_variation, &"BodyIntro",
+		"intro bubble must use BodyIntro (VT323 19) per styles.css")
+
+
+func test_peniber_intro_dot_count_matches_beats() -> void:
+	# Page dots are one per PENIBER_INTRO beat. styles.css mockup has 4.
+	# Catches a regression where the BEATS array grows but the dots row
+	# doesn't follow.
+	TutorialState.reset()
+	var o: CanvasLayer = _PENIBER_INTRO_SCENE.instantiate()
+	add_child_autofree(o)
+	await wait_frames(1)
+	assert_eq(o._bubble_dot_rects.size(), 4,
+		"page dots row must have one ColorRect per PENIBER_INTRO beat")
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:
