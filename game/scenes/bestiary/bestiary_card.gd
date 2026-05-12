@@ -33,6 +33,8 @@ extends PanelContainer
 signal card_tapped(monster_id: StringName)
 
 const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
+## Phase 14h — gold L-bracket corner trim per styles.css `.pixel-card::before`.
+const _GOLD_BRACKETS := preload("res://game/scenes/ui/gold_brackets.gd")
 const _SPRITE_FRAME_SIZE := Vector2(32, 32)
 const _SPRITE_DISPLAY_SCALE := 2.0
 const _SPRITE_BOX: Vector2 = _SPRITE_FRAME_SIZE * _SPRITE_DISPLAY_SCALE
@@ -87,6 +89,20 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_silhouette_material = _build_silhouette_material()
 	_build_layout()
+	# Phase 14h — gold L-brackets on every bestiary card per styles.css
+	# `.pixel-card::before`. Added after `_build_layout` so the brackets
+	# render on top of the card's panel stylebox.
+	#
+	# `clip_contents = true` (set above) means the brackets must inset
+	# INTO the card rather than extending past its edges. Override the
+	# -2 px outset with +1 px inset so the corners still read as RPG-
+	# window trim without getting clipped.
+	var brackets: Control = _GOLD_BRACKETS.new()
+	add_child(brackets)
+	brackets.offset_left = 1
+	brackets.offset_top = 1
+	brackets.offset_right = -1
+	brackets.offset_bottom = -1
 	if monster != null:
 		refresh()
 	# Phase 13a: live re-apply font sizes when the user moves the
@@ -95,6 +111,13 @@ func _ready() -> void:
 	# The labels themselves stay; we just retarget their font_size
 	# theme override.
 	Settings.accessibility_settings_changed.connect(_apply_font_sizes)
+	# Phase 14h — repaint card chrome when the player swaps palette in
+	# Settings. The ribbon color, name/count ink, pill accents, and
+	# perfected-border styling all read from PaletteDusk.active(), so a
+	# `refresh()` rebuild walks them through to the new palette's tokens.
+	# Plus rebuild the locked-state `?` ink that's set once at build
+	# time (refresh() doesn't touch it).
+	Settings.theme_changed.connect(_on_theme_changed)
 	# v0.15.1 (Phase 14b): the DeviceLayout.layout_changed subscription
 	# was load-bearing pre-v0.14.3, when UiScale.size() multiplied by
 	# `dpi_bucket`. After v0.14.3 moved density to
@@ -121,6 +144,23 @@ func _apply_font_sizes() -> void:
 func set_monster(m: MonsterResource) -> void:
 	monster = m
 	if is_inside_tree():
+		refresh()
+
+
+## Phase 14h — Settings.theme_changed handler. Updates the cached
+## build-time modulates (the `?` ink + `_count_label` ink — set once
+## in `_build_layout` and not rewritten by `refresh()`), then calls
+## `refresh()` so the ribbon color + name/count/pill state all repaint
+## with the new palette.
+func _on_theme_changed() -> void:
+	if not is_inside_tree():
+		return
+	var palette: Dictionary = _DUSK.active()
+	if _qmark_label != null:
+		_qmark_label.modulate = palette["ink_mute"]
+	if _count_label != null:
+		_count_label.modulate = palette["ink_dim"]
+	if monster != null:
 		refresh()
 
 
@@ -159,7 +199,7 @@ func _build_layout() -> void:
 	# Phase 14d: locked-state "?" was a parchment sepia. Dusk equivalent
 	# is `ink_mute` (muted purple-ink), which still reads as "unseen"
 	# against the card_2 bg without breaking palette identity.
-	_qmark_label.modulate = _DUSK.amethyst()["ink_mute"]
+	_qmark_label.modulate = _DUSK.active()["ink_mute"]
 	_qmark_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_qmark_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_qmark_label.custom_minimum_size = _SPRITE_BOX
@@ -177,7 +217,7 @@ func _build_layout() -> void:
 	# Phase 14d: count line was `SEPIA_MID` in the parchment era. Use
 	# `ink_dim` (muted purple) so the metadata reads as secondary text
 	# without low-contrast against the dark card bg.
-	_count_label.modulate = _DUSK.amethyst()["ink_dim"]
+	_count_label.modulate = _DUSK.active()["ink_dim"]
 	vbox.add_child(_count_label)
 
 	_slot_row = HBoxContainer.new()
@@ -200,7 +240,7 @@ func _build_layout() -> void:
 	#                                    accent; staying within the
 	#                                    ink range keeps it from
 	#                                    competing with the gold/teal)
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	_pill_seen = _build_pill("◇", palette["teal"], "Seen")
 	_pill_normal = _build_pill("✦", palette["gold"], "Normal")
 	_pill_shiny = _build_pill("✧", palette["magenta"], "Shiny")
@@ -266,10 +306,10 @@ func refresh() -> void:
 		# so the lock state still reads at a glance against the dark
 		# card bg. INK_BLACK / SEPIA_MID (parchment era) would have been
 		# dark-on-dark + faded-on-dark respectively.
-		_name_label.modulate = _DUSK.amethyst()["ink"]
+		_name_label.modulate = _DUSK.active()["ink"]
 	else:
 		_name_label.text = "??? — Tier %d" % monster.tier
-		_name_label.modulate = _DUSK.amethyst()["ink_mute"]
+		_name_label.modulate = _DUSK.active()["ink_mute"]
 
 	# Count line: only meaningful once seen. Phrasing matches the prior
 	# tests' fixtures so the regression suite keeps passing.
@@ -286,7 +326,7 @@ func refresh() -> void:
 	# the accent colors here mirror the ones used at build time in
 	# _build_layout (teal / gold / magenta / ink_dim) so the refresh
 	# path doesn't fight the build path over color identity.
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	_update_pill(_pill_seen, "◇", seen, palette["teal"])
 	_update_pill(_pill_normal, "✦", normal_count > 0, palette["gold"])
 	_update_pill(_pill_shiny, "✧", shiny_count > 0, palette["magenta"])
@@ -308,7 +348,7 @@ func _band_color_for_tier(tier: int) -> Color:
 	@warning_ignore("integer_division")
 	var band: int = clamp((tier - 1) / 5, 0, _BAND_ACCENTS.size() - 1)
 	var accent_key: String = _BAND_ACCENTS[band]
-	return _DUSK.amethyst()[accent_key]
+	return _DUSK.active()[accent_key]
 
 
 ## Returns the LOCKED/SEEN/CAPTURED/PERFECTED state given the monster
@@ -362,7 +402,7 @@ func _update_pill(label: Label, glyph: String, filled: bool, color: Color) -> vo
 	if filled:
 		label.modulate = color
 	else:
-		var mute: Color = _DUSK.amethyst()["ink_mute"]
+		var mute: Color = _DUSK.active()["ink_mute"]
 		label.modulate = Color(mute.r, mute.g, mute.b, 0.45)
 
 
@@ -378,7 +418,7 @@ func _apply_perfected_border(perfected: bool) -> void:
 	# explicit: square corners across the whole Dusk pixel-RPG look).
 	# Border thickens to 3 px to keep the "perfected" affordance loud
 	# against the default 2-px theme border.
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = palette["card"]
 	sb.border_color = palette["gold"]

@@ -32,6 +32,8 @@
 extends Control
 
 const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
+## Phase 14h — gold L-bracket corner trim per styles.css `.pixel-card::before`.
+const _GOLD_BRACKETS := preload("res://game/scenes/ui/gold_brackets.gd")
 
 const VISIBLE_SECONDS := 8.0
 const FADE_SECONDS := 0.25
@@ -104,12 +106,44 @@ func _ready() -> void:
 	_bubble.position.y = _SLIDE_DISTANCE_PX
 
 	EventBus.narrator_line_chosen.connect(_on_narrator_line_chosen)
+	# Phase 14h — repaint the bubble's stylebox + labels when the
+	# player swaps palette in Settings. Bubble bg / border / name gold /
+	# timestamp ink / caret gold all read from PaletteDusk.active().
+	Settings.theme_changed.connect(_on_theme_changed)
+
+
+## Phase 14h — Settings.theme_changed handler. Rebuilds the bubble
+## stylebox + retints labels with the new palette tokens. Cheaper
+## than rebuilding the whole bubble since the layout doesn't change.
+func _on_theme_changed() -> void:
+	if _bubble == null:
+		return
+	var palette: Dictionary = _DUSK.active()
+	var sb: StyleBoxFlat = _bubble.get_theme_stylebox("panel")
+	if sb != null:
+		var new_sb: StyleBoxFlat = sb.duplicate()
+		new_sb.bg_color = palette["card"]
+		new_sb.border_color = palette["border"]
+		_bubble.add_theme_stylebox_override("panel", new_sb)
+	if _name_label != null:
+		_name_label.add_theme_color_override("font_color", palette["gold"])
+	if _timestamp_label != null:
+		_timestamp_label.add_theme_color_override("font_color", palette["ink_mute"])
+	if _caret_label != null:
+		_caret_label.color = palette["gold"]
+	# Repaint the portrait's stylebox (purple bg + gold border).
+	if _portrait != null:
+		var port_sb: StyleBoxFlat = _portrait.get_theme_stylebox("panel")
+		if port_sb != null:
+			var new_port_sb: StyleBoxFlat = port_sb.duplicate()
+			new_port_sb.border_color = palette["gold"]
+			_portrait.add_theme_stylebox_override("panel", new_port_sb)
 
 
 ## Build the bubble + pen-head row + body text. Single _ready-time
 ## construction; subsequent `_show` calls just retarget labels.
 func _build_bubble() -> void:
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 
 	_bubble = PanelContainer.new()
 	_bubble.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -134,6 +168,12 @@ func _build_bubble() -> void:
 	sb.shadow_offset = Vector2(0, 4)
 	_bubble.add_theme_stylebox_override("panel", sb)
 	add_child(_bubble)
+	# Phase 14h — gold L-brackets on the Peniber bubble. Added as a
+	# child of the bubble (not the wrapper) so the corners track the
+	# bubble's slide-up + fade-in animation. mouse_filter = IGNORE on
+	# the brackets keeps the bubble's tap-to-dismiss path intact.
+	var brackets: Control = _GOLD_BRACKETS.new()
+	_bubble.add_child(brackets)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
@@ -204,7 +244,7 @@ func _build_bubble() -> void:
 ## bg + 2-px gold border. The "real wizard sprite" is a separate art
 ## pass tracked in PHASED_RESKIN_PLAN.md as out-of-scope for Phase 14.
 func _build_portrait() -> Control:
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	var portrait := PanelContainer.new()
 	portrait.custom_minimum_size = Vector2(28, 28)
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -234,7 +274,7 @@ func _on_narrator_line_chosen(_line_id: String, text: String, mood: String) -> v
 	_full_text = text
 	# Mood now tints the name only (per styles.css `.name` is always gold,
 	# but a subtle mood shift on the gold reads as voice-acting flavor).
-	var name_tint: Color = _MOOD_NAME_TINTS.get(mood, _DUSK.amethyst()["gold"])
+	var name_tint: Color = _MOOD_NAME_TINTS.get(mood, _DUSK.active()["gold"])
 	_name_label.add_theme_color_override("font_color", name_tint)
 	_timestamp_label.text = "just now"
 	_last_shown_unix_ms = Time.get_ticks_msec()

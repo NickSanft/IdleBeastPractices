@@ -52,7 +52,7 @@ func bind_monster(monster: MonsterResource) -> void:
 		var tier_label := Label.new()
 		tier_label.text = "Tier %d" % monster.tier
 		# Phase 14d: SEPIA_MID → `ink_dim` per the bestiary_card sweep.
-		tier_label.modulate = _DUSK.amethyst()["ink_dim"]
+		tier_label.modulate = _DUSK.active()["ink_dim"]
 		tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tier_label.add_theme_font_size_override("font_size", UiScale.size(14))
 		vbox.add_child(tier_label)
@@ -96,7 +96,7 @@ void fragment() {
 		# Dusk equivalent is `ink` (bright purple-white) since the
 		# parchment-era "dark text on light bg" inverts on the dusk
 		# popup bg.
-		flavor.modulate = _DUSK.amethyst()["ink"]
+		flavor.modulate = _DUSK.active()["ink"]
 		flavor.add_theme_font_size_override("font_size", UiScale.size(14))
 		flavor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		vbox.add_child(flavor)
@@ -115,7 +115,7 @@ void fragment() {
 			# Phase 14d: SEPIA_MID → `ink_dim` for secondary quote text.
 			# Peniber quotes stay slightly dimmed so they read as
 			# flavor rather than primary content.
-			quote_label.modulate = _DUSK.amethyst()["ink_dim"]
+			quote_label.modulate = _DUSK.active()["ink_dim"]
 			quote_label.add_theme_font_size_override("font_size", UiScale.size(13))
 			quote_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			vbox.add_child(quote_label)

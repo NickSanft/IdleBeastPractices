@@ -652,6 +652,133 @@ func test_catching_background_repaints_on_theme_changed() -> void:
 # endregion
 
 
+# region — Phase 14h palette switcher reach: bestiary / monster / peniber / currency_bar
+#
+# v0.15.7 — Phase 14h completes the Settings palette switcher's
+# visible reach. Each scene below caches palette tokens at build
+# time; without a `theme_changed` subscription, a Settings palette
+# swap leaves the cached chrome painted with the previous palette.
+# These tests pin that each scene actually retints on swap.
+
+func test_bestiary_card_repaints_ribbon_on_theme_changed() -> void:
+	ContentRegistry.ensure_loaded()
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var card_scene := preload("res://game/scenes/bestiary/bestiary_card.tscn")
+	var card: PanelContainer = card_scene.instantiate()
+	add_child_autofree(card)
+	var m := MonsterResource.new()
+	m.id = &"test_bestiary_t1"
+	m.display_name = "Test"
+	m.tier = 1
+	card.set_monster(m)
+	await wait_frames(2)
+	assert_eq(card._ribbon.color, PaletteDusk.amethyst()["teal"])
+	Settings.set_theme_id(Settings.THEME_EMBER)
+	await wait_frames(1)
+	assert_eq(card._ribbon.color, PaletteDusk.ember()["teal"],
+		"bestiary card ribbon must repaint with the new palette's teal on theme_changed")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_monster_instance_name_card_repaints_on_theme_changed() -> void:
+	# Name card border is sourced from PaletteDusk.active()["border"];
+	# a swap must update the cached stylebox.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var inst: Node2D = _MONSTER_INSTANCE_SCENE.instantiate()
+	var m := MonsterResource.new()
+	m.id = &"test_mon_themechange"
+	m.display_name = "Test"
+	m.tier = 1
+	inst.monster = m
+	add_child_autofree(inst)
+	await wait_frames(2)
+	var sb0: StyleBoxFlat = inst._name_card_panel.get_theme_stylebox("panel")
+	assert_eq(sb0.border_color, PaletteDusk.amethyst()["border"])
+	Settings.set_theme_id(Settings.THEME_TWILIGHT)
+	await wait_frames(1)
+	var sb1: StyleBoxFlat = inst._name_card_panel.get_theme_stylebox("panel")
+	assert_eq(sb1.border_color, PaletteDusk.twilight()["border"],
+		"monster_instance name card border must follow the active palette")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_peniber_ribbon_repaints_bubble_on_theme_changed() -> void:
+	# Bubble bg / border + caret gold + name gold are cached at build
+	# time. The new theme_changed handler must walk them all to the
+	# new palette's tokens.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var ribbon: Control = _NARRATOR_OVERLAY_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(2)
+	var sb0: StyleBoxFlat = ribbon._bubble.get_theme_stylebox("panel")
+	assert_eq(sb0.bg_color, PaletteDusk.amethyst()["card"])
+	Settings.set_theme_id(Settings.THEME_TWILIGHT)
+	await wait_frames(1)
+	var sb1: StyleBoxFlat = ribbon._bubble.get_theme_stylebox("panel")
+	assert_eq(sb1.bg_color, PaletteDusk.twilight()["card"],
+		"Peniber ribbon bubble bg must follow the active palette")
+	assert_eq(ribbon._caret_label.color, PaletteDusk.twilight()["gold"],
+		"Peniber ribbon caret must repaint on theme_changed")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_currency_bar_repaints_chips_on_theme_changed() -> void:
+	# Each chip's glyph cell uses the palette's accent token (gold /
+	# teal / magenta). Currency bar must re-call `configure()` on a
+	# palette swap so the per-instance StyleBoxFlat retints.
+	Settings.theme_id = Settings.THEME_AMETHYST
+	var bar_scene := preload("res://game/scenes/ui/currency_bar.tscn")
+	var bar: PanelContainer = bar_scene.instantiate()
+	add_child_autofree(bar)
+	await wait_frames(2)
+	var gold_sb0: StyleBoxFlat = bar._gold_chip._glyph_panel.get_theme_stylebox("panel")
+	assert_eq(gold_sb0.bg_color, PaletteDusk.amethyst()["gold"])
+	Settings.set_theme_id(Settings.THEME_EMBER)
+	await wait_frames(1)
+	var gold_sb1: StyleBoxFlat = bar._gold_chip._glyph_panel.get_theme_stylebox("panel")
+	assert_eq(gold_sb1.bg_color, PaletteDusk.ember()["gold"],
+		"currency_bar gold chip must repaint with the new palette's gold accent")
+	Settings.set_theme_id(Settings.THEME_AMETHYST)
+
+
+func test_bestiary_card_carries_gold_brackets() -> void:
+	# Phase 14h adds L-brackets to bestiary cards (pixel-card class).
+	ContentRegistry.ensure_loaded()
+	var card_scene := preload("res://game/scenes/bestiary/bestiary_card.tscn")
+	var card: PanelContainer = card_scene.instantiate()
+	add_child_autofree(card)
+	var m := MonsterResource.new()
+	m.id = &"test_bestiary_brackets"
+	m.display_name = "Test"
+	m.tier = 1
+	card.set_monster(m)
+	await wait_frames(2)
+	var found_brackets: bool = false
+	for child in card.get_children():
+		if child.get_script() == preload("res://game/scenes/ui/gold_brackets.gd"):
+			found_brackets = true
+			break
+	assert_true(found_brackets,
+		"bestiary card must carry a GoldBrackets decoration child per styles.css `.pixel-card::before`")
+
+
+func test_peniber_ribbon_carries_gold_brackets() -> void:
+	# Phase 14h adds L-brackets to the Peniber dialog ribbon (pixel-card class).
+	var ribbon: Control = _NARRATOR_OVERLAY_SCENE.instantiate()
+	add_child_autofree(ribbon)
+	await wait_frames(2)
+	# Brackets are added as a child of the bubble (so they slide with it).
+	var found_brackets: bool = false
+	for child in ribbon._bubble.get_children():
+		if child.get_script() == preload("res://game/scenes/ui/gold_brackets.gd"):
+			found_brackets = true
+			break
+	assert_true(found_brackets,
+		"Peniber ribbon must carry a GoldBrackets decoration child per styles.css `.pixel-card::before`")
+
+# endregion
+
+
 # region — orientation root fills safe margin
 
 func test_orientation_root_fills_safe_margin_horizontally() -> void:

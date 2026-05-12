@@ -155,7 +155,7 @@ func _build_backdrop() -> void:
 func _build_title() -> void:
 	# Title block anchored top, centered horizontally. styles.css
 	# positions at `top: 80px`; we approximate via offset_top.
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	var title_box := VBoxContainer.new()
 	title_box.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	title_box.offset_top = 80.0
@@ -193,7 +193,7 @@ func _build_title() -> void:
 ## enough geometry via Panels + ColorRects. Real pixel-art Peniber is
 ## a separate art commission per PHASED_RESKIN_PLAN.md.
 func _build_wizard() -> void:
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	# Stage sized 120×160 per styles.css `.pen-stage`.
 	_wizard_stage = Control.new()
 	_wizard_stage.set_anchors_preset(Control.PRESET_CENTER)
@@ -282,7 +282,7 @@ func _build_wizard() -> void:
 
 
 func _build_bubble() -> void:
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	# Bubble anchored bottom, full width minus 14-px gutter, sits above
 	# the bottom edge. styles.css `.pen-bubble` is `width: calc(100% - 28px)`,
 	# `margin-bottom: 16px`.
@@ -399,15 +399,15 @@ func _render_beat(index: int) -> void:
 
 	# Mood tint applies to the pin (only the pin color carries mood;
 	# the body text always reads as primary ink to keep legibility).
-	var tint: Color = _MOOD_NAME_TINTS.get(mood, _DUSK.amethyst()["gold"])
+	var tint: Color = _MOOD_NAME_TINTS.get(mood, _DUSK.active()["gold"])
 	if _bubble_pin != null:
 		# Subtle: lerp gold toward the mood color rather than overwriting,
 		# so the pin still reads as gold first.
-		var blended: Color = _DUSK.amethyst()["gold"].lerp(tint, 0.35)
+		var blended: Color = _DUSK.active()["gold"].lerp(tint, 0.35)
 		_bubble_pin.add_theme_color_override("font_color", blended)
 
 	# Update dots.
-	var palette: Dictionary = _DUSK.amethyst()
+	var palette: Dictionary = _DUSK.active()
 	for i in _bubble_dot_rects.size():
 		var dot: ColorRect = _bubble_dot_rects[i]
 		dot.color = palette["gold"] if i == index else palette["ink_mute"]

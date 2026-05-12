@@ -46,31 +46,52 @@ func _ready() -> void:
 	# v0.15.2 — three pixel-RPG currency pills per styles.css `.currency`.
 	# Each is a colored glyph cell + UPPERCASE label above + animated
 	# value below. Tooltips preserved from Phase 13g for screen readers.
-	var palette: Dictionary = _DUSK.amethyst()
-
+	#
+	# Phase 14h — accent colors resolved through `_DUSK.active()` so a
+	# Settings palette swap reaches the glyph cells. `_apply_palette_accents`
+	# is also called on `theme_changed` so live swaps repaint each chip.
 	_gold_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_gold_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(_gold_chip)
-	_gold_chip.configure("G", palette["gold"], "Gold", "Gold currency")
 
 	_rp_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_rp_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rp_chip.visible = false
 	hbox.add_child(_rp_chip)
-	_rp_chip.configure("R", palette["teal"], "Rancher", "Rancher Points")
 
 	_prestige_chip = _CURRENCY_CHIP_SCENE.instantiate()
 	_prestige_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_prestige_chip.visible = false
 	hbox.add_child(_prestige_chip)
-	_prestige_chip.configure("P", palette["magenta"], "Prestige", "Prestige cycles completed")
+
+	_apply_palette_accents()
 
 	EventBus.currency_changed.connect(_on_currency_changed)
 	EventBus.prestige_triggered.connect(_on_prestige_triggered)
 	EventBus.game_loaded.connect(_refresh_all)
+	Settings.theme_changed.connect(_on_theme_changed)
 	# Initial paint must NOT animate — otherwise we tween from 0 → loaded
 	# value at startup, which feels like a jackpot for no reason.
 	_refresh_all(false)
+
+
+## Phase 14h — re-applies the three glyph cell accents (gold / teal /
+## magenta) from the currently-active palette. Called once at `_ready`
+## and again on `Settings.theme_changed`. The `configure()` call on
+## each chip rebuilds its per-instance StyleBoxFlat with the new
+## accent color.
+func _apply_palette_accents() -> void:
+	var palette: Dictionary = _DUSK.active()
+	if _gold_chip != null:
+		_gold_chip.configure("G", palette["gold"], "Gold", "Gold currency")
+	if _rp_chip != null:
+		_rp_chip.configure("R", palette["teal"], "Rancher", "Rancher Points")
+	if _prestige_chip != null:
+		_prestige_chip.configure("P", palette["magenta"], "Prestige", "Prestige cycles completed")
+
+
+func _on_theme_changed() -> void:
+	_apply_palette_accents()
 
 
 func _exit_tree() -> void:
@@ -82,6 +103,8 @@ func _exit_tree() -> void:
 		EventBus.prestige_triggered.disconnect(_on_prestige_triggered)
 	if EventBus.game_loaded.is_connected(_refresh_all):
 		EventBus.game_loaded.disconnect(_refresh_all)
+	if Settings.theme_changed.is_connected(_on_theme_changed):
+		Settings.theme_changed.disconnect(_on_theme_changed)
 
 
 func _on_currency_changed(_currency_id: String, _new_value: Variant) -> void:

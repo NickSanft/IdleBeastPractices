@@ -6,6 +6,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.7 — Phase 14h: Complete the palette switcher reach + L-brackets on Peniber/bestiary
+
+**Why**
+
+Phase 14f shipped the runtime palette switcher; Phase 14g started migrating scenes from `PaletteDusk.amethyst()` → `.active()` so the switcher actually swaps inline color overrides. Phase 14h finishes that migration for every remaining piece of catch-screen + dialog chrome (bestiary cards, monster name cards, Peniber ribbon, currency bar, intro overlay). Plus rolls out gold L-brackets to the two remaining pixel-card classes (Peniber ribbon, bestiary cards). After 14h, swapping Settings → Theme between Amethyst/Twilight/Ember visibly retints every surface the player can see on a typical session.
+
+**What changed**
+
+- **`bestiary_card.gd`** — every `_DUSK.amethyst()` → `.active()`. New `_on_theme_changed` handler retints the build-time-cached `?` label ink + count label ink, then calls `refresh()` which walks the ribbon color + name/count/pill state through to the new palette. Plus gold L-brackets per card (1-px inward inset since the card has `clip_contents = true`).
+- **`bestiary_card_detail.gd`** — 3 inline `_DUSK.amethyst()` → `.active()`. No subscription needed — the popup rebuilds its body on every `bind_monster` call so a future theme swap is picked up the next time the popup opens.
+- **`monster_instance.gd`** — name card border + ink read from `.active()`. New `_on_theme_changed` rebuilds the stylebox + refreshes the ink override.
+- **`narrator_overlay.gd` (Peniber ribbon)** — bubble bg/border + name gold + timestamp ink + caret gold + portrait gold-border all sourced from `.active()`. New `_on_theme_changed` rebuilds bubble stylebox + label colors + caret ColorRect color + portrait stylebox. Plus gold L-brackets on the bubble (added as a child of the bubble so they participate in the 280-ms slide-up animation).
+- **`peniber_intro_overlay.gd`** — `_DUSK.amethyst()` → `.active()` in all 5 build-time call sites. No subscription needed (the overlay is dismissed before Settings is reachable).
+- **`currency_bar.gd`** — `_DUSK.amethyst()` → `.active()` at build time. Extracted glyph-cell accent application into `_apply_palette_accents()` (called on `_ready` + on `theme_changed`); the function re-calls `configure()` on each chip, which rebuilds the per-instance StyleBoxFlat with the new accent color (gold / teal / magenta). `_exit_tree` cleanup added for the new subscription.
+
+**Tests — 6 new visual-regression assertions, 552/552 passing total**
+
+- `bestiary_card_repaints_ribbon_on_theme_changed` — pins tier ribbon color follows palette swap
+- `monster_instance_name_card_repaints_on_theme_changed` — pins name card border follows swap
+- `peniber_ribbon_repaints_bubble_on_theme_changed` — pins bubble bg + caret gold both retint
+- `currency_bar_repaints_chips_on_theme_changed` — pins gold chip glyph cell follows swap
+- `bestiary_card_carries_gold_brackets` — pins L-bracket decoration child
+- `peniber_ribbon_carries_gold_brackets` — pins L-bracket decoration child (parented to bubble)
+
+**Migration completeness**
+
+After 14h, the `PaletteDusk.amethyst()` audit shows:
+- `main.gd:377` — slider grabber stylebox color (low-impact decoration; stays amethyst since palette-swapping the grabber doesn't add visual value)
+- `inventory_card.gd` — rarity tier colors (gameplay-meaningful semantic, not theme-driven; intentional)
+- Test files + comments
+
+Every other 14a–14g chrome surface now reads from `.active()`. The Settings palette switcher is a real visible toggle on the live game.
+
+**Pre-push checklist**
+
+- Full GUT suite: **552/552 pass** (+6 from this phase)
+- No new lint warnings; ~25 `_DUSK.amethyst()` callsites migrated to `.active()` across 6 files
+- API surface preserved: no caller of any reskined scene needed to change
+
 ### v0.15.6 — Phase 14g: Polish pass (gold L-brackets, float-gain, catch animation, toast, palette wiring)
 
 **Why**

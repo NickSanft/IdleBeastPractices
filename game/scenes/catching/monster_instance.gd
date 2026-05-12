@@ -105,6 +105,29 @@ func _ready() -> void:
 		_apply_monster()
 	_pick_new_target()
 
+	# Phase 14h — repaint the name card border + ink when the player
+	# swaps palette in Settings. Both colors were cached at build time
+	# in `_build_name_card`, so a palette swap requires a stylebox
+	# rebuild + an ink override refresh.
+	Settings.theme_changed.connect(_on_theme_changed)
+
+
+## Phase 14h — Settings.theme_changed handler. Re-applies the name
+## card border + ink with the new palette's tokens. Both colors are
+## set in `_build_name_card` once and otherwise never change, so a
+## targeted re-paint is cheaper than rebuilding the whole label.
+func _on_theme_changed() -> void:
+	if _name_card_panel == null:
+		return
+	var palette: Dictionary = _DUSK.active()
+	var sb: StyleBoxFlat = _name_card_panel.get_theme_stylebox("panel")
+	if sb != null:
+		var new_sb: StyleBoxFlat = sb.duplicate()
+		new_sb.border_color = palette["border"]
+		_name_card_panel.add_theme_stylebox_override("panel", new_sb)
+	if _name_card != null:
+		_name_card.add_theme_color_override("font_color", palette["ink"])
+
 
 ## Phase 14d: builds the small "NAME · T2" pixel-card label below the
 ## sprite, per styles.css `.mon .label` (Silkscreen 8 px on rgba(0,0,0,0.7)
@@ -115,7 +138,7 @@ func _build_name_card() -> void:
 	_name_card_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.0, 0.0, 0.0, 0.7)
-	sb.border_color = _DUSK.amethyst()["border"]
+	sb.border_color = _DUSK.active()["border"]
 	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(0)
 	sb.content_margin_left = 4.0
@@ -132,7 +155,7 @@ func _build_name_card() -> void:
 
 	_name_card = Label.new()
 	_name_card.theme_type_variation = "UiTiny"   # Silkscreen 7 px
-	_name_card.add_theme_color_override("font_color", _DUSK.amethyst()["ink"])
+	_name_card.add_theme_color_override("font_color", _DUSK.active()["ink"])
 	_name_card.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_card.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	# Default text until _apply_monster() runs.
