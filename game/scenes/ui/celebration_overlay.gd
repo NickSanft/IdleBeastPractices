@@ -21,11 +21,15 @@ extends CanvasLayer
 
 signal dismissed
 
-const _PALETTE := preload("res://game/resources/palette_colors.gd")
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 const _FADE_IN_SECS := 0.25
 const _FADE_OUT_SECS := 0.18
 const _INPUT_LOCK_SECS := 0.25
 const _SHOW_LAYER := 80   # above narrator overlay (which lives in default layer)
+## v0.15.8 — popup card width. Half of a typical 720-px-wide portrait
+## phone so the card never reaches the viewport edges, and labels inside
+## get a finite wrap width to honour `autowrap_mode`.
+const _CARD_WIDTH := 360.0
 
 var _backdrop: ColorRect
 var _card: PanelContainer
@@ -48,13 +52,39 @@ func _ready() -> void:
 	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_backdrop)
 
-	# Card: a centered PanelContainer using the parchment theme. The
+	# Card: a centered PanelContainer using the Dusk theme. The
 	# theme is assigned explicitly because CanvasLayer is a Window-
 	# adjacent context and theme cascade is unreliable.
+	#
+	# v0.15.8 (popup-size fix): pre-fix used `set_anchors_preset(PRESET_CENTER)`
+	# which only mutates anchors and KEEPS offsets at their construction
+	# defaults (0,0,0,0). Combined with anchors at (0.5, 0.5, 0.5, 0.5)
+	# the rect anchored to viewport center but grew from a 0-size point
+	# — so an auto-sizing PanelContainer with autowrap labels expanded
+	# until the labels stopped wrapping (which is "as wide as the
+	# longest line of text," nominally infinite). Player report: "pet
+	# notification takes up almost the entire screen on the left side."
+	#
+	# Fix: lock the card to a fixed `_CARD_WIDTH` via explicit offsets
+	# left/right at half-width from the (0.5) anchor. Width is now a
+	# hard 360 px. The PanelContainer's child labels (autowrap WORD_SMART)
+	# receive a finite width budget and wrap correctly. Long titles +
+	# long body text grow the card's HEIGHT instead of its WIDTH.
+	#
+	# Vertical: anchors at (0.5, 0.5) + `grow_vertical = BOTH` so the
+	# card centers around viewport.y * 0.5 regardless of its actual
+	# height. No explicit height — PanelContainer auto-sizes to content.
 	_card = PanelContainer.new()
 	_card.theme = preload("res://assets/themes/dusk/amethyst.tres")
-	_card.set_anchors_preset(Control.PRESET_CENTER)
-	_card.custom_minimum_size = Vector2(360, 0)
+	_card.anchor_left = 0.5
+	_card.anchor_top = 0.5
+	_card.anchor_right = 0.5
+	_card.anchor_bottom = 0.5
+	_card.offset_left = -_CARD_WIDTH * 0.5
+	_card.offset_right = _CARD_WIDTH * 0.5
+	_card.offset_top = 0
+	_card.offset_bottom = 0
+	_card.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_card.mouse_filter = Control.MOUSE_FILTER_STOP
 	_card.gui_input.connect(_on_card_input)
 	add_child(_card)
@@ -73,7 +103,10 @@ func _ready() -> void:
 
 	_title_label = Label.new()
 	_title_label.add_theme_font_size_override("font_size", UiScale.size(26))
-	_title_label.add_theme_color_override("font_color", _PALETTE.INK_BLACK)
+	# v0.15.8 (popup sweep): parchment-era INK_BLACK was invisible on
+	# the Dusk `card` bg (#251b52). Use the active palette's `ink` token
+	# (#ece4ff in Amethyst) so the title pops against the card.
+	_title_label.add_theme_color_override("font_color", _DUSK.active()["ink"])
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -90,7 +123,7 @@ func _ready() -> void:
 
 	_body_label = Label.new()
 	_body_label.add_theme_font_size_override("font_size", UiScale.size(16))
-	_body_label.add_theme_color_override("font_color", _PALETTE.SEPIA_DARK)
+	_body_label.add_theme_color_override("font_color", _DUSK.active()["ink_dim"])
 	_body_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -99,7 +132,7 @@ func _ready() -> void:
 	var hint := Label.new()
 	hint.text = "Tap anywhere to dismiss"
 	hint.add_theme_font_size_override("font_size", UiScale.size(12))
-	hint.add_theme_color_override("font_color", _PALETTE.SEPIA_MID)
+	hint.add_theme_color_override("font_color", _DUSK.active()["ink_mute"])
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(hint)
 

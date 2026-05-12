@@ -33,6 +33,12 @@ const _SHOW_LAYER := 70   # below celebration_overlay (80), above narrator
 const _SLIDE_SECS := 0.24   # styles.css 240 ms
 const _DEFAULT_DURATION := 1.6   # styles.css `toast-out 240ms ease-in 1.6s forwards`
 const _BANNER_Y_OFFSET := 96.0   # styles.css `top: 96px` — clears HUD + tier ribbon
+## v0.15.8 — fixed banner width. Pre-fix the toast used
+## `grow_horizontal = BOTH + custom_minimum_size.x = 280` which floors
+## but doesn't CAP the width; autowrap labels expanded the panel for
+## any text longer than ~30 chars. Locking the rect to an exact 280 px
+## via anchor offsets means the inner label gets a finite wrap budget.
+const _BANNER_WIDTH := 280.0
 
 var _banner: PanelContainer
 var _label: Label
@@ -49,14 +55,25 @@ func _ready() -> void:
 
 
 func _build_banner() -> void:
+	# v0.15.8 (popup-size fix): pre-fix used `grow_horizontal = BOTH +
+	# custom_minimum_size.x = 280` which floors the banner at 280 px but
+	# does NOT cap the width — autowrap labels with no finite parent
+	# width expand the panel to fit their longest line of text. Mirrors
+	# the celebration-overlay + coachmark bugs.
+	#
+	# Fix: lock the banner to an exact `_BANNER_WIDTH` (280 px) via
+	# offset_left = -140, offset_right = +140 anchored at 0.5/0.5
+	# horizontally. The PanelContainer's child Label receives a finite
+	# 280 - 24 = 256 px wrap budget, so long toast strings wrap to
+	# multiple lines instead of expanding the banner.
 	_banner = PanelContainer.new()
 	# Anchor to top-center; manual offset_top keeps the slide-in math simple.
 	_banner.anchor_left = 0.5
 	_banner.anchor_right = 0.5
 	_banner.anchor_top = 0.0
 	_banner.anchor_bottom = 0.0
-	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_banner.custom_minimum_size = Vector2(280, 0)
+	_banner.offset_left = -_BANNER_WIDTH * 0.5
+	_banner.offset_right = _BANNER_WIDTH * 0.5
 	# Hidden off-screen above the top edge initially.
 	_banner.offset_top = -100.0
 	_banner.offset_bottom = -36.0

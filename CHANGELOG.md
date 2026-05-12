@@ -6,6 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.8 — Fix: oversized popups (celebration / coachmark / toast / prestige confirm)
+
+**Why**
+
+User report: "*the pet notification takes up almost the entire screen on the left side.*" Investigation surfaced a regression class affecting **four** popups — each one let an auto-sizing `PanelContainer` grow to fit the longest line of label text instead of wrapping it. Three of these had landed pre-Phase-14 and never been caught (no popup-size lint test existed); one was introduced in Phase 14g.
+
+**Root cause**
+
+`PanelContainer` auto-sizes to its `get_minimum_size()` (= children's combined minimums). A `Label` with `autowrap_mode = WORD_SMART` reports its minimum width as the **widest word it would render**, NOT the wrap width. With no explicit width cap on the parent, the autowrap loop never engages — the panel grows to the longest unwrapped line of text, ignoring its `custom_minimum_size` floor.
+
+Three different patterns triggered this:
+
+1. **`celebration_overlay`**: `_card.set_anchors_preset(Control.PRESET_CENTER)` only mutates anchors, not offsets. With offsets at construction defaults (0,0,0,0) and anchors moved to (0.5, 0.5), the rect anchored at viewport center but grew from a 0-size point in the top-left direction. The visible effect was exactly what the user reported.
+2. **`coachmark`**: `custom_minimum_size.x = 240` floored but didn't cap. The FTUE `STEP_ENTER_BATTLE` coachmark (fires on first pet) has a long hint ("You earned a pet! Visit Battle to send your team into a stage.") that expanded the bubble to ~600 px, anchored from `target_center.x - 120`. With the Battle nav button at x≈216 the bubble extended from x≈96 to x≈696 — most of a 720-wide screen, anchored to the left side.
+3. **`toast`**: same `grow_horizontal = BOTH + custom_minimum_size.x = 280` pattern as the coachmark, just centered. Long toast strings ("Variant pet acquired: Some Long Species Name") expanded the banner past 280.
+4. **`prestige_view._confirm_dialog`**: `ConfirmationDialog` Window subtype with no `min_size`. The bbcode-laden body resisted breaking on first popup.
+
+**Fix**
+
+Each popup now locks its width via explicit anchor offsets so the inner labels receive a finite wrap budget:
+
+- **`celebration_overlay`**: `anchor_left = anchor_right = 0.5` + `offset_left = -180, offset_right = +180`. Card is now exactly 360 px wide; labels wrap to multiple lines as needed; card grows DOWN, not RIGHT.
+- **`coachmark`**: `offset_right = _BUBBLE_MIN_WIDTH (240)` with `anchor_left = anchor_right = 0`. The `Control.position` setter shifts both offsets together as `_reposition` re-anchors the bubble each frame, preserving width.
+- **`toast`**: same fixed-offsets pattern as celebration, locked to `_BANNER_WIDTH (280)`.
+- **`prestige_view`**: `_confirm_dialog.min_size = Vector2(420, 220)` mirrors `welcome_back_dialog`'s pattern.
+
+Plus a parchment-palette sweep on `celebration_overlay` + `coachmark` (3 + 1 sites): `INK_BLACK / SEPIA_DARK / SEPIA_MID / BRASS_ACCENT` → `_DUSK.active()["ink"]` / `["ink_dim"]` / `["ink_mute"]` / `["gold"]`. Pre-fix `INK_BLACK` (#1a1209) was invisible against the Dusk `card` bg (#251b52).
+
+**Tests — 5 new structural regression assertions, 557/557 passing total**
+
+`test_popup_sizes.gd` (new file, 5 cases) shows each popup with a deliberately-long body string, then asserts:
+
+- `test_celebration_card_width_stays_within_budget` — card width stays near 360 px (was: growing to ~viewport width)
+- `test_celebration_card_centered_horizontally_on_viewport` — center.x matches viewport.x/2 (was: stuck against left edge)
+- `test_toast_banner_width_stays_within_budget` — banner width stays near 280 px
+- `test_toast_banner_centered_horizontally` — banner center.x matches viewport.x/2
+- `test_coachmark_bubble_width_stays_within_budget` — bubble width stays near 240 px
+
+These tests would have caught the regression by name had they existed before. Adding them now prevents reintroduction.
+
+**Pre-push checklist**
+
+- Full GUT suite: **557/557 pass** (+5 from this fix)
+- No new lint warnings
+- API surface preserved: `show_celebration` / `show_toast` / `show_for` signatures unchanged
+
 ### v0.15.7 — Phase 14h: Complete the palette switcher reach + L-brackets on Peniber/bestiary
 
 **Why**

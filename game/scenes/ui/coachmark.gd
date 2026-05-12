@@ -20,7 +20,7 @@ extends CanvasLayer
 
 signal dismissed(step_id: StringName)
 
-const _PALETTE := preload("res://game/resources/palette_colors.gd")
+const _DUSK := preload("res://assets/themes/dusk/palette_dusk.gd")
 const _SHOW_LAYER := 75   # below celebration_overlay (80), above narrator
 const _PULSE_HZ: float = 1.5
 const _ARROW_OFFSET: float = 24.0
@@ -52,7 +52,7 @@ func _ready() -> void:
 	_arrow_node = Node2D.new()
 	add_child(_arrow_node)
 	_arrow = Polygon2D.new()
-	_arrow.color = _PALETTE.BRASS_ACCENT
+	_arrow.color = _DUSK.active()["gold"]
 	_arrow.polygon = PackedVector2Array([
 			Vector2(0, 0),
 			Vector2(-12, -16),
@@ -61,8 +61,33 @@ func _ready() -> void:
 	_arrow_node.add_child(_arrow)
 
 	# Hint bubble.
+	#
+	# v0.15.8 (popup-size fix): pre-fix the bubble used only
+	# `custom_minimum_size.x = 240` as a floor. With no MAX width,
+	# autowrap WORD_SMART on the Label couldn't wrap — the bubble grew
+	# to fit the longest line of hint text in a single row. Player report:
+	# "the pet notification takes up almost the entire screen on the
+	# left side" — the FTUE coachmark for STEP_ENTER_BATTLE fires on
+	# first pet, anchors near the Battle nav button (lower-left of
+	# screen), and grew far wider than the 240 px floor.
+	#
+	# Fix: use anchor-bounded sizing (`offset_right - offset_left = 240`)
+	# so the width is FIXED, not just floored. The `Control.position`
+	# setter shifts both offsets together, preserving width as the
+	# bubble re-anchors each frame in `_reposition`. The Label inside
+	# now receives a finite 240 - 24 (margins) = 216 px wrap budget,
+	# so long hint text wraps to multiple lines instead of expanding
+	# the bubble.
 	_bubble = PanelContainer.new()
 	_bubble.theme = preload("res://assets/themes/dusk/amethyst.tres")
+	_bubble.anchor_left = 0.0
+	_bubble.anchor_top = 0.0
+	_bubble.anchor_right = 0.0
+	_bubble.anchor_bottom = 0.0
+	_bubble.offset_left = 0.0
+	_bubble.offset_right = _BUBBLE_MIN_WIDTH
+	_bubble.offset_top = 0.0
+	_bubble.offset_bottom = 0.0   # auto-sizes vertically to content
 	_bubble.custom_minimum_size = Vector2(_BUBBLE_MIN_WIDTH, 0)
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bubble)
@@ -74,7 +99,9 @@ func _ready() -> void:
 	_bubble.add_child(margins)
 	_hint_label = Label.new()
 	_hint_label.add_theme_font_size_override("font_size", UiScale.size(14))
-	_hint_label.add_theme_color_override("font_color", _PALETTE.INK_BLACK)
+	# v0.15.8 (popup sweep): parchment INK_BLACK was invisible on the Dusk
+	# `card` bg in the coachmark bubble. `ink` is the bright Dusk text token.
+	_hint_label.add_theme_color_override("font_color", _DUSK.active()["ink"])
 	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	margins.add_child(_hint_label)
 	set_process(false)

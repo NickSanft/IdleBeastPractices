@@ -64,6 +64,12 @@ func _ready() -> void:
 	_confirm_dialog = ConfirmationDialog.new()
 	_confirm_dialog.title = "Confirm Prestige"
 	_confirm_dialog.dialog_text = ""
+	# v0.15.8 (popup-size fix): without an explicit `min_size`, the
+	# dialog's RichTextLabel + autowrap loop can size the Window oddly
+	# on first popup (esp. when the dialog_text contains [color=…]
+	# bbcode spans that resist breaking). Locking min_size matches
+	# the pattern welcome_back_dialog uses.
+	_confirm_dialog.min_size = Vector2(420, 220)
 	# Window subtypes don't inherit Control theme cascade — explicit
 	# theme assignment per the v0.10.4 fix.
 	_confirm_dialog.theme = preload("res://assets/themes/dusk/amethyst.tres")
