@@ -44,21 +44,7 @@ HapticManager="*res://game/autoloads/haptic_manager.gd"
 window/size/viewport_width=720
 window/size/viewport_height=1280
 window/stretch/mode="canvas_items"
-; Phase 13c.3 — was "keep_width" pre-v0.14.3, which locked the
-; design width to 720 dp in every orientation. In landscape the
-; viewport became 720×405 logical, so the HBox rail+content
-; layout had the same horizontal design space as portrait — just
-; squished vertically. "expand" lets the viewport take the device's
-; real aspect ratio, so landscape gets a wider design width to lay
-; out into. Density compensation is handled by Phase-13b's
-; DeviceLayout autoload, which sets `content_scale_factor` from the
-; detected DPI bucket so canvas_items don't shrink on dense screens.
 window/stretch/aspect="expand"
-; Phase 13c.1 — orientation unlocked for landscape support.
-; 6 = SCREEN_SENSOR (auto-rotate based on device sensor; excludes
-; reverse-portrait by default, which is what idle games want).
-; Per the v0.8.x notes the integer enum is required — string
-; "sensor" silently falls back to landscape.
 window/handheld/orientation=6
 
 [dotnet]

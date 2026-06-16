@@ -1,12 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://dwn4qojlxsqjm"]
+[gd_scene format=3 uid="uid://dwn4qojlxsqjm"]
 
 [ext_resource type="Script" uid="uid://bdo541kegbgy0" path="res://game/scenes/main.gd" id="1_main"]
-
-; v0.15.1.1 — removed the scene-level legacy theme export. That
-; parchment theme was overriding the Dusk theme set on Main at
-; runtime via _apply_mobile_default_theme. Main now inherits the
-; theme assigned at runtime (Dusk Amethyst, or whichever palette
-; lands via the future Settings picker).
 
 [node name="Main" type="Control" unique_id=1791189355]
 layout_mode = 3
@@ -17,16 +11,12 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1232417089]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-; v0.15.1.3 — was parchment (0.84, 0.78, 0.62) which bled through
-; any gap in the foreground content. Now Dusk `bg_deep` (#0c0820)
-; so any uncovered area reads as "intended dark backdrop" rather
-; than "wrong-themed leak."
-color = Color(0.047, 0.031, 0.125, 1)
 mouse_filter = 2
+color = Color(0.047, 0.031, 0.125, 1)

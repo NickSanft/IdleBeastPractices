@@ -1,8 +1,8 @@
-[gd_resource type="Theme" format=3]
+[gd_resource type="Theme" format=3 uid="uid://cfovv5n50cbld"]
 
-[ext_resource type="FontFile" path="res://assets/fonts/dusk/VT323-Regular.ttf" id="1_63sly"]
-[ext_resource type="FontFile" path="res://assets/fonts/dusk/PressStart2P-Regular.ttf" id="2_lmvn6"]
-[ext_resource type="FontFile" path="res://assets/fonts/dusk/Silkscreen-Regular.ttf" id="3_5q3v7"]
+[ext_resource type="FontFile" uid="uid://d2q6y17t142p6" path="res://assets/fonts/dusk/VT323-Regular.ttf" id="1_63sly"]
+[ext_resource type="FontFile" uid="uid://bfhbmtqyow43k" path="res://assets/fonts/dusk/PressStart2P-Regular.ttf" id="2_lmvn6"]
+[ext_resource type="FontFile" uid="uid://edafruq24yj1" path="res://assets/fonts/dusk/Silkscreen-Regular.ttf" id="3_5q3v7"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_uuuhl"]
 content_margin_left = 14.0
