@@ -7,7 +7,11 @@ const _BACKGROUND_SCENE := preload("res://game/scenes/catching/catching_backgrou
 const _NEXT_GOAL_CHIP := preload("res://game/scenes/ui/next_goal_chip.tscn")
 const _SPAWN_INTERVAL_SECONDS := 1.2
 const _TIER_COMPLETE_CATCH_THRESHOLD := 25
-const _DEBUG_LOG := true
+## v0.15.9 — gated on OS.is_debug_build() so the per-tap / per-catch
+## console spam stays available in the editor + debug exports (incl. the
+## Maestro CI APK) but is SILENT in exported release builds. Was an
+## unconditional `true` (a Phase-2 dev aid that shipped on in release).
+static var _DEBUG_LOG := OS.is_debug_build()
 ## Live runtime toggle (F2 in main.gd flips Settings.debug_fast_pets). When on:
 ## tier completion fires after just _TIER_DEBUG_THRESHOLD catches per species
 ## (default 2) instead of 25, and every pet variant roll auto-succeeds.

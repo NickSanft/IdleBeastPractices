@@ -213,10 +213,17 @@ func _on_recipe_unlocked(_recipe_or_net_id: String) -> void:
 	pass
 
 
+## Pre-warm the narrator's trigger pools when a save loads.
+##
+## v0.15.9 — the first-launch greeting is owned by the Phase 14e Peniber
+## intro overlay (peniber_intro_overlay.gd), which plays the 4-beat
+## "IDLE BEASTS — THE AWAKENING" intro on every first launch. The old
+## `on_first_launch` ribbon bark duplicated that introduction, so it was
+## deleted; this handler no longer speaks a line. (It also never fired
+## on a true first launch anyway — `SaveManager.load_save()` only emits
+## `game_loaded` on the existing-save path, not the empty-save path.)
 func _on_game_loaded() -> void:
 	_ensure_loaded()
-	if int(GameState.ledger.get("first_launch_unix", 0)) > 0 and int(GameState.ledger.get("peniber_quotes_seen", 0)) == 0:
-		try_speak(&"on_first_launch")
 
 
 func _has_seen_trigger(trigger_id: StringName) -> bool:

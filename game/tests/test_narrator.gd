@@ -11,11 +11,16 @@ func before_each() -> void:
 	Narrator.reset_recent_window()
 
 
-func test_first_launch_fires_once_and_never_again() -> void:
-	var first := Narrator.try_speak(&"on_first_launch")
-	assert_not_null(first, "first call should produce the on_first_launch line")
+func test_max_uses_one_line_fires_once_and_never_again() -> void:
+	# on_first_shiny is a max_uses=1, condition-free line — a stable
+	# fixture for the "fires once, then filtered forever" path. (Was
+	# on_first_launch before that redundant first-launch bark was deleted
+	# in v0.15.9; the Phase 14e intro overlay owns the first-launch
+	# greeting now.)
+	var first := Narrator.try_speak(&"on_first_shiny")
+	assert_not_null(first, "first call should produce the on_first_shiny line")
 	# After max_uses is hit, subsequent calls return null.
-	var second := Narrator.try_speak(&"on_first_launch")
+	var second := Narrator.try_speak(&"on_first_shiny")
 	assert_null(second, "second call should be filtered out by max_uses")
 
 
@@ -60,17 +65,17 @@ func test_recent_window_suppresses_repeats_for_pool() -> void:
 
 
 func test_lines_seen_persists_across_save_round_trip() -> void:
-	Narrator.try_speak(&"on_first_launch")
+	Narrator.try_speak(&"on_first_shiny")
 	# Confirm the speak counter went up.
-	assert_eq(int(GameState.narrator_state["lines_seen"]["first_launch"]), 1)
+	assert_eq(int(GameState.narrator_state["lines_seen"]["first_shiny"]), 1)
 	# Save and reload — narrator state must survive.
 	var snapshot: Dictionary = GameState.to_dict()
 	GameState.from_dict({})
 	GameState.from_dict(snapshot)
-	assert_eq(int(GameState.narrator_state["lines_seen"]["first_launch"]), 1)
+	assert_eq(int(GameState.narrator_state["lines_seen"]["first_shiny"]), 1)
 	# Re-attempt now and the line should still be filtered out.
 	Narrator.reset_recent_window()
-	var line := Narrator.try_speak(&"on_first_launch")
+	var line := Narrator.try_speak(&"on_first_shiny")
 	assert_null(line, "max_uses respects the persisted lines_seen")
 
 
@@ -90,6 +95,6 @@ func test_per_species_first_catch_lines_load() -> void:
 
 func test_speaking_increments_peniber_quotes_seen() -> void:
 	var before: int = int(GameState.ledger.get("peniber_quotes_seen", 0))
-	Narrator.try_speak(&"on_first_launch")
+	Narrator.try_speak(&"on_first_shiny")
 	var after: int = int(GameState.ledger.get("peniber_quotes_seen", 0))
 	assert_eq(after, before + 1)

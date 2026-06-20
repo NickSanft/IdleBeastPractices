@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.9 — Fix: per-catch debug logging shipping in release + dead first-launch bark
+
+Two bugs surfaced by the UI/UX research deep-dive, both verified against the source before fixing.
+
+**Bug 1 — `_DEBUG_LOG` shipping `true` in release builds (broader than first reported)**
+
+`const _DEBUG_LOG := true` was hardcoded on in **both** `catching_view.gd` (4 call sites) *and* `monster_instance.gd` (2 call sites — the research had only flagged `catching_view.gd`). Every tap, catch, and despawn `print()`ed to the console — on the hottest path in the game — in exported release builds. The `monster_instance.gd` comment literally said *"flip to false (or remove) once the catch loop is verified end-to-end"*; it's been verified for ~50 versions.
+
+Fixed by gating on `OS.is_debug_build()` (`static var _DEBUG_LOG := OS.is_debug_build()`) rather than a flat `false`, so the logging stays available in the editor + debug exports (including the Maestro CI APK) but is silent in release. `const` → `static var` because a const can't hold a runtime call; the flag is only ever read in `if _DEBUG_LOG:` runtime guards, never a const context.
+
+**Bug 2 — dead `on_first_launch` Peniber bark (resolved as superseded content, not a mechanical patch)**
+
+Verified the mechanism: on a true first launch, `SaveManager.load_save()` returns `{}` (save_manager.gd:16) **without** emitting `EventBus.game_loaded` — only the existing-save path (line 31) emits it — so `narrator._on_game_loaded()` never runs and the authored `on_first_launch.tres` bark never fires. Every other `game_loaded` subscriber (currency bar, tier ribbon, bestiary) self-initializes correctly on first launch, so the missing emit had **no other consequence**.
+
+The research framed this as a simple emit-ordering fix, but verification showed the bark is **superseded by the Phase 14e Peniber intro overlay** (`peniber_intro_overlay.gd`), which always plays the 4-beat "IDLE BEASTS — THE AWAKENING" intro on first launch and *also* introduces Peniber + teaches tapping. Naively emitting `game_loaded` would make Peniber introduce himself twice in ~10 seconds. Per the dev's decision, the intro overlay is canonical and the redundant bark was deleted.
+
+- Deleted `game/data/dialogue/on_first_launch.tres` (no orphaned sidecars).
+- Removed the now-dangling `try_speak(&"on_first_launch")` branch from `narrator._on_game_loaded` (kept the `_ensure_loaded()` pre-warm + the connected handler; documented why it no longer speaks).
+- Re-pointed the 3 `test_narrator.gd` tests that used `on_first_launch` as a `max_uses=1` fixture to `on_first_shiny` (another stable, condition-free, `max_uses=1` line). `test_save_conflict_resolver.gd` uses `"on_first_launch"` only as an abstract dict key for the merge algorithm — left as-is (it never loads the resource).
+
+**Tests — 1 new + 3 re-pointed, 558/558 passing total**
+
+- `test_debug_log_gating.gd` (new) — source-lint asserting both files gate `_DEBUG_LOG` on `OS.is_debug_build()` and never hardcode `:= true` again (a value assertion can't catch this — GUT runs in a debug build where `is_debug_build()` is true). Matches the existing `test_visual_regression` source-lint style.
+- `test_narrator.gd` — 3 tests re-pointed off the deleted fixture; narrator selection / max_uses / persistence behavior unchanged.
+
+**Pre-push checklist**
+
+- Full GUT suite: **558/558 pass** (+1 from this fix)
+- `const` → `static var` change compiles cleanly under the full project (the isolated `--check-only` "Identifier not found: Settings" error is the standard autoload-isolation limitation, not a real error)
+
 ### v0.15.8 — Fix: oversized popups (celebration / coachmark / toast / prestige confirm)
 
 **Why**

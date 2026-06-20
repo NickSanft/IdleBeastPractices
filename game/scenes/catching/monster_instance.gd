@@ -33,9 +33,12 @@ const _PAUSE_BOB_HZ := 1.6
 ## Direction-flip easing time in seconds. Anything under ~0.25 still
 ## reads as a quick "turnaround" rather than a slow rotation.
 const _FLIP_DURATION := 0.18
-## Print one line per tap and per catch to the Godot console. Phase 2 dev aid;
-## flip to false (or remove) once the catch loop is verified end-to-end.
-const _DEBUG_LOG := true
+## Print one line per tap and per catch to the Godot console. Phase-2 dev
+## aid. v0.15.9 — gated on OS.is_debug_build() so it stays available in the
+## editor + debug exports but is SILENT in exported release (Play Store)
+## builds. Was an unconditional `true` that printed on every tap/catch in
+## release; the catch loop is long since verified end-to-end.
+static var _DEBUG_LOG := OS.is_debug_build()
 
 @export var monster: MonsterResource
 @export var instance_id: int = 0
