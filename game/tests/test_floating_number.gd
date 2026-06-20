@@ -99,3 +99,42 @@ func test_reduce_motion_holds_then_fades() -> void:
 	assert_almost_eq(label.modulate.a, 1.0, 0.01,
 		"reduce_motion path must start at full alpha — no scale punch")
 	Settings.reduce_motion = false
+
+
+## v0.15.10 — magnitude scaling: a bigger gold gain renders a bigger
+## font so "numbers go up" stays satisfying at scale.
+func test_higher_magnitude_renders_larger_font() -> void:
+	var small: Label = _SCENE.instantiate()
+	add_child_autofree(small)
+	small.call("configure", "5", false, false, 0)      # band 0 (< 1K)
+	var big: Label = _SCENE.instantiate()
+	add_child_autofree(big)
+	big.call("configure", "5.0T", false, false, 4)     # band 4 (1T+ milestone)
+	assert_gt(big.get_theme_font_size("font_size"), small.get_theme_font_size("font_size"),
+		"a milestone-magnitude (band 4) gain must render a larger font than a band-0 gain")
+
+
+func test_default_magnitude_equals_band_zero() -> void:
+	# Back-compat: callers that omit the magnitude arg get the band-0
+	# base size, identical to passing 0 explicitly.
+	var implicit: Label = _SCENE.instantiate()
+	add_child_autofree(implicit)
+	implicit.call("configure", "5", false, false)
+	var explicit: Label = _SCENE.instantiate()
+	add_child_autofree(explicit)
+	explicit.call("configure", "5", false, false, 0)
+	assert_eq(implicit.get_theme_font_size("font_size"), explicit.get_theme_font_size("font_size"),
+		"omitting magnitude must equal magnitude 0 (back-compat with pre-v0.15.10 callers)")
+
+
+## v0.15.10 — high-magnitude gold brightens toward white-gold so a big
+## payout reads as a bigger event.
+func test_high_magnitude_brightens_color() -> void:
+	var base_gold: Color = preload("res://assets/themes/dusk/palette_dusk.gd").active()["gold"]
+	var milestone: Label = _SCENE.instantiate()
+	add_child_autofree(milestone)
+	milestone.call("configure", "5.0T", false, false, 4)
+	var c: Color = milestone.get_theme_color("font_color")
+	assert_ne(c, base_gold, "band-4 gold must brighten away from the base gold token")
+	assert_gt(c.r + c.g + c.b, base_gold.r + base_gold.g + base_gold.b,
+		"band-4 gold must be brighter (lerped toward white) than base gold")

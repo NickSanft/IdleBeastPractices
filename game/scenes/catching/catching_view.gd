@@ -314,8 +314,30 @@ func _spawn_floating_gold(at_position: Vector2, gold: BigNumber, is_shiny: bool)
 	label.size = Vector2(120, 28)
 	add_child(label)
 	# `Label` exposes configure() at runtime via the floating_number script.
+	# v0.15.10: pass a magnitude band (0..4) so bigger payouts render
+	# bigger/brighter. Both the tap and net catch paths route through here,
+	# so the idle stream gets the magnitude treatment too.
 	if label.has_method("configure"):
-		label.call("configure", gold.format(), is_shiny)
+		label.call("configure", gold.format(), is_shiny, false, _gold_magnitude_band(gold))
+
+
+## v0.15.10 — maps a gold amount's order of magnitude to a floating-number
+## size band. BigNumber._normalize keeps mantissa in [1,10), so `exponent`
+## is exactly the order of magnitude (digits − 1).
+##   < 1K → 0 · 1K–999K → 1 · 1M–999M → 2 · 1B–999B → 3 · 1T+ → 4 (milestone)
+func _gold_magnitude_band(gold: BigNumber) -> int:
+	if gold == null or gold.is_zero():
+		return 0
+	var e: int = gold.exponent
+	if e < 3:
+		return 0
+	if e < 6:
+		return 1
+	if e < 9:
+		return 2
+	if e < 12:
+		return 3
+	return 4
 
 
 ## Phase 10b: spawn a one-shot ripple of particles at the tap location.

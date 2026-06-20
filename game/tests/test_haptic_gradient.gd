@@ -59,23 +59,54 @@ func test_prestige_triggered_fires_pulse_prestige() -> void:
 	assert_eq(HapticManager.last_pulse_ms, HapticManager.PULSE_PRESTIGE)
 
 
-func test_normal_catch_does_not_fire_extra_pulse() -> void:
-	# Non-shiny monster_caught alone (without first_catch_of_species)
-	# should not add a pulse — the catching_view's monster_tapped
-	# already fired earlier in the catch flow.
+func test_normal_tap_catch_fires_pulse_catch() -> void:
+	# v0.15.10 — a completed TAP catch now fires its own 50 ms sting
+	# (between the 40 ms tap and the 60 ms first-catch) so the catch
+	# feels heavier than a plain non-completing tap. Pre-v0.15.10 a
+	# normal catch fired nothing here.
 	EventBus.monster_caught.emit("red_wisplet", 1, false, "tap")
+	assert_eq(HapticManager.vibrate_count, 1,
+		"a normal tap catch must fire exactly one pulse")
+	assert_eq(HapticManager.last_pulse_ms, HapticManager.PULSE_CATCH)
+
+
+func test_normal_net_catch_fires_no_pulse() -> void:
+	# v0.15.10 — idle/net auto-catches must NOT buzz: a phone vibrating
+	# in a pocket on every passive catch is exactly what we avoid. Only
+	# the source differs from the tap-catch case above.
+	EventBus.monster_caught.emit("red_wisplet", 1, false, "net")
 	assert_eq(HapticManager.vibrate_count, 0,
-		"non-shiny monster_caught alone must NOT fire a pulse")
+		"a non-shiny NET/auto catch must NOT fire any pulse")
+
+
+func test_shiny_net_catch_still_buzzes() -> void:
+	# A shiny is rare enough to warrant the buzz even when auto-caught —
+	# the heavier sting is the catch marker for shinies regardless of
+	# source. Only the per-catch NORMAL pulse is source-gated.
+	EventBus.monster_caught.emit("red_wisplet", 1, true, "net")
+	assert_eq(HapticManager.vibrate_count, 1)
+	assert_eq(HapticManager.last_pulse_ms, HapticManager.PULSE_HEAVY)
 
 # endregion
 
 
 # region — layered pulses (a shiny catch)
 
+func test_normal_tap_catch_layers_tap_plus_catch() -> void:
+	# v0.15.10 — a normal tap catch is the 40 ms tap followed by the
+	# 50 ms catch sting: 2 pulses, 90 ms total. Documents the escalation
+	# a completed catch now feels vs a tap that didn't land (40 ms only).
+	EventBus.monster_tapped.emit("red_wisplet", 1)
+	EventBus.monster_caught.emit("red_wisplet", 1, false, "tap")
+	assert_eq(HapticManager.vibrate_count, 2)
+	assert_eq(HapticManager.total_pulse_ms,
+			HapticManager.PULSE_MEDIUM + HapticManager.PULSE_CATCH)
+
+
 func test_subsequent_shiny_layers_tap_plus_heavy() -> void:
 	# Subsequent shiny (not first ever): monster_tapped fires
-	# PULSE_MEDIUM, then monster_caught fires PULSE_HEAVY. Total 2
-	# pulses summing to 40 + 80 = 120 ms.
+	# PULSE_MEDIUM, then monster_caught fires PULSE_HEAVY (shiny's sting
+	# is its catch marker — no extra PULSE_CATCH on top). 40 + 80 = 120 ms.
 	EventBus.monster_tapped.emit("red_wisplet", 1)
 	EventBus.monster_caught.emit("red_wisplet", 1, true, "tap")
 	assert_eq(HapticManager.vibrate_count, 2)
@@ -117,7 +148,11 @@ func test_pulse_intensities_are_monotonic() -> void:
 	# Each tier strictly heavier than the previous. Future tweaks
 	# must preserve the gradient shape.
 	assert_lt(HapticManager.PULSE_LIGHT, HapticManager.PULSE_MEDIUM)
-	assert_lt(HapticManager.PULSE_MEDIUM, HapticManager.PULSE_NOTABLE)
+	# v0.15.10 — PULSE_CATCH sits between the tap (MEDIUM) and the
+	# first-catch (NOTABLE) so a landed catch is heavier than a tap but
+	# lighter than the Pokédex moment.
+	assert_lt(HapticManager.PULSE_MEDIUM, HapticManager.PULSE_CATCH)
+	assert_lt(HapticManager.PULSE_CATCH, HapticManager.PULSE_NOTABLE)
 	assert_lt(HapticManager.PULSE_NOTABLE, HapticManager.PULSE_HEAVY)
 	assert_lt(HapticManager.PULSE_HEAVY, HapticManager.PULSE_MAJOR)
 	assert_lt(HapticManager.PULSE_MAJOR, HapticManager.PULSE_PRESTIGE)

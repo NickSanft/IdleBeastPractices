@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.10 — Catch-feel quick wins: catch chime + haptic, audible idle catches, magnitude-scaled gold numbers
+
+The three highest feel-per-effort items from the UI/UX research's "Core-loop juice" cluster. Pre-fix, the loop's main payoff — a catch — was unmarked: a normal catch made no distinct sound or haptic (only shiny did), and idle/net catches were silent entirely.
+
+**1. Catch chime + haptic (`audio_manager.gd`, `haptic_manager.gd`)**
+
+- A "caught!" chime now plays on every catch, reusing `tap.wav` at a distinct pitch (the codebase's own convention for differentiating a moment without a new asset — same as the shiny/tier-up/miss-tap stings). Routing by source:
+  - **shiny** (any source): the brighter shiny sting is the catch sound (unchanged)
+  - **normal tap** catch: full-volume chime at pitch 1.15
+  - **normal net** catch: a quieter, mellower pitch-0.9 chime, throttled
+- `HapticManager` gains `PULSE_CATCH := 50` (between the 40ms tap and the 60ms first-catch), fired only on **normal tap** catches. Shiny keeps `HEAVY`=80 as its marker; net/auto catches fire **no** pulse (a phone buzzing in a pocket on every idle catch is exactly what we avoid).
+
+**2. Audible idle catches (`audio_manager.gd`)**
+
+- Net/auto catches are now audible via a dedicated `_auto_catch_player` (its own voice, so a background net catch can't clip an in-flight tap-catch), throttled to 150ms (~7/s) so a fast net batches same-frame bursts into one chime while still tracking the catch flurry one-to-one for the fastest shipped net (nadir_net, 5.6/s).
+
+**3. Magnitude-scaled gold numbers (`floating_number.gd`, `catching_view.gd`)**
+
+- Floating gold gains now scale by order of magnitude: font-size bands `[11,14,17,20,24]` and a graduated color brighten (mid-game 1M+ gets a subtle white-gold cue, 1T+ milestones pop hardest, with a heavier shadow). `configure()` gains a `magnitude:int=0` param (back-compatible); `catching_view._gold_magnitude_band` derives the band from `BigNumber.exponent` (< 1K=0 … 1T+=4). Both tap and net catches route through it.
+
+**Adversarial review pass**
+
+After implementing + testing, ran a 14-agent review (correctness / game-feel / consistency lenses → per-finding skeptical verification). It found **7 confirmed issues, zero correctness bugs** — and corrected several of its own over-claims (e.g. the "60-75% of late-game catches silenced" premise was false: no `auto_speed` upgrade exists; the "haptic pulses sum to 90ms" claim was wrong: Android `vibrate_handheld` restarts). Acted on 5, skipped 1 as marginal:
+
+- **Auto chime shared the tap-catch player at pitch 1.0** (contradicting its own "passive" comment, only -7dB different) → gave it a **separate player at pitch 0.9** (mellow/passive timbre, distinct from tap 1.0 / catch 1.15 / miss 1.3 / shiny 1.6 / tier-up 0.7), removing the shared-player mutation + tail-clipping.
+- **Throttle 250ms slightly lagged the fastest net (5.6/s)** → loosened to **150ms**.
+- **"Muted" SFX floor didn't actually mute** (pre-existing: there's no SFX bus, players are volume-only, so every SFX leaked at ≈-40dB; my new chime added another leak) → added `_sfx_muted()` and gated **all** SFX play() calls, so "Muted" truly silences SFX.
+- **Throttle cold-start** could drop a net chime in the first 150ms of uptime → seeded the clock one interval in the past.
+- **Magnitude ramp steps were small / brighten reserved for band 3+** → widened the ramp and started the brighten one band earlier.
+- *Skipped:* bumping `PULSE_CATCH` 50→60 (would collide with `NOTABLE` and require shifting the whole gradient for a sub-JND gain).
+
+**Tests — 14 new + 3 updated, 571/571 passing**
+
+- `test_catch_audio.gd` (new, 8 cases): tap→full chime, net→throttled quiet chime, shiny→neither, same-frame burst batches to one, throttle window reopens (made deterministic via a synchronous clock rewind — a real-time `await` flaked when a lingering `CatchingView` raced it in the full suite), tap catches unthrottled, **muted SFX fully silent**.
+- `test_haptic_gradient.gd`: `test_normal_catch_does_not_fire_extra_pulse` → split into tap-catch-fires-`PULSE_CATCH` + net-catch-fires-nothing + shiny-net-still-buzzes; gradient-ordering test now pins `MEDIUM < CATCH < NOTABLE`. Shiny tests unchanged (shiny path is behavior-preserving).
+- `test_floating_number.gd`: magnitude scales font size, default magnitude == band 0 (back-compat), high magnitude brightens color.
+
+**Pre-push checklist**
+
+- Full GUT suite: **571/571 pass** (+14 from this feature), two clean consecutive runs (the throttle + mute tests mutate global state; verified no cross-test leakage under ordering)
+- API preserved: `floating_number.configure()` gained an optional 4th arg; every existing call site is unaffected
+- `monster_caught` is emitted only from `catching_view` (`"tap"`/`"net"`) — offline/battle credit via state mutation, so no stray chimes during welcome-back
+
 ### v0.15.9 — Fix: per-catch debug logging shipping in release + dead first-launch bark
 
 Two bugs surfaced by the UI/UX research deep-dive, both verified against the source before fixing.

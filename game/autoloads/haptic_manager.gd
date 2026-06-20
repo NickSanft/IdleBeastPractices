@@ -28,6 +28,7 @@ extends Node
 # territory. 150 ms is the longest single sting.
 const PULSE_LIGHT := 20      # button press (handled by main.gd)
 const PULSE_MEDIUM := 40     # monster_tapped — every tap
+const PULSE_CATCH := 50      # v0.15.10 — normal TAP catch lands (the payoff)
 const PULSE_NOTABLE := 60    # first catch of species (Pokédex moment)
 const PULSE_HEAVY := 80      # shiny catch (subsequent, not first ever)
 const PULSE_MAJOR := 100     # tier complete, first-ever shiny
@@ -82,13 +83,20 @@ func _on_monster_tapped(_id: String, _ix: int) -> void:
 	_vibrate(PULSE_MEDIUM)
 
 
-func _on_monster_caught(_id: String, _ix: int, is_shiny: bool, _src: String) -> void:
-	# Subsequent shinies (after the first ever) get an 80 ms sting
-	# layered on top of the already-fired monster_tapped 40 ms,
-	# distinguishing them from normal catches. The very-first shiny
-	# also fires `first_shiny_caught` which adds PULSE_MAJOR on top.
+func _on_monster_caught(_id: String, _ix: int, is_shiny: bool, src: String) -> void:
+	# v0.15.10 — mark the catch itself, not just shiny ones.
+	#   - shiny (any source): the heavier 80 ms sting is the catch marker
+	#     (layered on the already-fired 40 ms tap; first-ever shiny adds
+	#     PULSE_MAJOR via first_shiny_caught). Shiny behaviour unchanged.
+	#   - normal TAP catch: a 50 ms sting between the 40 ms tap and the
+	#     60 ms first-catch, so a completed catch feels heavier than a
+	#     plain tap that didn't land.
+	#   - normal NET/auto catch: NO pulse — a phone buzzing in a pocket on
+	#     every idle auto-catch is exactly what we don't want.
 	if is_shiny:
 		_vibrate(PULSE_HEAVY)
+	elif src == "tap":
+		_vibrate(PULSE_CATCH)
 
 
 func _on_first_catch_of_species(_id: String) -> void:
