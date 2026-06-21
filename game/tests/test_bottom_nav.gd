@@ -81,13 +81,28 @@ func test_secondary_destination_unpresses_all_primary_buttons() -> void:
 	_main._navigate_to_tab("Catch")
 	assert_true(_main._nav_buttons["Catch"].button_pressed)
 
-	_main._navigate_to_tab("Bestiary")   # SECONDARY
+	_main._navigate_to_tab("Crafting")   # SECONDARY (v0.15.11: Bestiary is now primary)
 	for tab_name in _main._nav_buttons:
 		assert_false(_main._nav_buttons[tab_name].button_pressed,
 				"%s should not be pressed while a secondary destination is active" % tab_name)
-	# And the TabContainer should have switched to Bestiary's index.
-	var bestiary_idx: int = _main._find_tab_index("Bestiary")
-	assert_eq(_main._tabs.current_tab, bestiary_idx)
+	# And the TabContainer should have switched to Crafting's index.
+	var crafting_idx: int = _main._find_tab_index("Crafting")
+	assert_eq(_main._tabs.current_tab, crafting_idx)
+
+
+## v0.15.11 — the More button lights up while a secondary (More-sheet)
+## screen is active, and goes dark on a primary screen, so the player
+## always has a "you are here" cue.
+func test_more_button_highlights_for_secondary_destination() -> void:
+	_main._navigate_to_tab("Catch")   # primary
+	assert_false(_main._more_button.button_pressed,
+			"More must NOT be lit while a primary destination is active")
+	_main._navigate_to_tab("Crafting")   # secondary
+	assert_true(_main._more_button.button_pressed,
+			"More must light up while a secondary (More-sheet) destination is active")
+	_main._navigate_to_tab("Bestiary")   # back to a primary
+	assert_false(_main._more_button.button_pressed,
+			"More must go dark again when returning to a primary destination")
 
 
 func test_all_ten_destinations_are_navigable() -> void:

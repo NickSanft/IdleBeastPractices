@@ -1,0 +1,49 @@
+# v0.15.11 — Android hardware Back-button handling.
+#
+# Pre-v0.15.11 the system Back button quit the app immediately
+# (SceneTree.quit_on_go_back defaults true). Now Main owns it:
+#   - on a non-Catch tab → return to Catch
+#   - on Catch → show an "Exit?" confirm (never quit silently)
+#
+# This flow exercises the real KEYCODE_BACK path on the emulator (Godot
+# receives it as NOTIFICATION_WM_GO_BACK_REQUEST). The strongest signal:
+# if Back still quit the app, the post-Back screenshots would show the
+# launcher instead of the game, and a crash in the handler would fail
+# the run outright. (Godot exposes no widget text to Maestro, so these
+# are coordinate taps + screenshot artifacts, not assertVisible.)
+appId: com.divora.beast
+---
+- launchApp:
+    appId: com.divora.beast
+    clearState: true
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Dismiss the first-launch Peniber intro overlay (4 beats; tap to advance).
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          point: "50%, 60%"
+      - waitForAnimationToEnd
+
+# Navigate to a non-Catch primary tab (Bestiary ≈ 30%, 96%).
+- tapOn:
+    point: "30%, 96%"
+- waitForAnimationToEnd
+- takeScreenshot: 08_on_bestiary
+
+# Android Back → should return to Catch (app stays running).
+- pressKey: Back
+- waitForAnimationToEnd
+- takeScreenshot: 08_back_returns_to_catch
+
+# Android Back on Catch → the exit-confirm dialog (app stays running).
+- pressKey: Back
+- waitForAnimationToEnd
+- takeScreenshot: 08_back_on_catch_confirms_exit
+
+# Dismiss the confirm by pressing Back once more (cancels the dialog or
+# is a no-op) so the flow leaves the app in a clean state.
+- pressKey: Back
+- waitForAnimationToEnd

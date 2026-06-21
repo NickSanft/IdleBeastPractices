@@ -16,10 +16,22 @@ var _dirty: bool = false
 
 
 func _ready() -> void:
+	# v0.15.11 — Upgrades is a More-sheet (secondary) screen now, so a
+	# heading gives a "you are here" cue beyond the lit More nav button.
+	# The scroll lives below the title in a VBox.
+	var vbox := VBoxContainer.new()
+	add_child(vbox)
+	var title := Label.new()
+	title.text = "Upgrades"
+	title.add_theme_font_size_override("font_size", UiScale.size(20))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
+	vbox.add_child(scroll)
 	_list = GridContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.add_theme_constant_override("h_separation", 12)

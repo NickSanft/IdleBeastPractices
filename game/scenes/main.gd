@@ -38,8 +38,16 @@ var _touch_debug_overlay: Control
 ## the rest live behind a "More" sheet. Order in PRIMARY drives the
 ## bottom-nav button order from left to right. Order in SECONDARY
 ## drives the More-sheet menu order.
-const _PRIMARY_NAV: Array[String] = ["Catch", "Battle", "Inventory", "Upgrades"]
-const _SECONDARY_NAV: Array[String] = ["Shop", "Crafting", "Bestiary", "Prestige", "Ledger", "Settings"]
+##
+## v0.15.11 — reordered to match the player's mental model "catch →
+## fill the book → buy a better net → fight" (per the UI/UX research).
+## Bestiary (the progression engine — completing a tier's species
+## unlocks the next) and Shop (where auto-catch nets, the biggest early
+## power jump, are bought) were buried in More while lower-stakes
+## Inventory + Upgrades held two of four scarce primary slots. Promoted
+## Bestiary + Shop; demoted Inventory + Upgrades to More.
+const _PRIMARY_NAV: Array[String] = ["Catch", "Bestiary", "Shop", "Battle"]
+const _SECONDARY_NAV: Array[String] = ["Inventory", "Upgrades", "Crafting", "Prestige", "Ledger", "Settings"]
 ## v0.14.8 — bumped 64 → 72 dp to land in the Material bottom-nav
 ## "comfortable" range (72–80 dp) and the popular-Android-idle norm.
 ## Pre-bump every nav button rendered shorter than its on-screen
@@ -96,6 +104,12 @@ var _coachmark: CanvasLayer
 
 func _ready() -> void:
 	get_tree().root.close_requested.connect(_on_close_requested)
+	# v0.15.11 — own the Android hardware Back button. By default the
+	# SceneTree quits the app on Back (quit_on_go_back); we intercept it
+	# in `_notification(NOTIFICATION_WM_GO_BACK_REQUEST)` to dismiss an open
+	# overlay / return to Catch / confirm exit instead. Never disable
+	# Back — intercept it (Google Play guidance).
+	get_tree().quit_on_go_back = false
 	ContentRegistry.ensure_loaded()
 	_apply_mobile_default_theme()
 	_install_global_haptic_feedback()
@@ -161,6 +175,89 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_FOCUS_OUT, \
 		NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 			_save_now()
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			# v0.15.11 — Android hardware Back. On Android subwindows are
+			# embedded in the main window, so this notification reaches
+			# Main and we own the back-stack here.
+			_handle_go_back()
+
+
+## v0.15.11 — Android Back-button back-stack. Closes the top-most
+## surface first, one level per press. With quit_on_go_back disabled
+## nothing auto-closes on Back, so Main is the single owner here.
+##
+## Priority (top of the visual stack downward):
+##   0. First-launch Peniber intro owns the screen → no-op (dismiss it
+##      via tap / SKIP, never Back; and never pop Exit behind it).
+##   1. A tracked modal dialog (exit-confirm, welcome-back) → cancel it.
+##   2. The More sheet → close it.
+##   3. The celebration overlay (once its input-lock elapses, like taps).
+##   4. A tutorial coachmark → dismiss it.
+##   5. Not on the Catch (home) tab → return to Catch.
+##   6. On Catch with nothing open → confirm exit (never quit silently).
+func _handle_go_back() -> void:
+	# 0. The forced first-launch intro modal owns the screen.
+	if get_tree().get_first_node_in_group("peniber_intro") != null:
+		return
+	# 1. Tracked modal dialogs (Android "Back == cancel the dialog").
+	#    These sit above everything (exclusive Windows); cancel the
+	#    top-most. Guard welcome_back with is_instance_valid — it's
+	#    instantiated fresh and never nulled.
+	if _exit_confirm != null and _exit_confirm.visible:
+		_exit_confirm.hide()
+		return
+	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
+			and _welcome_back_dialog.visible:
+		_welcome_back_dialog.hide()
+		return
+	# 2. More sheet open → close it.
+	if _more_popup != null and _more_popup.visible:
+		_more_popup.hide()
+		return
+	# 3. Celebration overlay (respect its brief input-lock, same as taps).
+	if _celebration_overlay != null and _celebration_overlay.has_method("is_dismissable") \
+			and _celebration_overlay.is_dismissable():
+		_celebration_overlay.dismiss()
+		return
+	# 4. Tutorial coachmark visible → dismiss it.
+	if _coachmark != null and _coachmark.visible and _coachmark.has_method("dismiss"):
+		_coachmark.dismiss()
+		return
+	# 5. Not on Catch → go home.
+	var catch_idx: int = _find_tab_index("Catch")
+	if _tabs != null and catch_idx >= 0 and _tabs.current_tab != catch_idx:
+		_navigate_to_tab("Catch")
+		return
+	# 6. On Catch, nothing open → confirm exit.
+	_show_exit_confirm()
+
+
+## Exit-confirmation dialog. OK quits; Cancel dismisses. Built lazily +
+## cached. min_size set explicitly per the v0.15.8 popup-sizing fix so
+## the dialog doesn't size oddly on first popup.
+var _exit_confirm: ConfirmationDialog
+
+func _show_exit_confirm() -> void:
+	if _exit_confirm == null:
+		_exit_confirm = ConfirmationDialog.new()
+		_exit_confirm.title = "Exit Idle Beasts?"
+		_exit_confirm.dialog_text = "Leave the game? Your progress is saved automatically."
+		_exit_confirm.ok_button_text = "Exit"
+		_exit_confirm.cancel_button_text = "Keep playing"
+		_exit_confirm.min_size = Vector2(420, 200)
+		# Window subtype — assign the Dusk theme so it doesn't fall back
+		# to Godot's default styleboxes.
+		_exit_confirm.theme = load("res://assets/themes/dusk/%s.tres" % Settings.theme_id)
+		_exit_confirm.confirmed.connect(_on_exit_confirmed)
+		add_child(_exit_confirm)
+	_exit_confirm.popup_centered(Vector2(420, 200))
+
+
+func _on_exit_confirmed() -> void:
+	# Persist one final time before quitting (belt-and-braces; periodic
+	# save + lifecycle saves already cover this).
+	_save_now()
+	get_tree().quit()
 
 
 ## v0.14.0 (Phase 13b) — root UI layout wraps everything in a
@@ -688,11 +785,13 @@ func _on_currency_changed_tutorial(currency_id: String, _new_value: Variant) -> 
 		return
 	if GameState.current_gold().lt(BigNumber.from_float(100.0)):
 		return
-	var target: Button = _nav_buttons.get("More", null)
+	# v0.15.11 — Shop is now a primary nav button (was behind More), so
+	# point the coachmark directly at it instead of "Tap More → Shop".
+	var target: Button = _nav_buttons.get("Shop", null)
 	if target == null:
 		return
 	_coachmark.show_for(target,
-			"You can afford a Basic Net. Tap More → Shop to buy one and start auto-catching.",
+			"You can afford a Basic Net. Tap Shop to buy one and start auto-catching.",
 			TutorialState.STEP_BUY_FIRST_NET)
 
 
@@ -718,7 +817,12 @@ func _on_tier_unlocked_tutorial(tier: int) -> void:
 	if not GameState.recipes_crafted.is_empty():
 		TutorialState.mark_seen(TutorialState.STEP_CRAFT_FIRST_RECIPE)
 		return
-	var target: Button = _nav_buttons.get("More", null)
+	# v0.15.11 — point at the actual More button. The old code looked it
+	# up in `_nav_buttons` (which holds only the 4 primary buttons, never
+	# "More"), so `target` was always null and this coachmark NEVER showed
+	# — a long-standing dead FTUE step. Crafting is still behind More, so
+	# the "Tap More → Crafting" copy stays correct.
+	var target: Button = _more_button
 	if target == null:
 		return
 	_coachmark.show_for(target,
@@ -792,6 +896,11 @@ func _build_nav_buttons() -> void:
 	_more_button = Button.new()
 	_more_button.text = _label_with_icon("More")
 	_more_button.tooltip_text = "More tabs"
+	# v0.15.11 — toggle_mode so the More button can show the active
+	# (gold-inset) stylebox while a More-sheet (secondary) screen is the
+	# current tab. `_set_active_nav` drives `button_pressed`; the actual
+	# press still fires `_on_more_pressed` to open the sheet.
+	_more_button.toggle_mode = true
 	_more_button.pressed.connect(_on_more_pressed)
 
 	# Phase 14f — apply the styles.css `.tabbar` per-state styleboxes.
@@ -1028,14 +1137,19 @@ func _find_tab_index(tab_name: String) -> int:
 
 
 ## Toggle the `button_pressed` flag on each primary-nav button so the
-## one matching `tab_name` shows the v0.8.3 mobile theme's pressed
-## stylebox; the others go back to the normal stylebox. When the
-## active destination is a SECONDARY tab (reached via More), no
-## primary button is pressed.
+## one matching `tab_name` shows the active (gold-inset) stylebox; the
+## others go back to the normal stylebox.
+##
+## v0.15.11 — when the active destination is a SECONDARY (More-sheet)
+## screen, no primary lights up but the More button does, so the player
+## always sees which "zone" they're in (pre-fix, the 6 More-sheet
+## screens had zero active indication anywhere).
 func _set_active_nav(tab_name: String) -> void:
 	# Iterator var renamed from `name` to avoid shadowing Node.name.
 	for nav_name in _nav_buttons:
 		_nav_buttons[nav_name].button_pressed = (nav_name == tab_name)
+	if _more_button != null:
+		_more_button.button_pressed = _SECONDARY_NAV.has(tab_name)
 
 
 ## More-button handler: opens a custom-styled PopupPanel that reads as
@@ -1070,6 +1184,11 @@ func _build_more_popup() -> void:
 	# match the rest of the parchment/brass UI).
 	_more_popup.theme = preload("res://assets/themes/dusk/amethyst.tres")
 	add_child(_more_popup)
+	# v0.15.11 — when the sheet is dismissed without picking a destination
+	# (tap-outside / Back), re-sync the More button's active state to the
+	# current tab so it doesn't stay lit after being opened from a primary
+	# screen (toggle_mode flips button_pressed on the opening press).
+	_more_popup.popup_hide.connect(_resync_more_active_state)
 
 	var margins := MarginContainer.new()
 	margins.add_theme_constant_override("margin_left", 12)
@@ -1102,6 +1221,21 @@ func _on_more_item_selected(tab_name: String) -> void:
 	if _more_popup != null:
 		_more_popup.hide()
 	_navigate_to_tab(tab_name)
+
+
+## v0.15.11 — re-derive the More button's active state from the current
+## tab. Called when the More sheet is dismissed without a selection (its
+## `popup_hide` signal), so opening the sheet from a primary screen and
+## tapping away doesn't leave More spuriously lit.
+func _resync_more_active_state() -> void:
+	if _more_button == null or _tabs == null:
+		return
+	var idx: int = _tabs.current_tab
+	if idx < 0 or idx >= _tabs.get_tab_count():
+		_more_button.button_pressed = false
+		return
+	var current_title: String = _tabs.get_tab_title(idx)
+	_more_button.button_pressed = _SECONDARY_NAV.has(current_title)
 
 
 func _seed_default_net_if_needed() -> void:

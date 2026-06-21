@@ -1,6 +1,6 @@
-# Tap the "More" button (rightmost in the v0.9.0 bottom nav), screenshot
-# the popup that opens, tap one of the secondary destinations (Shop is
-# the first item in the More sheet), screenshot the result.
+# Tap the "More" button (rightmost in the bottom nav), screenshot the
+# popup that opens, tap one of the secondary destinations, screenshot
+# the result.
 #
 # Catches:
 #  - More popup fails to open (handler unwired, popup never built)
@@ -8,8 +8,11 @@
 #  - Tapping a secondary destination doesn't switch tabs (wiring
 #    regression in _on_more_item_selected)
 #
-# v0.9.0 nav layout: bottom nav has 5 buttons across the device width
-# at ~95% of the height. More is at index 4 → x ≈ 90%.
+# v0.15.11 nav: bottom nav has 5 buttons (Catch · Bestiary · Shop ·
+# Battle · More) across the device width at ~96% height. More is the
+# rightmost → x ≈ 90%. The More sheet now holds Inventory · Upgrades ·
+# Crafting · Prestige · Ledger · Settings (Shop + Bestiary were promoted
+# to primary nav), so Inventory is the first secondary destination.
 appId: com.divora.beast
 ---
 - launchApp:
@@ -17,17 +20,25 @@ appId: com.divora.beast
     clearState: true
 - waitForAnimationToEnd:
     timeout: 5000
+
+# Dismiss the first-launch Peniber intro overlay (4 beats; tap to advance).
+- repeat:
+    times: 6
+    commands:
+      - tapOn:
+          point: "50%, 60%"
+      - waitForAnimationToEnd
+
 - tapOn:
-    point: "90%, 95%"     # More button (rightmost in bottom nav)
+    point: "90%, 96%"     # More button (rightmost in bottom nav)
 - waitForAnimationToEnd
 - takeScreenshot: 06_more_sheet_open
 
-# v0.9.1 More sheet sits as a bottom-sheet popup just above the nav.
-# Shop is the first secondary destination — it sits a few rows up
-# inside the popup. Tapping at ~80% height lands on the popup's
-# Shop row. (If the calibration drifts, scroll the screenshot output
-# and adjust the y-percentage.)
+# The More sheet sits as a bottom-sheet popup just above the nav.
+# Inventory is now the first secondary destination — it sits a few rows
+# up inside the popup. Tapping at ~80% height lands on the popup's first
+# row. (If the calibration drifts, review the screenshot and adjust.)
 - tapOn:
     point: "50%, 80%"
 - waitForAnimationToEnd
-- takeScreenshot: 06_after_shop_tap
+- takeScreenshot: 06_after_secondary_tap

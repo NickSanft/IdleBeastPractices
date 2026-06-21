@@ -31,10 +31,22 @@ var _dirty: bool = false
 
 
 func _ready() -> void:
+	# v0.15.11 — Inventory is a More-sheet (secondary) screen now, so a
+	# heading gives a "you are here" cue beyond the lit More nav button.
+	# The scroll lives below the title in a VBox.
+	var vbox := VBoxContainer.new()
+	add_child(vbox)
+	var title := Label.new()
+	title.text = "Inventory"
+	title.add_theme_font_size_override("font_size", UiScale.size(20))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
 	_scroll = ScrollContainer.new()
-	_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(_scroll)
+	vbox.add_child(_scroll)
 
 	_grid = GridContainer.new()
 	_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL

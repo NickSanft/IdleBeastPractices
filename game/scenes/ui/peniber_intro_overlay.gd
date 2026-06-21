@@ -103,7 +103,15 @@ var _float_tween: Tween
 var _spark_tween: Tween
 
 
+## v0.15.11 — group the live intro overlay so Main's Android Back
+## handler can detect that the forced first-launch intro owns the
+## screen and make Back a no-op (the intro is dismissed via tap / SKIP,
+## never Back — and Back must not pop the exit-confirm behind it).
+const GROUP_NAME := "peniber_intro"
+
+
 func _ready() -> void:
+	add_to_group(GROUP_NAME)
 	layer = 30   # styles.css `z-index: 30` — above coachmark / toast.
 	# Block input across the entire viewport while the overlay is up.
 	# Backdrop is a fullscreen ColorRect with mouse_filter = STOP so

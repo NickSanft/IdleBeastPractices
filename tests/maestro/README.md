@@ -66,11 +66,12 @@ maestro studio
 | File | Purpose | Catches |
 |---|---|---|
 | `01_smoke.yaml` | Launch, no crash, screenshot landing page | App fails to launch / boot crash |
-| `02_tab_navigation.yaml` | Tap each of the 10 tabs by coord, screenshot each | Tabs not tappable (the v0.8.x letterbox bug) |
+| `02_tab_navigation.yaml` | Dismiss intro, then tap each primary bottom-nav button (Catch/Bestiary/Shop/Battle) by coord at y=96%, screenshot each | Bottom-nav buttons not tappable (the v0.8.x letterbox-class bug) |
 | `03_save_persistence.yaml` | Launch, simulate gameplay, background via Home, relaunch | Save lifecycle not firing on background |
 | `04_battle_skip_button.yaml` | Switch to Battle, tap Fight, verify Skip button appears | Phase 6a wiring regression |
-| `06_more_sheet.yaml` | Tap More, screenshot popup, tap a secondary destination, screenshot | More-sheet wiring breakage; popup not opening; secondary nav unwired |
+| `06_more_sheet.yaml` | Tap More, screenshot popup, tap a secondary destination (Inventory is first now), screenshot | More-sheet wiring breakage; popup not opening; secondary nav unwired |
 | `07_settings_scrollable.yaml` | Use the v0.9.3 number-key shortcut to jump to Settings, scroll content | Settings clipped off bottom on tall screens (the v0.8.3-class bug) |
+| `08_back_button.yaml` | Dismiss intro, navigate to a tab, press hardware Back twice | Android Back quitting the app instead of returning to Catch / showing the exit confirm (v0.15.11) |
 
 ## Debug number-key shortcut
 

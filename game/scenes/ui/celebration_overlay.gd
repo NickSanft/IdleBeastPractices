@@ -223,6 +223,14 @@ func is_showing() -> bool:
 	return _showing
 
 
+## v0.15.11 — true once the overlay is showing AND its brief input-lock
+## window has elapsed, mirroring the rule taps obey (_on_backdrop_input).
+## The Android Back handler uses this so Back can't dismiss the moment
+## mid-animation when a tap couldn't.
+func is_dismissable() -> bool:
+	return _showing and (Time.get_ticks_msec() / 1000.0) >= _tap_locked_until
+
+
 ## Reads the persisted-but-not-yet-wired Settings flag. Phase 11b
 ## fully wires this; for 11a we just consult it defensively so the
 ## hook is in place. Returns false if the flag isn't available.

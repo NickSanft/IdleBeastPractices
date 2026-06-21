@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.11 — Nav/IA: primary-nav reorder + Android Back back-stack + More active-state
+
+The Nav/IA cluster from the UI/UX research. Three items, then an adversarial review pass that found (and we fixed) a real Back-handler completeness gap.
+
+**1. Primary-nav reorder (player-chosen: Catch · Bestiary · Shop · Battle)**
+
+`_PRIMARY_NAV` was `[Catch, Battle, Inventory, Upgrades]`; now `[Catch, Bestiary, Shop, Battle]`. Bestiary (the progression engine — completing a tier's species unlocks the next) and Shop (where auto-catch nets, the biggest early power jump, are bought) were buried in the More sheet while lower-stakes Inventory + Upgrades held two of four scarce primary slots. Promoted Bestiary + Shop; demoted Inventory + Upgrades to More (`_SECONDARY_NAV` is now `[Inventory, Upgrades, Crafting, Prestige, Ledger, Settings]`). The buy-first-net FTUE coachmark was repointed from "Tap More → Shop" to the now-primary Shop button.
+
+**2. Android hardware Back-button handling**
+
+Pre-fix, the system Back button quit the app (`SceneTree.quit_on_go_back` defaults true). Now Main disables that and owns Back via `NOTIFICATION_WM_GO_BACK_REQUEST` → `_handle_go_back()`, a back-stack that closes the top-most surface first (one level per press):
+
+0. First-launch Peniber intro owns the screen → Back is a no-op (dismiss via tap/SKIP)
+1. A tracked modal dialog (exit-confirm, welcome-back) → cancel it
+2. The More sheet → close it
+3. The celebration overlay (once its input-lock elapses, matching taps)
+4. A tutorial coachmark → dismiss it
+5. Not on the Catch tab → return to Catch
+6. On Catch, nothing open → "Exit Idle Beasts?" confirm (never quit silently)
+
+**3. More active-state indication**
+
+The 6 More-sheet screens previously had zero active indication anywhere. The More button is now `toggle_mode` and lights up (gold inset) while a secondary screen is active, with a `popup_hide` resync so it doesn't stay lit after opening the sheet from a primary screen. Plus screen-title headings on the freshly-demoted **Inventory** and **Upgrades** views.
+
+**Adversarial review pass (20 agents) — 12 confirmed findings, acted on the substantive ones**
+
+The big one: the initial Back-stack only checked the More popup / celebration / coachmark, so Back popped "Exit?" *over* the welcome-back dialog and the first-launch intro, and re-popped the exit-confirm instead of cancelling it — on guaranteed-frequent launch paths. Fixed by adding the modal-dialog + intro branches above. Also:
+
+- **Dead FTUE coachmark resurrected** — the craft-first-recipe coachmark targeted `_nav_buttons.get("More")`, which is *always* null (More isn't in `_nav_buttons`), so it never displayed. Repointed to `_more_button`.
+- Celebration overlay gained `is_dismissable()` so Back respects the same 0.25 s input-lock that taps do.
+- Stale `NOTIFICATION_WM_GO_BACK` comments corrected to `..._REQUEST` (the real Godot 4 constant — caught a compile error mid-implementation too).
+
+**Tests — `test_nav_ia.gd` (16 cases) + `test_bottom_nav` updated, 586/586 passing (two clean runs)**
+
+Covers the reorder, the full Back decision tree (intro no-op, welcome-back/exit-confirm/More/coachmark dismiss, tab-return, exit-confirm), and the More resync. Maestro: rewrote the two stale flows (`02`/`06` — they tapped the hidden top tab-strip) for the real bottom nav, and added `08_back_button.yaml` exercising the real `KEYCODE_BACK` path on the emulator.
+
+**Device-verification note**
+
+The popup-vs-Main Back delivery order can't be fully verified headlessly. With `quit_on_go_back = false` nothing auto-closes on Back (Main is the single owner), and the new Maestro flow gives emulator coverage — but one real-device pass on the Back button is worth doing.
+
 ### v0.15.10 — Catch-feel quick wins: catch chime + haptic, audible idle catches, magnitude-scaled gold numbers
 
 The three highest feel-per-effort items from the UI/UX research's "Core-loop juice" cluster. Pre-fix, the loop's main payoff — a catch — was unmarked: a normal catch made no distinct sound or haptic (only shiny did), and idle/net catches were silent entirely.
