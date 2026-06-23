@@ -66,6 +66,11 @@ static func resolve(local: Dictionary, remote: Dictionary) -> Dictionary:
 	result["narrator_state"] = _merge_narrator_state(local.get("narrator_state", {}), remote.get("narrator_state", {}))
 	result["prestige_count"] = max(int(local.get("prestige_count", 0)), int(remote.get("prestige_count", 0)))
 	result["current_max_tier"] = max(int(local.get("current_max_tier", 1)), int(remote.get("current_max_tier", 1)))
+	# v0.15.12 — the one-time tier-RP ledger is monotonic: union it so a
+	# cloud merge of two offline-divergent saves never DROPS a paid tier
+	# (which would let that tier re-grant its RP on the next completion).
+	result["tiers_rp_awarded"] = _union_ints(
+			local.get("tiers_rp_awarded", []), remote.get("tiers_rp_awarded", []))
 
 	return result
 
@@ -76,6 +81,19 @@ static func _union_strings(a: Variant, b: Variant) -> Array:
 		seen[String(s)] = true
 	for s in b:
 		seen[String(s)] = true
+	var out: Array = seen.keys()
+	out.sort()
+	return out
+
+
+## v0.15.12 — union two int arrays into a sorted, de-duplicated set.
+## Used for tiers_rp_awarded (a monotonic one-time-reward ledger).
+static func _union_ints(a: Variant, b: Variant) -> Array:
+	var seen: Dictionary = {}
+	for v in a:
+		seen[int(v)] = true
+	for v in b:
+		seen[int(v)] = true
 	var out: Array = seen.keys()
 	out.sort()
 	return out

@@ -175,6 +175,31 @@ static func tier_completion_status(
 	}
 
 
+## v0.15.12 — overall bestiary completion. Counts species caught at least
+## once (normal OR shiny > 0) across the whole monster pool. Pure +
+## testable; drives the Bestiary header meter and the Ledger echo.
+## Returns { caught: int, total: int, fraction: float (0..1) }.
+static func bestiary_completion(
+		monster_pool: Array[MonsterResource],
+		monsters_caught: Dictionary) -> Dictionary:
+	var total: int = monster_pool.size()
+	var caught: int = 0
+	for m in monster_pool:
+		var entry: Dictionary = monsters_caught.get(String(m.id), {})
+		if int(entry.get("normal", 0)) > 0 or int(entry.get("shiny", 0)) > 0:
+			caught += 1
+	var fraction: float = (float(caught) / float(total)) if total > 0 else 0.0
+	return {"caught": caught, "total": total, "fraction": fraction}
+
+
+## v0.15.12 — permanent RP bonus granted when a tier's collection is
+## completed. Scales with tier so deeper, harder tiers reward more
+## (tier N → +N RP). Single source of truth shared by the grant site
+## (catching_view) and the celebration copy (main). Survives prestige.
+static func tier_completion_rp(catch_tier: int) -> int:
+	return max(0, catch_tier)
+
+
 ## Returns the pet PetResources awarded when `catch_tier` completes — every
 ## monster in that tier with a non-null `pet` reference contributes one.
 ## Empty array if no monsters in that tier have pets.

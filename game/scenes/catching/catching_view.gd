@@ -450,7 +450,23 @@ func _check_tier_progression(catch_tier: int) -> void:
 func _award_tier_completion(catch_tier: int) -> void:
 	if not GameState.tiers_completed.has(catch_tier):
 		GameState.tiers_completed.append(catch_tier)
+		# v0.15.12 — emit BEFORE recording the one-time RP bonus so the
+		# celebration handler (which reads tiers_rp_awarded) can tell a
+		# first-ever completion from a post-prestige replay. emit() is
+		# synchronous, so every listener runs before the append below.
 		EventBus.tier_completed.emit(catch_tier)
+		# Permanent, prestige-surviving RP bonus for completing the tier's
+		# collection (scales with tier). Granted ONCE per tier EVER —
+		# tiers_rp_awarded persists across prestige while tiers_completed
+		# resets (and monsters_caught is kept, so tiers re-complete on the
+		# first post-prestige catch). Without this gate that would be a
+		# free ~210 RP farm every prestige. Forward-looking: tiers completed
+		# before this update don't retroactively pay out.
+		if not GameState.tiers_rp_awarded.has(catch_tier):
+			GameState.tiers_rp_awarded.append(catch_tier)
+			var rp_bonus: int = CatchingSystem.tier_completion_rp(catch_tier)
+			if rp_bonus > 0:
+				GameState.add_rancher_points(rp_bonus, "tier_complete:%d" % catch_tier)
 	if _DEBUG_LOG:
 		print("[catch] TIER %d COMPLETE — awarding pets" % catch_tier)
 	# Use the catching view's already-seeded _rng for variant rolls.

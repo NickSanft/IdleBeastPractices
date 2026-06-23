@@ -637,6 +637,16 @@ func _on_celebrate_tier_completed(tier: int) -> void:
 		body = "Joining your roster: %s." % pet_names[0]
 	else:
 		body = "Joining your roster: %s." % ", ".join(pet_names)
+	# v0.15.12 — surface the permanent RP bonus, but ONLY on the first-ever
+	# completion of this tier (the bonus is one-time). This handler runs
+	# during `tier_completed.emit`, which fires BEFORE the grant records the
+	# tier in tiers_rp_awarded — so "not yet awarded" == first completion.
+	# Post-prestige replays re-complete the tier but grant nothing, so they
+	# must not claim "+RP" either.
+	if not GameState.tiers_rp_awarded.has(tier):
+		var rp_bonus: int = CatchingSystem.tier_completion_rp(tier)
+		if rp_bonus > 0:
+			body += "\n+%d Rancher Points." % rp_bonus
 	_celebration_overlay.show_celebration("Tier %d Complete!" % tier, body)
 
 

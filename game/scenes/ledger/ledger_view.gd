@@ -90,8 +90,14 @@ func _refresh() -> void:
 	_list.add_child(_spacer(8))
 
 	var ledger: Dictionary = GameState.ledger
+	# v0.15.12 — overall bestiary completion, echoed from the Bestiary
+	# header (same pure helper, single source of truth).
+	var completion: Dictionary = CatchingSystem.bestiary_completion(
+			ContentRegistry.monsters(), GameState.monsters_caught)
+	var species_pct: int = int(round(float(completion["fraction"]) * 100.0))
 	# Pairs of (Peniber label, formatted value).
 	var rows: Array[Array] = [
+		["Species catalogued", "%d / %d (%d%%)" % [int(completion["caught"]), int(completion["total"]), species_pct]],
 		["Specimens captured (in their entirety)", "%d" % int(ledger.get("total_catches", 0))],
 		["Manual taps applied to wisplets", "%d" % int(ledger.get("total_taps", 0))],
 		["Iridescent oddities encountered", "%d" % int(ledger.get("total_shinies", 0))],

@@ -47,6 +47,12 @@ var active_net: String = ""
 var upgrades_purchased: Array[Dictionary] = []  # [{"id": StringName, "level": int}]
 var current_max_tier: int = 1
 var tiers_completed: Array[int] = []
+## v0.15.12 — persistent ledger of tiers that have EVER paid out their
+## one-time completion RP bonus. Survives prestige (unlike tiers_completed,
+## which resets so the player re-climbs). Without this, every prestige
+## would re-grant the tier RP on re-completion (monsters_caught is kept,
+## so tiers re-complete on the first catch) — a free RP farm.
+var tiers_rp_awarded: Array[int] = []
 var current_battle: Variant = null              # Dictionary or null
 var prestige_count: int = 0
 var recipes_crafted: Array[String] = []          # ids of recipes ever crafted (additive across prestiges)
@@ -94,6 +100,7 @@ func to_dict() -> Dictionary:
 		"upgrades_purchased": upgrades_purchased.duplicate(true),
 		"current_max_tier": current_max_tier,
 		"tiers_completed": tiers_completed.duplicate(),
+		"tiers_rp_awarded": tiers_rp_awarded.duplicate(),
 		"current_battle": current_battle,
 		"prestige_count": prestige_count,
 		"recipes_crafted": recipes_crafted.duplicate(),
@@ -126,6 +133,7 @@ func from_dict(data: Dictionary) -> void:
 	upgrades_purchased = _to_dict_array(data.get("upgrades_purchased", []))
 	current_max_tier = int(data.get("current_max_tier", 1))
 	tiers_completed = _to_int_array(data.get("tiers_completed", []))
+	tiers_rp_awarded = _to_int_array(data.get("tiers_rp_awarded", []))
 	current_battle = data.get("current_battle", null)
 	prestige_count = int(data.get("prestige_count", 0))
 	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
@@ -174,6 +182,7 @@ func _reset_to_defaults() -> void:
 	upgrades_purchased = []
 	current_max_tier = 1
 	tiers_completed = []
+	tiers_rp_awarded = []
 	current_battle = null
 	prestige_count = 0
 	recipes_crafted = []
@@ -589,6 +598,10 @@ func perform_prestige() -> int:
 	# next QuestLog tick because lots of state the quests track also
 	# resets (run gold, pets, etc.).
 	var keep_quests_completed := quests_completed.duplicate(true)
+	# v0.15.12 — the one-time tier-completion RP ledger persists (like
+	# achievements). tiers_completed resets so the player re-climbs, but
+	# already-paid tiers must never pay their RP bonus again.
+	var keep_tiers_rp_awarded := tiers_rp_awarded.duplicate()
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -604,6 +617,7 @@ func perform_prestige() -> int:
 	best_rp_at_prestige = keep_best_rp
 	achievements_unlocked = keep_achievements
 	quests_completed = keep_quests_completed
+	tiers_rp_awarded = _to_int_array(keep_tiers_rp_awarded)
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.12 — Completion meter + scaling tier-completion RP bonus
+
+The "completion meters + tier/biome bonuses" item from the UI/UX research. The Bestiary was a bare grid with no sense of overall progress, and completing a tier's collection (already awards pets) granted no permanent reward.
+
+**Overall completion meter**
+
+- New pure helper `CatchingSystem.bestiary_completion(monsters, monsters_caught)` counts species caught at least once (normal or shiny) out of the 60 (20 tiers × 3).
+- Bestiary gained a header — "Bestiary — X / 60 species (Z%)" + a teal progress bar that ticks up (tweened) on each catch. The grid now scrolls below it.
+- The Ledger echoes a "Species catalogued" row (same helper, single source of truth).
+
+**Scaling tier-completion RP bonus (player-chosen)**
+
+- Completing a tier's collection now grants **+tier RP** (tier 1 → +1 … tier 20 → +20, ~210 across all 20), surfaced in the existing tier-complete celebration. `CatchingSystem.tier_completion_rp(tier)` is the shared source of truth. RP is the prestige-surviving currency, so this is a permanent meta-reward (the achievement-reward pattern).
+
+**One-time gating (the load-bearing correctness work)**
+
+Prestige resets `tiers_completed` (the player re-climbs) but **keeps** `monsters_caught`, so every previously-completed tier re-completes on the first post-prestige catch. Granting RP naively would re-pay the full ~210 RP **free, every prestige** — a farm. Fixed:
+
+- New persistent `GameState.tiers_rp_awarded: Array[int]` ledger gates the grant to **once per tier, ever**. It's added to save round-trip (default `[]` — old saves load safely, no version bump needed since it's additive), reset in `_reset_to_defaults`, and **preserved across prestige** in `perform_prestige`'s keep-list (exactly like `quests_completed` / `achievements_unlocked`).
+- **Cloud-merge:** `save_conflict_resolver` now **unions** `tiers_rp_awarded` (it's monotonic — last-write-wins could drop a device's paid tiers and re-grant RP). *(Note: the pre-existing `quests_completed` / `achievements_unlocked` have the same latent last-write-wins gap — flagged as a separate follow-up, not changed here.)*
+- The celebration shows "+N RP" only on a *first-ever* completion: `_award_tier_completion` emits `tier_completed` **before** recording the tier, so the celebration handler reading `tiers_rp_awarded.has(tier)` sees "not yet awarded" == first time (post-prestige replays grant nothing and claim nothing).
+- *Forward-looking:* tiers completed before this update don't retroactively pay out mid-run; an existing player gets the back-catalogue once on their first post-update re-completion, then never again.
+
+**Adversarial review (22 agents) — 5 confirmed, 0 economy bugs**
+
+The review confirmed the prestige-replay and cloud-merge fixes held. The 5 confirmed findings were all meter polish, all applied: header font now re-applies on the accessibility font-scale slider; the bar styleboxes repaint on a live theme swap; the header label autowraps instead of overflowing at max font scale; the bar tween is skipped when the species count is unchanged (auto-catch fires several `monster_caught`/frame); and an executable test pins the emit-before-record ordering the celebration relies on.
+
+**Tests — `test_completion_meter.gd` (14 cases) + conflict-resolver union test, 598/598 passing (two clean runs)**
+
+Covers the helpers, the RP grant + scaling, the prestige-replay non-regrant, save round-trip + prestige preservation, the conflict-resolver union, the meter label/bar, the Ledger echo, and the emit-ordering invariant.
+
 ### v0.15.11 — Nav/IA: primary-nav reorder + Android Back back-stack + More active-state
 
 The Nav/IA cluster from the UI/UX research. Three items, then an adversarial review pass that found (and we fixed) a real Back-handler completeness gap.

@@ -69,6 +69,23 @@ func test_pets_owned_unioned_across_saves() -> void:
 	assert_eq(merged["pet_variants_owned"], ["green_wisplet_pet_variant"])
 
 
+func test_tiers_rp_awarded_unioned_across_saves() -> void:
+	# v0.15.12 — the one-time tier-RP ledger is monotonic. Divergent
+	# offline play on two devices must union (never drop a paid tier, or
+	# that tier would re-grant its RP on the next completion).
+	var older := {
+		"last_saved_unix": 1000,
+		"tiers_rp_awarded": [1, 2, 3],
+	}
+	var newer := {
+		"last_saved_unix": 2000,
+		"tiers_rp_awarded": [1, 2, 4, 5],
+	}
+	var merged := SaveConflictResolver.resolve(older, newer)
+	assert_eq(merged["tiers_rp_awarded"], [1, 2, 3, 4, 5],
+			"tiers_rp_awarded must union both devices' paid tiers, sorted + deduped")
+
+
 func test_monsters_caught_per_species_max() -> void:
 	# Bestiary entries are monotonic; merge takes max per (species, type).
 	var older := {
