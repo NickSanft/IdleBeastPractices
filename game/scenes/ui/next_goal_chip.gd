@@ -161,6 +161,11 @@ func _ready() -> void:
 	# The badge stylebox + bar bg border + fill color all read from
 	# `_DUSK.active()`, so a palette switch requires a stylebox rebuild.
 	Settings.theme_changed.connect(_on_theme_changed)
+	# v0.15.13 — the T-badge font size is an inline UiScale.size(9)
+	# override (theme variations can't size a single Label), so it won't
+	# follow the accessibility slider on its own. Re-apply it live when
+	# the slider moves, so the badge grows in step with the tier % beside it.
+	Settings.accessibility_settings_changed.connect(_on_accessibility_changed)
 	_refresh()
 
 
@@ -173,6 +178,17 @@ func _exit_tree() -> void:
 		EventBus.game_loaded.disconnect(_refresh)
 	if Settings.theme_changed.is_connected(_on_theme_changed):
 		Settings.theme_changed.disconnect(_on_theme_changed)
+	if Settings.accessibility_settings_changed.is_connected(_on_accessibility_changed):
+		Settings.accessibility_settings_changed.disconnect(_on_accessibility_changed)
+
+
+## v0.15.13 — re-apply the inline badge font size when the accessibility
+## font slider moves. UiScale.size(9) reads Settings.font_scale at call
+## time, so this picks up the new scale; the theme-variation tier % beside
+## it already rescales via the rebuilt root theme.
+func _on_accessibility_changed() -> void:
+	if _badge_label != null:
+		_badge_label.add_theme_font_size_override("font_size", UiScale.size(9))
 
 
 ## Phase 14g — repaint when Settings.theme_id flips. Rebuilds the

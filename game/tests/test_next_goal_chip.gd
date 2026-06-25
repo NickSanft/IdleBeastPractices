@@ -23,6 +23,15 @@ func before_each() -> void:
 	GameState.from_dict({})
 	ContentRegistry.ensure_loaded()
 	Settings.debug_fast_pets = false
+	# Reset the accessibility slider so the live-rescale test below doesn't
+	# leak its 1.5× into other tests' badge-size expectations.
+	Settings.font_scale = 1.0
+
+
+func after_each() -> void:
+	# The live-rescale test bumps font_scale to 1.5; reset it so the value
+	# never leaks into a later test FILE (before_each only guards this file).
+	Settings.font_scale = 1.0
 
 
 func test_starts_with_species_left_message() -> void:
@@ -113,3 +122,31 @@ func test_tier_name_lookup_uses_styles_css_labels() -> void:
 	assert_eq(chip._tier_name(3), "Ash Reach")
 	assert_eq(chip._tier_name(7), "Tier 7",
 			"tiers past the named 3 should fall back to 'Tier N'")
+
+
+func test_badge_font_rescales_with_accessibility_slider() -> void:
+	# v0.15.13 — the T-badge font size is an inline UiScale.size(9) override
+	# (a single Label can't be sized by a theme variation), so it must be
+	# re-applied live when the accessibility slider moves. Otherwise the
+	# badge stays small while the tier % beside it grows — visibly mismatched.
+	var chip: PanelContainer = _SCENE.instantiate()
+	add_child_autofree(chip)
+	await wait_frames(2)
+	assert_true(chip._badge_label.has_theme_font_size_override("font_size"),
+			"badge must carry an inline font_size override")
+	# get_theme_font_size resolves the local override first, so it returns
+	# the inline value the chip set.
+	var base_size: int = chip._badge_label.get_theme_font_size("font_size")
+	assert_eq(base_size, UiScale.size(9),
+			"badge should start at the 1.0× scaled 9-px size")
+	# Bump the slider — the chip subscribes to accessibility_settings_changed
+	# and re-applies UiScale.size(9), which reads the new font_scale. Use the
+	# emitting setter (a bare `font_scale =` assignment changes the value but
+	# fires no signal, so the chip would never re-apply).
+	Settings.set_font_scale(1.5)
+	await wait_frames(1)
+	var scaled_size: int = chip._badge_label.get_theme_font_size("font_size")
+	assert_eq(scaled_size, UiScale.size(9),
+			"badge font size must follow the live font_scale (UiScale.size(9) at 1.5×)")
+	assert_gt(scaled_size, base_size,
+			"badge font must actually grow when the accessibility slider increases")

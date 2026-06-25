@@ -85,8 +85,11 @@ func test_main_scene_applies_theme() -> void:
 	add_child_autofree(root)
 	await wait_frames(1)
 	assert_not_null(root.theme, "main.tscn root must have theme assigned at runtime")
-	assert_eq(root.theme.resource_path, "res://assets/themes/dusk/amethyst.tres",
-			"main.tscn root should now carry the Dusk Amethyst theme (set in _apply_mobile_default_theme)")
+	# v0.15.13 — the theme is now BUILT at runtime (so font sizes respect
+	# the accessibility slider), so it has no resource_path. Verify by the
+	# palette-derived Label ink color instead of a file path.
+	assert_eq(root.theme.get_color("font_color", "Label"), PaletteDusk.amethyst()["ink"],
+			"main.tscn root should carry the Dusk Amethyst theme (Label ink == amethyst ink)")
 
 
 func test_palette_colors_constants_present() -> void:

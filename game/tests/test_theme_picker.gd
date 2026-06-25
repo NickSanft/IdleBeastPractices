@@ -16,6 +16,8 @@ const _MAIN_SCENE := preload("res://game/scenes/main.tscn")
 func before_each() -> void:
 	# Reset to Amethyst before each test so test order doesn't leak.
 	Settings.theme_id = Settings.THEME_AMETHYST
+	# Same for the font scale — the live-rebuild test below bumps it to 1.5.
+	Settings.font_scale = 1.0
 
 
 # region — Settings.theme_id contract
@@ -140,7 +142,9 @@ func test_pressing_theme_button_updates_settings_id() -> void:
 # region — main.gd repaints nav on theme_changed
 
 func test_main_loads_correct_theme_for_current_theme_id() -> void:
-	# Persisted Ember → main.gd should load ember.tres at startup.
+	# Persisted Ember → main.gd builds the Ember-palette theme at startup.
+	# v0.15.13 — the theme is built at runtime (no resource_path), so we
+	# verify by the palette-derived Label ink color instead of a file path.
 	Settings.theme_id = Settings.THEME_EMBER
 	Settings.save_to_disk()
 	var main: Node = _MAIN_SCENE.instantiate()
@@ -148,8 +152,8 @@ func test_main_loads_correct_theme_for_current_theme_id() -> void:
 	await wait_frames(1)
 	var theme: Theme = (main as Control).theme
 	assert_not_null(theme)
-	assert_eq(theme.resource_path, "res://assets/themes/dusk/ember.tres",
-		"Main.theme must point at ember.tres when theme_id == 'ember'")
+	assert_eq(theme.get_color("font_color", "Label"), PaletteDusk.ember()["ink"],
+		"Main.theme must use the Ember palette when theme_id == 'ember'")
 	# Reset for following tests.
 	Settings.theme_id = Settings.THEME_AMETHYST
 	Settings.save_to_disk()
@@ -162,11 +166,13 @@ func test_theme_changed_swaps_window_root_theme() -> void:
 	var main: Node = _MAIN_SCENE.instantiate()
 	add_child_autofree(main)
 	await wait_frames(1)
-	assert_eq(get_tree().root.theme.resource_path, "res://assets/themes/dusk/amethyst.tres")
+	assert_eq(get_tree().root.theme.get_color("font_color", "Label"),
+		PaletteDusk.amethyst()["ink"], "boots with the Amethyst palette")
 	Settings.set_theme_id(Settings.THEME_TWILIGHT)
 	await wait_frames(1)
-	assert_eq(get_tree().root.theme.resource_path, "res://assets/themes/dusk/twilight.tres",
-		"theme_changed must repaint the window root with the new palette's .tres")
+	assert_eq(get_tree().root.theme.get_color("font_color", "Label"),
+		PaletteDusk.twilight()["ink"],
+		"theme_changed must rebuild the window-root theme with the new palette")
 	# Reset for following tests.
 	Settings.theme_id = Settings.THEME_AMETHYST
 
@@ -192,5 +198,36 @@ func test_theme_changed_repaints_nav_button_styleboxes() -> void:
 			"%s nav button normal stylebox bg must match the active palette's bg_deep" % btn_name)
 	# Reset for following tests.
 	Settings.theme_id = Settings.THEME_AMETHYST
+
+# endregion
+
+
+# region — main.gd live-rebuilds the root theme on a font-scale change
+#
+# v0.15.13 — the font slider fires accessibility_settings_changed per
+# 0.05 step; main coalesces those into one rebuild drained in _process.
+# This pins the end-to-end live path: moving the slider must actually
+# rescale the theme-variation font sizes baked into the root theme.
+
+func test_font_scale_change_live_rebuilds_root_theme() -> void:
+	Settings.font_scale = 1.0
+	var main: Node = _MAIN_SCENE.instantiate()
+	add_child_autofree(main)
+	await wait_frames(2)
+	# UiCaption is sized by DuskThemeBuilder._scaled(9, font_scale) → 9 at 1.0×.
+	var base: int = get_tree().root.theme.get_font_size("font_size", "UiCaption")
+	assert_eq(base, 9, "UiCaption should be 9 px at the default font scale")
+	# Bump the slider via the emitting setter; the rebuild is deferred to
+	# the next _process drain (coalesced). Pump _process explicitly — the
+	# headless GUT harness doesn't reliably tick it (same reason
+	# test_buttons_on_screen calls main._process(0.0) by hand).
+	Settings.set_font_scale(1.5)
+	main._process(0.0)
+	await wait_frames(1)
+	var scaled: int = get_tree().root.theme.get_font_size("font_size", "UiCaption")
+	assert_eq(scaled, 14,
+		"a live font-scale bump to 1.5 must rebuild the root theme: UiCaption 9→round(9*1.5)=14")
+	# Reset for following tests (and so 1.5 never leaks into a later file).
+	Settings.font_scale = 1.0
 
 # endregion

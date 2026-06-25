@@ -6,6 +6,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.13 — Accessibility: the font-size slider actually scales the themed UI
+
+The "accessibility" item from the UI/UX research. The Settings font-size slider already scaled the *inline* `UiScale.size(N)` call sites (a handful of labels), but the bulk of the UI — currency labels/values, tier %, tab labels, badges, the Peniber dialog — gets its size from the **theme's type variations**, and those were baked into a static `amethyst.tres` at scale 1.0. So a low-vision player could drag the slider to 1.5× and most of the text wouldn't budge. It was effectively a no-op for the text that matters most.
+
+**The core fix — build the theme at runtime, scaled by `font_scale`**
+
+- `DuskThemeBuilder.build()` gained a `scale` parameter (default `1.0`); every type-variation `font_size` now runs through a `_scaled(px, scale)` helper. Main builds the root theme via `DuskThemeBuilder.build(palette, …fonts, Settings.font_scale)` instead of `load("…/amethyst.tres")`, and re-runs the build when the slider moves. The slider now rescales the whole themed UI live.
+- **Deliberate scope:** the theme is scaled by `font_scale` **only**, *not* by `UiScale.BASE_SCALE` (1.20). At the default 1.0× the built theme is byte-for-byte identical to the old static `.tres`, so there's **zero** default-appearance change and no layout regression — the drift detector and every existing size/overflow test stay green. (The research suggested folding in `BASE_SCALE` too, but that would grow *all* default text 1.2× and overflow the HUD — net negative. Kept simple on purpose.)
+
+**Coalesced the per-drag rebuild (the perf half)**
+
+A slider drag fires `accessibility_settings_changed` once per 0.05 step, and a fast drag crosses several steps in a single frame — rebuilding the entire theme + re-propagating it tree-wide on each one is wasteful. Main now sets a `_theme_dirty` flag in the handler and drains it to **one rebuild per frame** in `_process` (mirroring the existing `_safe_area_dirty` / `_orientation_dirty` coalescing). A discrete **palette swap** stays *synchronous* (one tap, nothing to coalesce, instant is better).
+
+**`next_goal_chip` T-badge live re-apply**
+
+The tier ribbon's "T1" badge is sized by an inline `UiScale.size(9)` override (a theme variation can't size a single Label), so it was frozen at boot. With the core fix the tier % beside it now rescales live, leaving the badge visibly out of step. The ribbon now subscribes to `accessibility_settings_changed` and re-applies the badge size, so the two grow together.
+
+**Cleanups (review nits)**
+
+- Removed a dead `if dusk_theme == null` guard (`DuskThemeBuilder.build()` is `-> Theme` and unconditionally returns a fresh `Theme`).
+- Rewrote the stale `_apply_mobile_default_theme` docstring (it still described the old "load `amethyst.tres`" path).
+
+**Adversarial review pass (16 agents) — 0 correctness bugs; applied the substantive UX findings**
+
+Acted on: the per-drag coalescing, the badge live re-apply, and the two cleanups above. **Deferred** (its own focused follow-up): the **popup theme sweep** — 8 Window-subtype dialogs (welcome-back, More sheet, prestige/wipe confirms, bestiary detail, celebration card, coachmark, inventory context menu) still pull a static `amethyst.tres`, so they don't yet scale or follow the live palette. Done right that's a per-popup *show-time* re-assignment (to avoid a cached popup keeping a stale theme) **with a static fallback** for the tests that instantiate those popups without a Main, so it's cleaner as a separate change than bolted on here. **Kept as-is** (deliberate, per above): themed text scales by `font_scale` only, not `BASE_SCALE`.
+
+**Tests — 602/602 passing (three clean runs)**
+
+`test_theme_font_sizes_respond_to_font_scale` (builder scales the variation sizes), `test_font_scale_change_live_rebuilds_root_theme` (the end-to-end live path: slider → coalesced `_process` drain → root-theme variation rescales), `test_badge_font_rescales_with_accessibility_slider` (ribbon badge follows the slider), and `test_hud_fits_viewport_at_max_font_scale` (the larger 1.5× HUD still fits — guards the v0.15.1.3 overflow-cascade class). Existing theme/picker/visual-regression assertions that pinned `theme.resource_path` were re-pointed to palette-content checks (`get_color("font_color", "Label")`) since a runtime-built theme has no path. Plus defensive `font_scale` resets so the new 1.5× tests can't leak into a later test file.
+
 ### v0.15.12 — Completion meter + scaling tier-completion RP bonus
 
 The "completion meters + tier/biome bonuses" item from the UI/UX research. The Bestiary was a bare grid with no sense of overall progress, and completing a tier's collection (already awards pets) granted no permanent reward.

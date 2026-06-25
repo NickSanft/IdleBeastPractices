@@ -64,10 +64,15 @@ func test_main_node_carries_dusk_theme_after_ready() -> void:
 	# `theme` on Main is the load-bearing assignment — Main's whole
 	# subtree (currency_bar, tabs, all 10 tab views) inherits from
 	# Main's `theme` property, not the window root's.
+	#
+	# v0.15.13 — the theme is now BUILT at runtime (so font sizes respect
+	# the accessibility slider), which means it has no resource_path.
+	# Verify by content instead: the default-Label ink color must match
+	# the active palette's ink token.
 	var t: Theme = (main as Control).theme
 	assert_not_null(t, "Main must have a theme assigned after _ready")
-	assert_eq(t.resource_path, _DUSK_AMETHYST_PATH,
-		"Main.theme must point at the Dusk Amethyst theme — got %s" % t.resource_path)
+	assert_eq(t.get_color("font_color", "Label"), PaletteDusk.amethyst()["ink"],
+		"Main.theme must be the Dusk Amethyst theme (Label ink == amethyst ink)")
 
 
 func test_main_scene_tscn_does_not_export_legacy_theme() -> void:
@@ -94,7 +99,28 @@ func test_window_root_also_carries_dusk_theme() -> void:
 	var _main: Node = _instantiate_main()
 	var root_theme: Theme = get_tree().root.theme
 	assert_not_null(root_theme, "window root must also receive the Dusk theme so popups inherit it")
-	assert_eq(root_theme.resource_path, _DUSK_AMETHYST_PATH)
+	# v0.15.13 — runtime-built theme has no resource_path; verify by content.
+	assert_eq(root_theme.get_color("font_color", "Label"), PaletteDusk.amethyst()["ink"])
+
+
+## v0.15.13 — the accessibility font-scale slider must now drive the
+## THEME's baked sizes (not just inline UiScale.size call sites). Pre-fix
+## main loaded a static .tres whose sizes ignored Settings.font_scale.
+func test_theme_font_sizes_respond_to_font_scale() -> void:
+	Settings.set_font_scale(1.0)
+	var main: Node = _instantiate_main()
+	var t: Theme = (main as Control).theme
+	var base_caption: int = t.get_font_size("font_size", "UiCaption")
+	assert_eq(base_caption, 9, "at font_scale 1.0 UiCaption stays its design size (9)")
+	# Bump the slider — the live theme must rebuild with larger sizes.
+	Settings.set_font_scale(1.5)
+	await wait_frames(1)
+	var scaled_caption: int = (main as Control).theme.get_font_size("font_size", "UiCaption")
+	assert_eq(scaled_caption, int(round(9 * 1.5)),
+		"at font_scale 1.5 the theme's UiCaption must scale to ~14 (the regression: it used to stay 9)")
+	assert_gt(scaled_caption, base_caption,
+		"the font-size slider must enlarge theme-variation text")
+	Settings.set_font_scale(1.0)
 
 # endregion
 

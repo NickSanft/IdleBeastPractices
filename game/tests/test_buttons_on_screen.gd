@@ -21,6 +21,9 @@ func before_each() -> void:
 	# Other tests in the suite call DeviceLayout._test_set_safe_area
 	# and don't always reset. Recompute from the live viewport here.
 	DeviceLayout.recompute()
+	# Reset the accessibility font scale so the max-font overflow test
+	# below doesn't leak its 1.5× into other tests' layout assertions.
+	Settings.font_scale = 1.0
 
 
 func _instantiate_main_and_drain() -> Node:
@@ -181,6 +184,28 @@ func test_orientation_root_fits_in_viewport_after_tab_switches() -> void:
 			])
 	assert_true(offenders.is_empty(),
 		"orientation_root spilled past viewport on these tabs:\n%s" % "\n".join(offenders))
+
+
+func test_hud_fits_viewport_at_max_font_scale() -> void:
+	# v0.15.13 — bumping the accessibility font slider now scales the
+	# theme's baked text (was a no-op). Verify the larger HUD/nav still
+	# fits the viewport at max scale so theme text growth never drags the
+	# nav row off-screen (the v0.15.1.3 overflow-cascade bug class).
+	Settings.font_scale = 1.5
+	var main: Node = await _instantiate_main_and_drain()
+	var tabs: TabContainer = main.get("_tabs")
+	var orientation_root: Control = main.get("_orientation_root")
+	var view_size: Vector2 = Vector2(get_viewport().get_visible_rect().size)
+	var offenders: Array[String] = []
+	for i in tabs.get_tab_count():
+		tabs.current_tab = i
+		await wait_frames(3)
+		if orientation_root.size.x > view_size.x + 1.0:
+			offenders.append("  tab '%s': orientation_root.size.x=%.1f > viewport.x=%.1f" % [
+				tabs.get_tab_title(i), orientation_root.size.x, view_size.x,
+			])
+	assert_true(offenders.is_empty(),
+		"at font_scale 1.5 the HUD overflowed the viewport on:\n%s" % "\n".join(offenders))
 
 # endregion
 

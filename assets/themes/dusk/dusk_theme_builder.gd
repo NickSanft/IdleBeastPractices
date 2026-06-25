@@ -73,14 +73,27 @@ const BTN_DROP_OFFSET := Vector2(0, 3)
 ## loaded inside) so the builder runs both in-editor (where load()
 ## would block on resource imports) and at runtime (where preloads
 ## work). The runner script wires the load.
+##
+## v0.15.13 — `scale` multiplies every baked font size by the player's
+## accessibility font-scale (Settings.font_scale). At `scale = 1.0`
+## (the default, used by tools/build_dusk_themes.gd) output is byte-for-
+## byte identical to the committed .tres, so the drift detector still
+## passes. main._apply_mobile_default_theme now BUILDS the theme at
+## runtime with scale = Settings.font_scale (instead of loading the
+## static .tres), so theme-variation text — currency labels/values,
+## tier %, tab labels, badges, Peniber dialog — finally respects the
+## slider. (scale is the slider only, NOT UiScale.BASE_SCALE, so the
+## default look is unchanged; inline UiScale.size() call sites keep
+## carrying BASE_SCALE on top as before.)
 static func build(
 		palette: Dictionary,
 		display_font: FontFile,
 		ui_font: FontFile,
-		body_font: FontFile) -> Theme:
+		body_font: FontFile,
+		scale: float = 1.0) -> Theme:
 	var t := Theme.new()
 	t.default_font = ui_font
-	t.default_font_size = SIZE_DEFAULT_BODY_PX
+	t.default_font_size = _scaled(SIZE_DEFAULT_BODY_PX, scale)
 
 	# Default ink color for Labels via Control.font_color override.
 	t.set_color("font_color", "Label", palette["ink"])
@@ -88,8 +101,14 @@ static func build(
 	_apply_panel_styleboxes(t, palette)
 	_apply_button_styleboxes(t, palette)
 	_apply_progress_bar(t, palette)
-	_apply_type_variations(t, palette, display_font, ui_font, body_font)
+	_apply_type_variations(t, palette, display_font, ui_font, body_font, scale)
 	return t
+
+
+## Scale a design-px font size by the accessibility factor, clamped to
+## a legible floor of 1. round() matches UiScale.size()'s rounding.
+static func _scaled(px: int, scale: float) -> int:
+	return max(1, int(round(float(px) * scale)))
 
 
 # region — control classes
@@ -156,49 +175,50 @@ static func _apply_type_variations(
 		palette: Dictionary,
 		display_font: FontFile,
 		ui_font: FontFile,
-		body_font: FontFile) -> void:
+		body_font: FontFile,
+		scale: float) -> void:
 	# DisplayHeading — gold pixel title (catch-screen header, intro title).
 	t.set_type_variation("DisplayHeading", "Label")
 	t.set_font("font", "DisplayHeading", display_font)
-	t.set_font_size("font_size", "DisplayHeading", SIZE_DISPLAY_HEADING)
+	t.set_font_size("font_size", "DisplayHeading", _scaled(SIZE_DISPLAY_HEADING, scale))
 	t.set_color("font_color", "DisplayHeading", palette["gold"])
 
 	# DisplaySmall — Press Start 2P at 10 px (Peniber name, currency glyph).
 	t.set_type_variation("DisplaySmall", "Label")
 	t.set_font("font", "DisplaySmall", display_font)
-	t.set_font_size("font_size", "DisplaySmall", SIZE_DISPLAY_SMALL)
+	t.set_font_size("font_size", "DisplaySmall", _scaled(SIZE_DISPLAY_SMALL, scale))
 	t.set_color("font_color", "DisplaySmall", palette["gold"])
 
 	# UiTiny — Silkscreen 7, currency lbl / vignette.
 	t.set_type_variation("UiTiny", "Label")
 	t.set_font("font", "UiTiny", ui_font)
-	t.set_font_size("font_size", "UiTiny", SIZE_UI_TINY)
+	t.set_font_size("font_size", "UiTiny", _scaled(SIZE_UI_TINY, scale))
 	t.set_color("font_color", "UiTiny", palette["ink_mute"])
 
 	# UiCaption — Silkscreen 9, tier %, tab labels.
 	t.set_type_variation("UiCaption", "Label")
 	t.set_font("font", "UiCaption", ui_font)
-	t.set_font_size("font_size", "UiCaption", SIZE_UI_CAPTION)
+	t.set_font_size("font_size", "UiCaption", _scaled(SIZE_UI_CAPTION, scale))
 	t.set_color("font_color", "UiCaption", palette["ink_dim"])
 
 	# BodyText — VT323 18 (Peniber dialog).
 	t.set_type_variation("BodyText", "Label")
 	t.set_font("font", "BodyText", body_font)
-	t.set_font_size("font_size", "BodyText", SIZE_BODY_TEXT)
+	t.set_font_size("font_size", "BodyText", _scaled(SIZE_BODY_TEXT, scale))
 	t.set_color("font_color", "BodyText", palette["ink"])
 
 	# BodyIntro — VT323 19 (Peniber intro overlay; one-pixel bigger
 	# than the in-game body for visual emphasis).
 	t.set_type_variation("BodyIntro", "Label")
 	t.set_font("font", "BodyIntro", body_font)
-	t.set_font_size("font_size", "BodyIntro", SIZE_BODY_INTRO)
+	t.set_font_size("font_size", "BodyIntro", _scaled(SIZE_BODY_INTRO, scale))
 	t.set_color("font_color", "BodyIntro", palette["ink"])
 
 	# Same family for RichTextLabel so Peniber's caret-suffixed dialog
 	# can use BBCode without losing the VT323 face.
 	t.set_type_variation("BodyTextRich", "RichTextLabel")
 	t.set_font("normal_font", "BodyTextRich", body_font)
-	t.set_font_size("normal_font_size", "BodyTextRich", SIZE_BODY_TEXT)
+	t.set_font_size("normal_font_size", "BodyTextRich", _scaled(SIZE_BODY_TEXT, scale))
 	t.set_color("default_color", "BodyTextRich", palette["ink"])
 
 	# PixelButtonGold — gold CTA per styles.css `.pixel-btn--gold`.

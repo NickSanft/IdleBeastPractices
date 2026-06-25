@@ -23,6 +23,13 @@ const _COACHMARK_SCENE := preload("res://game/scenes/ui/coachmark.tscn")
 const _LONG_BODY := "This is a deliberately long body string designed to exercise the autowrap loop. Without a finite wrap budget the PanelContainer would expand to fit this entire line on a single row, pushing the card past the viewport edge."
 
 
+func before_each() -> void:
+	# These width/center budgets assume the default 1.0× font scale. Reset
+	# it so a leak from an earlier test file (e.g. a max-font-scale layout
+	# test) can't silently widen these cards and fail the assertions.
+	Settings.font_scale = 1.0
+
+
 # region — celebration overlay stays bounded
 
 func test_celebration_card_width_stays_within_budget() -> void:

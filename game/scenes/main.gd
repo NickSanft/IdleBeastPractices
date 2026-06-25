@@ -28,6 +28,13 @@ const _SAVE_INDICATOR_OVERLAY := preload("res://game/scenes/ui/save_indicator_ov
 const _TOUCH_DEBUG_OVERLAY := preload("res://game/scenes/ui/touch_debug_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
 
+# v0.15.13 — Dusk fonts, preloaded so the theme can be BUILT at runtime
+# (with the accessibility font-scale baked in) rather than loading the
+# static .tres whose sizes ignore the slider.
+const _DUSK_DISPLAY_FONT := preload("res://assets/fonts/dusk/PressStart2P-Regular.ttf")
+const _DUSK_UI_FONT := preload("res://assets/fonts/dusk/Silkscreen-Regular.ttf")
+const _DUSK_BODY_FONT := preload("res://assets/fonts/dusk/VT323-Regular.ttf")
+
 var _welcome_back_dialog: AcceptDialog
 var _tabs: TabContainer
 var _ad_diag_overlay: Control
@@ -312,6 +319,11 @@ var _quest_strip: Control
 ## tests. Reset by `reset_layout_apply_counters()`.
 var _safe_area_dirty: bool = false
 var _orientation_dirty: bool = false
+## v0.15.13 — coalesces theme rebuilds. The font-scale slider fires
+## accessibility_settings_changed per 0.05 step during a drag; rebuilding
+## the whole theme + propagating it tree-wide on each step is wasteful.
+## Set the flag in the handlers; `_process` drains it to one rebuild/frame.
+var _theme_dirty: bool = false
 var _last_applied_landscape: bool = false
 var safe_area_apply_count: int = 0
 var orientation_apply_count: int = 0
@@ -430,23 +442,21 @@ func _build_ui() -> void:
 		add_child(_touch_debug_overlay)
 
 
-## v0.15.1 (Phase 14b) — root theme is now the Dusk pixel-RPG
-## Amethyst theme. The function name + the
-## `Settings.accessibility_settings_changed` connection are kept so
-## any code that referenced this path still works; the function
-## body just loads `amethyst.tres` and assigns it to the root.
+## v0.15.13 — the root theme is BUILT at runtime via
+## `DuskThemeBuilder.build(palette, display/ui/body fonts, Settings.font_scale)`
+## rather than loaded from a static `.tres`, so theme-variation text
+## (currency labels/values, tier %, tab labels, badges, Peniber dialog)
+## honors the accessibility font-size slider. The palette comes from
+## `PaletteDusk.by_id(Settings.theme_id)`, so the Settings palette picker
+## (Phase 14f) keeps working. The built theme is assigned to BOTH
+## `get_tree().root.theme` (so popup Windows inherit it) and `self.theme`
+## (Main's subtree). Inline `UiScale.size(N)` call sites still compound
+## `BASE_SCALE` on top, as before.
 ##
-## The DuskThemeBuilder + `assets/themes/dusk/amethyst.tres` already
-## carry the Phase-13d tap-target tweaks (CheckBox + OptionButton
-## styleboxes + tap-target-sized content_margin), and the inline
-## `add_theme_font_size_override("font_size", UiScale.size(N))` call
-## sites from Phase 13a still compound the user's font_scale
-## accessibility slider on top.
-##
-## Pre-fix this function constructed a parchment-styled theme from
-## scratch. That theme is gone in 14b; per-scene cosmetic migration
-## (parchment palette references in inline color overrides etc.)
-## lands per-screen in Phase 14c–f.
+## Called on _ready, re-run synchronously on `theme_changed` (a discrete
+## palette tap), and re-run via a once-per-frame dirty flag on
+## `accessibility_settings_changed` (the font slider) — so a slider DRAG
+## collapses into a single rebuild instead of one per 0.05 step.
 func _apply_mobile_default_theme() -> void:
 	if not Settings.accessibility_settings_changed.is_connected(_on_accessibility_settings_changed):
 		Settings.accessibility_settings_changed.connect(_on_accessibility_settings_changed)
@@ -454,24 +464,21 @@ func _apply_mobile_default_theme() -> void:
 	# picker actually swaps the live theme without a scene reload.
 	if not Settings.theme_changed.is_connected(_on_theme_changed):
 		Settings.theme_changed.connect(_on_theme_changed)
-	# Phase 14f — load the .tres matching the player's chosen palette.
-	# Defaults to amethyst.tres on a fresh save (Settings.theme_id =
-	# "amethyst"). On disk-load this reflects the persisted choice.
-	var theme_path: String = "res://assets/themes/dusk/%s.tres" % Settings.theme_id
-	var dusk_theme: Theme = load(theme_path)
-	if dusk_theme == null:
-		push_error("[main] failed to load %s — falling back to amethyst" % theme_path)
-		dusk_theme = load("res://assets/themes/dusk/amethyst.tres")
-	if dusk_theme == null:
-		push_error("[main] failed to load amethyst.tres — using default")
-		return
+	var palette: Dictionary = PaletteDusk.by_id(Settings.theme_id)
+	# build() is declared `-> Theme` and unconditionally returns a fresh
+	# Theme, so no null guard is needed.
+	var dusk_theme: Theme = DuskThemeBuilder.build(
+			palette,
+			_DUSK_DISPLAY_FONT,
+			_DUSK_UI_FONT,
+			_DUSK_BODY_FONT,
+			Settings.font_scale)
 
-	# Slider grabber — Dusk doesn't define this yet (handoff focused
-	# on the core controls). Bolt on a temporary "bright ink" grabber
-	# so the audio sliders in Settings stay tappable. Phase 14g
-	# polish will integrate this into DuskThemeBuilder properly.
+	# Slider grabber — Dusk doesn't define this in the builder yet (handoff
+	# focused on the core controls). Bolt on a "bright ink" grabber so the
+	# audio sliders in Settings stay tappable. Build-time mutation is safe
+	# now: this is a fresh Theme each call, not a shared cached resource.
 	var slider_grabber := StyleBoxFlat.new()
-	var palette := PaletteDusk.amethyst()
 	slider_grabber.bg_color = palette["ink"]
 	slider_grabber.corner_radius_top_left = 0
 	slider_grabber.corner_radius_top_right = 0
@@ -501,13 +508,17 @@ func _apply_mobile_default_theme() -> void:
 ## reduce_motion and haptics_enabled are read at the call site for
 ## each animation/haptic, so they don't need a re-apply step.
 func _on_accessibility_settings_changed() -> void:
-	_apply_mobile_default_theme()
+	# v0.15.13 — coalesce: the font-scale slider fires this per 0.05 step,
+	# and a fast drag can cross several steps in one frame. Mark dirty and
+	# let _process rebuild the theme once on the next frame instead of N
+	# times this frame.
+	_theme_dirty = true
 
 
-## Phase 14f — Settings.theme_changed handler. Re-applies the .tres
-## matching the new `theme_id` to both the window root and Main's
-## subtree, then notifies the bottom nav to repaint its per-state
-## styleboxes (which read from PaletteDusk.active()).
+## Phase 14f — Settings.theme_changed handler (palette swap). A palette
+## swap is a single discrete tap (no drag to coalesce), so rebuild
+## synchronously for an instant swap, then repaint the bottom nav's
+## per-state styleboxes (which read PaletteDusk.active()).
 func _on_theme_changed() -> void:
 	_apply_mobile_default_theme()
 	_apply_nav_styleboxes()
@@ -529,6 +540,13 @@ func _on_layout_changed() -> void:
 ## resize cheap: drag fires hundreds of size_changed events but
 ## landscape rarely flips, so the rebuild stays at zero.
 func _process(_delta: float) -> void:
+	if _theme_dirty:
+		_theme_dirty = false
+		# Rebuild the theme once per frame for a coalesced font-slider drag.
+		# (Palette swaps rebuild synchronously in _on_theme_changed.) The
+		# nav's per-state styleboxes are palette-based, not font-based, so
+		# they don't need repainting on a font-scale change.
+		_apply_mobile_default_theme()
 	if _safe_area_dirty:
 		_safe_area_dirty = false
 		_apply_safe_area_margins()
