@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/ui/daily_reward_dialog.gd" id="1"]
+
+[node name="DailyRewardDialog" type="AcceptDialog"]
+script = ExtResource("1")

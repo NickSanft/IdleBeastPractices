@@ -71,6 +71,15 @@ static func resolve(local: Dictionary, remote: Dictionary) -> Dictionary:
 	# (which would let that tier re-grant its RP on the next completion).
 	result["tiers_rp_awarded"] = _union_ints(
 			local.get("tiers_rp_awarded", []), remote.get("tiers_rp_awarded", []))
+	# v0.15.14 — daily-login state. Both are monotonic day-counters, so MAX
+	# is the safe merge: taking the latest `daily_login_last_day` across
+	# devices blocks claiming the same calendar day twice (claim on phone,
+	# then sync to tablet → tablet sees today already claimed). Streak MAX
+	# never under-rewards a streak the player legitimately earned.
+	result["daily_login_last_day"] = max(
+			int(local.get("daily_login_last_day", 0)), int(remote.get("daily_login_last_day", 0)))
+	result["daily_login_streak"] = max(
+			int(local.get("daily_login_streak", 0)), int(remote.get("daily_login_streak", 0)))
 
 	return result
 

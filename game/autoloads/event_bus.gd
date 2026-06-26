@@ -52,6 +52,10 @@ extends Node
 @warning_ignore("unused_signal") signal game_saved()
 @warning_ignore("unused_signal") signal offline_progress_calculated(summary: Dictionary)
 @warning_ignore("unused_signal") signal idle_too_long(seconds: float)
+## v0.15.14 — fired when a daily-login reward is granted at boot. `summary`
+## matches DailyRewardDialog's render shape: {cycle_day, streak, gold (BigNumber),
+## rp, missed}. Receivers (toast/analytics) react; the modal is shown by Main.
+@warning_ignore("unused_signal") signal daily_reward_claimed(summary: Dictionary)
 # endregion
 
 # region — Narrator

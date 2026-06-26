@@ -27,6 +27,8 @@ const _AD_DIAGNOSTIC_OVERLAY := preload("res://game/scenes/ui/ad_diagnostic_over
 const _SAVE_INDICATOR_OVERLAY := preload("res://game/scenes/ui/save_indicator_overlay.tscn")
 const _TOUCH_DEBUG_OVERLAY := preload("res://game/scenes/ui/touch_debug_overlay.tscn")
 const _WELCOME_BACK_DIALOG := preload("res://game/scenes/ui/welcome_back_dialog.tscn")
+## v0.15.14 — daily-login reward modal (retention bundle).
+const _DAILY_REWARD_DIALOG := preload("res://game/scenes/ui/daily_reward_dialog.tscn")
 
 # v0.15.13 — Dusk fonts, preloaded so the theme can be BUILT at runtime
 # (with the accessibility font-scale baked in) rather than loading the
@@ -36,6 +38,14 @@ const _DUSK_UI_FONT := preload("res://assets/fonts/dusk/Silkscreen-Regular.ttf")
 const _DUSK_BODY_FONT := preload("res://assets/fonts/dusk/VT323-Regular.ttf")
 
 var _welcome_back_dialog: AcceptDialog
+## v0.15.14 — daily-login reward modal + a one-slot queue so it's shown AFTER
+## the welcome-back (offline) dialog when both are pending on the same launch.
+var _daily_reward_dialog: AcceptDialog
+var _pending_daily_summary: Dictionary = {}
+## v0.15.14 — debounce: one backgrounding fires several FOCUS_OUT/PAUSED
+## notifications; without this we'd schedule the offline-cap nudge once per
+## notification. Set when scheduled, cleared on resume.
+var _offline_cap_scheduled: bool = false
 var _tabs: TabContainer
 var _ad_diag_overlay: Control
 var _save_indicator_overlay: Control
@@ -131,6 +141,7 @@ func _ready() -> void:
 	GameState.reconcile_pet_awards()
 	GameState.reconcile_total_gold_earned_this_run()
 	_apply_offline_progress(loaded)
+	_apply_daily_login()
 	_seed_default_net_if_needed()
 	_start_periodic_save()
 
@@ -141,6 +152,15 @@ func _ready() -> void:
 	# all three Play Console categories: phone / 7" tablet / 10"
 	# tablet), cycles through key tabs and saves PNGs.
 	if "--screenshots" in OS.get_cmdline_user_args():
+		# v0.15.14 — the boot daily-login / welcome-back modals would block the
+		# tab captures (a fresh seeded state is always day-1 claimable). Dismiss
+		# them before generating.
+		for d in [_welcome_back_dialog, _daily_reward_dialog]:
+			if d != null and is_instance_valid(d):
+				d.queue_free()
+		_welcome_back_dialog = null
+		_daily_reward_dialog = null
+		_pending_daily_summary = {}
 		await _run_screenshot_mode()
 		get_tree().quit()
 		return
@@ -160,6 +180,24 @@ func _start_periodic_save() -> void:
 
 func _save_now() -> void:
 	SaveManager.save(GameState.to_dict())
+
+
+## v0.15.14 — schedule the offline-cap-full notification for when the player's
+## idle catch reserve finishes filling (cap_seconds from now, since we save on
+## background and the cap accrues from the last save). Skips when there's no
+## auto-catch net equipped (offline produces nothing, so nothing to nudge for).
+## LocalNotificationManager no-ops without a native plugin; the stub records it.
+func _schedule_offline_cap_notification() -> void:
+	# Debounce — a single backgrounding fires PAUSED + FOCUS_OUT +
+	# WM_WINDOW_FOCUS_OUT; only schedule once until the next resume.
+	if _offline_cap_scheduled:
+		return
+	if String(GameState.active_net) == "":
+		return
+	var cap_mult: float = GameState.multiplier(&"offline_cap")
+	var cap_seconds: float = OfflineProgressSystem.DEFAULT_CAP_SECONDS * cap_mult
+	LocalNotificationManager.schedule_offline_cap_warning(cap_seconds)
+	_offline_cap_scheduled = true
 
 
 ## Persist on every Android lifecycle event that could be the last
@@ -182,6 +220,18 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_FOCUS_OUT, \
 		NOTIFICATION_WM_WINDOW_FOCUS_OUT:
 			_save_now()
+			# v0.15.14 — we just saved (last_saved_unix ≈ now), so the offline
+			# cap fills cap_seconds from now. Schedule the "come back" nudge for
+			# then. No-op until a native notification plugin ships; the stub
+			# records it so the wiring is testable.
+			_schedule_offline_cap_notification()
+		NOTIFICATION_APPLICATION_RESUMED, \
+		NOTIFICATION_APPLICATION_FOCUS_IN, \
+		NOTIFICATION_WM_WINDOW_FOCUS_IN:
+			# Player returned before the cap filled — cancel the pending nudge
+			# and re-arm the debounce for the next backgrounding.
+			_offline_cap_scheduled = false
+			LocalNotificationManager.cancel_offline_cap_warning()
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			# v0.15.11 — Android hardware Back. On Android subwindows are
 			# embedded in the main window, so this notification reaches
@@ -216,6 +266,12 @@ func _handle_go_back() -> void:
 	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
 			and _welcome_back_dialog.visible:
 		_welcome_back_dialog.hide()
+		return
+	# v0.15.14 — daily-login reward modal (shown after welcome-back, so at most
+	# one of the two is visible at a time). Back dismisses it like other modals.
+	if _daily_reward_dialog != null and is_instance_valid(_daily_reward_dialog) \
+			and _daily_reward_dialog.visible:
+		_daily_reward_dialog.hide()
 		return
 	# 2. More sheet open → close it.
 	if _more_popup != null and _more_popup.visible:
@@ -1336,6 +1392,76 @@ func _on_welcome_back_claimed(summary: Dictionary) -> void:
 		for i in int(entry.get("shiny", 0)):
 			GameState.record_catch(StringName(monster_id_str), true, "offline")
 	GameState.ledger["total_offline_seconds_credited"] = int(GameState.ledger["total_offline_seconds_credited"]) + int(summary.get("seconds", 0))
+
+
+## v0.15.14 — daily-login reward (retention bundle). Runs once at boot, after
+## offline progress. Detects whether today (LOCAL calendar day) is a fresh,
+## claimable login; if so grants the escalating cycle reward to GameState
+## IMMEDIATELY (so a force-quit at the modal never loses it — the same
+## pre-apply contract WelcomeBackDialog uses) and shows the acknowledgment
+## modal. When the welcome-back (offline) dialog is also up on this launch,
+## the daily modal is queued to show after it dismisses (never stacked).
+func _apply_daily_login() -> void:
+	var today: int = DailyLoginSystem.local_day_index(
+			TimeManager.now_unix(), TimeManager.tz_bias_minutes())
+	var decision: Dictionary = DailyLoginSystem.evaluate(
+			today, GameState.daily_login_last_day, GameState.daily_login_streak)
+	if not bool(decision.get("claimable", false)):
+		return
+	var cycle_day: int = int(decision["cycle_day"])
+	var reward: Dictionary = DailyLoginSystem.reward_for(
+			cycle_day,
+			BigNumber.from_dict(GameState.total_gold_earned_this_run),
+			GameState.current_max_tier)
+	# Apply BEFORE showing the modal — rewards persist on the next save tick
+	# regardless of whether the player taps Collect.
+	var gold: BigNumber = reward["gold"]
+	GameState.add_gold(gold)
+	var rp: int = int(reward["rp"])
+	if rp > 0:
+		GameState.add_rancher_points(rp, "daily_login")
+	GameState.daily_login_streak = int(decision["new_streak"])
+	GameState.daily_login_last_day = today
+	var summary: Dictionary = {
+		"cycle_day": cycle_day,
+		"streak": GameState.daily_login_streak,
+		"gold": gold,
+		"rp": rp,
+		"missed": bool(decision.get("missed", false)),
+	}
+	EventBus.daily_reward_claimed.emit(summary)
+	# Sequence after the welcome-back dialog if it's currently shown.
+	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
+			and _welcome_back_dialog.visible:
+		_pending_daily_summary = summary
+		_welcome_back_dialog.visibility_changed.connect(_on_welcome_back_dismissed_show_daily)
+	else:
+		_show_daily_reward(summary)
+
+
+## One-shot: show the queued daily reward once the welcome-back dialog hides.
+func _on_welcome_back_dismissed_show_daily() -> void:
+	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
+			and _welcome_back_dialog.visible:
+		return  # still visible — wait for the hide
+	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
+			and _welcome_back_dialog.visibility_changed.is_connected(_on_welcome_back_dismissed_show_daily):
+		_welcome_back_dialog.visibility_changed.disconnect(_on_welcome_back_dismissed_show_daily)
+	if _pending_daily_summary.is_empty():
+		return
+	var summary: Dictionary = _pending_daily_summary
+	_pending_daily_summary = {}
+	# Defer one frame so the just-hidden welcome-back window fully releases its
+	# exclusive-child slot before the daily modal claims it. Showing it
+	# synchronously here races that release and Godot logs "parent already has
+	# another exclusive child".
+	_show_daily_reward.call_deferred(summary)
+
+
+func _show_daily_reward(summary: Dictionary) -> void:
+	_daily_reward_dialog = _DAILY_REWARD_DIALOG.instantiate()
+	add_child(_daily_reward_dialog)
+	_daily_reward_dialog.show_reward(summary)
 
 
 func _unhandled_input(event: InputEvent) -> void:

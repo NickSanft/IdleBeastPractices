@@ -53,6 +53,13 @@ var tiers_completed: Array[int] = []
 ## would re-grant the tier RP on re-completion (monsters_caught is kept,
 ## so tiers re-complete on the first catch) — a free RP farm.
 var tiers_rp_awarded: Array[int] = []
+## v0.15.14 — daily-login retention. `daily_login_last_day` is the LOCAL
+## calendar-day index (DailyLoginSystem.local_day_index) of the most recent
+## claim; 0 means never claimed. `daily_login_streak` is the current
+## consecutive-day count. Both are account-level meta: they survive prestige
+## (like achievements / tiers_rp_awarded) and MAX-merge on cloud conflict.
+var daily_login_last_day: int = 0
+var daily_login_streak: int = 0
 var current_battle: Variant = null              # Dictionary or null
 var prestige_count: int = 0
 var recipes_crafted: Array[String] = []          # ids of recipes ever crafted (additive across prestiges)
@@ -101,6 +108,8 @@ func to_dict() -> Dictionary:
 		"current_max_tier": current_max_tier,
 		"tiers_completed": tiers_completed.duplicate(),
 		"tiers_rp_awarded": tiers_rp_awarded.duplicate(),
+		"daily_login_last_day": daily_login_last_day,
+		"daily_login_streak": daily_login_streak,
 		"current_battle": current_battle,
 		"prestige_count": prestige_count,
 		"recipes_crafted": recipes_crafted.duplicate(),
@@ -134,6 +143,8 @@ func from_dict(data: Dictionary) -> void:
 	current_max_tier = int(data.get("current_max_tier", 1))
 	tiers_completed = _to_int_array(data.get("tiers_completed", []))
 	tiers_rp_awarded = _to_int_array(data.get("tiers_rp_awarded", []))
+	daily_login_last_day = int(data.get("daily_login_last_day", 0))
+	daily_login_streak = int(data.get("daily_login_streak", 0))
 	current_battle = data.get("current_battle", null)
 	prestige_count = int(data.get("prestige_count", 0))
 	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
@@ -183,6 +194,8 @@ func _reset_to_defaults() -> void:
 	current_max_tier = 1
 	tiers_completed = []
 	tiers_rp_awarded = []
+	daily_login_last_day = 0
+	daily_login_streak = 0
 	current_battle = null
 	prestige_count = 0
 	recipes_crafted = []
@@ -602,6 +615,10 @@ func perform_prestige() -> int:
 	# achievements). tiers_completed resets so the player re-climbs, but
 	# already-paid tiers must never pay their RP bonus again.
 	var keep_tiers_rp_awarded := tiers_rp_awarded.duplicate()
+	# v0.15.14 — daily-login streak is account-level meta; prestige (a run
+	# reset) must not break the player's login streak.
+	var keep_daily_login_last_day: int = daily_login_last_day
+	var keep_daily_login_streak: int = daily_login_streak
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -618,6 +635,8 @@ func perform_prestige() -> int:
 	achievements_unlocked = keep_achievements
 	quests_completed = keep_quests_completed
 	tiers_rp_awarded = _to_int_array(keep_tiers_rp_awarded)
+	daily_login_last_day = keep_daily_login_last_day
+	daily_login_streak = keep_daily_login_streak
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

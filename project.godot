@@ -38,6 +38,7 @@ Achievements="*res://game/autoloads/achievements.gd"
 QuestLog="*res://game/autoloads/quest_log.gd"
 DeviceLayout="*res://game/autoloads/device_layout.gd"
 HapticManager="*res://game/autoloads/haptic_manager.gd"
+LocalNotificationManager="*res://game/autoloads/local_notification_manager.gd"
 
 [display]
 

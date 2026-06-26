@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.14 — Retention: daily-login reward (+ a testable local-notification seam)
+
+The first slice of the "retention bundle" from the UI/UX research. There was no reason to open the app on a day you didn't feel like grinding; now an escalating daily-login streak gives one. (Scope was deliberately **daily-login only** — resetting daily *quests* are a separate follow-up; this kept the ship focused and fully CI-green.)
+
+**Escalating 7-day daily-login reward (player-chosen shape)**
+
+- A new pure `DailyLoginSystem` tracks a streak over a repeating 7-day cycle. Logging in on a new **local calendar day** grants gold that escalates across the week (day 7 spikes to 10×) and pays **Rancher Points** on the day-7 milestone (`3 + current_max_tier`, scaling with progress). Miss a day → the streak restarts.
+- The gold is **progress-scaled** so it stays meaningful: `max(tier floor, 2% of gross run earnings) × cycle weight`. The tier floor (`50 × 2^(tier−1)`) keeps it worthwhile early and right after a prestige (when gross-this-run is ~0); the gross-fraction takes over once the player is rolling.
+- A Dusk-themed `DailyRewardDialog` shows the haul with a **7-day pip strip** (today highlighted, the day-7 jackpot starred). The reward is applied to `GameState` **before** the modal opens (the WelcomeBackDialog pre-apply pattern), so a force-quit at the dialog never loses it.
+- Runs once at boot, after offline progress. When a returning player has **both** offline earnings and a new day, the daily modal is **queued behind** the welcome-back dialog (shown after it dismisses, deferred a frame so the exclusive-window slot is free) — never stacked.
+
+**Persistence + the load-bearing correctness work**
+
+- `daily_login_last_day` + `daily_login_streak` round-trip through the save (additive, safe-defaulted for old saves like `tiers_rp_awarded`), **survive prestige** (account-level meta — a run reset must not break your streak), and **MAX-merge** on cloud conflict (latest claim-day blocks claiming the same calendar day twice across devices; streak never under-rewards).
+- **Corrupt-value guard:** a poisoned cloud MAX-merge (or a wildly-wrong clock) could leave a last-claim day far in the future, which the clock-backward guard would treat as "wait" — locking the player out of daily rewards for *years*. `evaluate()` now treats an implausibly far-future last-claim as corrupt and **resets** (one claim, not a farm) instead of blocking forever.
+- **Accepted limitation, documented:** the system trusts the device clock, so setting it forward to claim early is possible — a self-only quirk of any offline game (the offline-progress system shares it; unfixable without a server clock, and a real-time throttle would wrongly deny the legitimate 11:59pm→12:01am claim). Pinned with a by-design test rather than shipped with UX-breaking friction.
+
+**Local-notification seam (testable groundwork, no real notifications yet)**
+
+A `LocalNotificationManager` autoload + `LocalNotificationBackend` abstraction (stub recorder + an Android native-plugin skeleton), mirroring the `AdsManager`/`AdsBackend` pattern. Main schedules an "your offline reserve is full — come back!" nudge when backgrounded (debounced so one backgrounding's several PAUSED/FOCUS_OUT notifications schedule **once**) and cancels it on resume. **No native plugin ships**, so the stub is always selected and posts nothing — but the wiring is fully unit-tested, so a future Android notification plugin (AlarmManager/WorkManager + the Android-13 `POST_NOTIFICATIONS` runtime permission) drops in with no caller changes.
+
+**Adversarial review pass (26 agents) — 10 confirmed findings, 0 shipped bugs**
+
+Acted on: the corrupt-far-future cloud-merge lockout (the most serious — a real multi-device hazard); screenshot mode now dismisses the boot modals; the notification debounce; a `TimeManager` test-clock seam to kill a midnight-boundary test flake; plus test-coverage and clarity fixes. **Documented rather than changed:** the device-clock-trust forward-jump limitation (above), and the additive-no-version-bump choice (consistent with `tiers_rp_awarded`).
+
+**Tests — 638/638 passing (two clean runs)**
+
+`test_daily_login_system` (day-index + tz, the full streak decision tree incl. corrupt-future reset + the by-design forward-jump, cycle wrap, the progress-scaled curve), `test_daily_login_integration` (round-trip / prestige survival / MAX cloud-merge / Main grant + no-regrant + welcome-back→daily queue, all on a fixed test clock), `test_daily_reward_dialog` (summary + pip strip), and `test_local_notifications` (stub recorder, manager schedule/cancel, lifecycle wiring + debounce).
+
 ### v0.15.13 — Accessibility: the font-size slider actually scales the themed UI
 
 The "accessibility" item from the UI/UX research. The Settings font-size slider already scaled the *inline* `UiScale.size(N)` call sites (a handful of labels), but the bulk of the UI — currency labels/values, tier %, tab labels, badges, the Peniber dialog — gets its size from the **theme's type variations**, and those were baked into a static `amethyst.tres` at scale 1.0. So a low-vision player could drag the slider to 1.5× and most of the text wouldn't budge. It was effectively a no-op for the text that matters most.
