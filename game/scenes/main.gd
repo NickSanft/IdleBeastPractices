@@ -21,6 +21,8 @@ const _PRESTIGE_VIEW := preload("res://game/scenes/prestige/prestige_view.tscn")
 const _BESTIARY_VIEW := preload("res://game/scenes/bestiary/bestiary_view.tscn")
 const _CRAFTING_VIEW := preload("res://game/scenes/crafting/crafting_view.tscn")
 const _LEDGER_VIEW := preload("res://game/scenes/ledger/ledger_view.tscn")
+## v0.15.15 — dedicated Daily-quests view (More menu).
+const _DAILY_QUESTS_VIEW := preload("res://game/scenes/ui/daily_quests_view.tscn")
 const _SETTINGS_VIEW := preload("res://game/scenes/ui/settings_view.tscn")
 const _NARRATOR_OVERLAY := preload("res://game/scenes/ui/narrator_overlay.tscn")
 const _AD_DIAGNOSTIC_OVERLAY := preload("res://game/scenes/ui/ad_diagnostic_overlay.tscn")
@@ -64,7 +66,7 @@ var _touch_debug_overlay: Control
 ## Inventory + Upgrades held two of four scarce primary slots. Promoted
 ## Bestiary + Shop; demoted Inventory + Upgrades to More.
 const _PRIMARY_NAV: Array[String] = ["Catch", "Bestiary", "Shop", "Battle"]
-const _SECONDARY_NAV: Array[String] = ["Inventory", "Upgrades", "Crafting", "Prestige", "Ledger", "Settings"]
+const _SECONDARY_NAV: Array[String] = ["Daily", "Inventory", "Upgrades", "Crafting", "Prestige", "Ledger", "Settings"]
 ## v0.14.8 — bumped 64 → 72 dp to land in the Material bottom-nav
 ## "comfortable" range (72–80 dp) and the popular-Android-idle norm.
 ## Pre-bump every nav button rendered shorter than its on-screen
@@ -87,6 +89,7 @@ const _NAV_ICONS: Dictionary = {
 	"Prestige": "✨",
 	"Ledger": "📊",
 	"Settings": "⚙",
+	"Daily": "📅",
 }
 
 
@@ -441,6 +444,10 @@ func _build_ui() -> void:
 	var ledger_tab: Control = _LEDGER_VIEW.instantiate()
 	ledger_tab.name = "Ledger"
 	_tabs.add_child(ledger_tab)
+
+	var daily_tab: Control = _DAILY_QUESTS_VIEW.instantiate()
+	daily_tab.name = "Daily"
+	_tabs.add_child(daily_tab)
 
 	var shop_tab: Control = _NET_SHOP.instantiate()
 	shop_tab.name = "Shop"
@@ -1250,9 +1257,16 @@ func _on_more_pressed() -> void:
 		_build_more_popup()
 	# Size the popup to the device width with a small lateral inset.
 	var viewport_w: float = get_viewport().get_visible_rect().size.x
-	_more_popup.size = Vector2i(int(viewport_w - 16), 0)   # height fits children
-	# Anchor as a bottom sheet: y just above the nav bar.
 	var more_rect: Rect2 = _more_button.get_global_rect()
+	# v0.15.15 — cap the height to the space above the nav bar so a tall menu
+	# (7 items × large font) can't push its top items off-screen; the inner
+	# ScrollContainer scrolls within the cap. content_est mirrors the layout:
+	# heading + N buttons (+ separations) + the 12-dp top/bottom margins.
+	var content_est: float = 40.0 + float(_SECONDARY_NAV.size()) * (_NAV_BUTTON_HEIGHT_DP + 4.0) + 24.0
+	var available: float = max(120.0, more_rect.position.y - 8.0 - 16.0)
+	var popup_h: int = int(min(content_est, available))
+	_more_popup.size = Vector2i(int(viewport_w - 16), popup_h)
+	# Anchor as a bottom sheet: y just above the nav bar.
 	_more_popup.position = Vector2i(
 			8,
 			int(more_rect.position.y - _more_popup.size.y - 8))
@@ -1281,9 +1295,20 @@ func _build_more_popup() -> void:
 	margins.add_theme_constant_override("margin_bottom", 12)
 	_more_popup.add_child(margins)
 
+	# v0.15.15 — the sheet now has 7 secondary destinations; on a small / split-
+	# screen / large-font device the column can exceed the space above the nav
+	# bar. A ScrollContainer lets it scroll instead of clipping the top items
+	# off-screen (the popup height is capped in _on_more_pressed).
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margins.add_child(scroll)
+
 	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_theme_constant_override("separation", 4)
-	margins.add_child(vbox)
+	scroll.add_child(vbox)
 
 	var heading := Label.new()
 	heading.text = "More"

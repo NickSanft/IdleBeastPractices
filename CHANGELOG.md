@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.15 — Retention: resetting daily quests
+
+The second half of the "retention bundle" — a daily-resetting quest set, so there's a fresh short-term goal each day on top of the v0.15.14 login streak. (Player-chosen: 3 quests + a complete-all bonus, surfaced in a dedicated "Daily" view in the More menu.)
+
+**Daily quests (DailyQuests autoload)**
+
+- Three daily quests reset at **local midnight** (reusing v0.15.14's `DailyLoginSystem.local_day_index`). Each tracks a **per-day delta** of a lifetime ledger counter (catches / taps / shinies): the counter is snapshotted as a baseline at day-start, and progress = `current − baseline`. So a veteran with 10,000 lifetime catches still starts "Catch 30 today" at 0 — the load-bearing bit that makes "daily" mean *today*, not lifetime.
+- Completing one grants **progress-scaled gold** (`max(tier floor, 1% of gross run) `, smaller than the once-a-day login reward); completing **all three** grants a **Rancher-Points bonus** (`5 + tier`) — the retention driver, mirroring the day-7 login milestone.
+- A 9-quest pool (3 per counter) rotates the day's set deterministically by day index — one quest per category, varying thresholds day to day, no RNG. Mirrors `QuestLog`'s cadence (coalesce catch/tap signals via a dirty flag; mark a quest done **before** granting its reward so a reward-driven re-eval can't double-fire).
+- New `QuestTier.DAILY`: no `QuestLog` slot maps to it, so daily quests are **automatically excluded** from the 3-slot strip.
+
+**Dedicated "Daily" view (More menu)**
+
+Progress bars per quest, the complete-all bonus line, and a live "Resets in Xh Ym" countdown. Added as a new secondary-nav destination (`📅 Daily`).
+
+**Persistence + the correctness work**
+
+- Five new `GameState` fields (reset-day, active set, baselines, done-set, bonus-claimed) round-trip, survive prestige (the lifetime counters they delta against do too), and **cloud-merge atomically**: the `{reset_day, active, baselines}` triple is interdependent, so a same-day conflict **unions** completions + **ORs** the bonus (no lost completion, no double-granted RP) while a different-day conflict takes the **whole fresher block** — never pairing today's day-number with yesterday's quests/baselines.
+
+**Adversarial review pass (15 agents) — 8 confirmed findings, 0 shipped bugs**
+
+The highest-severity was a pre-existing latent one my 7th More-sheet item pushed to the edge: the **More popup had no scroll**, so on a small / split-screen / large-font device the top items could clip off-screen — now wrapped in a height-capped `ScrollContainer`. Also: **deferred the autoload's `game_loaded` init** (it ran against stale pre-`from_dict` state — now runs once, post-load), emit the raw (unclamped) progress value, a Daily-view loading placeholder, and four test-coverage gaps (the signal-driven `_process` path, day-rollover baseline re-snapshot, the same-day-merge active/baseline preservation, and stale-quest-id handling).
+
+**Tests — 664/664 passing (two clean runs)**
+
+`test_daily_quests_system` (pick rotation, reward curve, reset countdown), `test_daily_quests` (reset/init, delta tracking, completion + gold, complete-all bonus once, day rollover + baseline re-snapshot, signal-driven path, stale-id, deferred init, round-trip / prestige / old-save, atomic cloud-merge), and `test_daily_quests_view` (rows, countdown, bonus, done-state) — all on a fixed test clock via the `TimeManager._test_now_override` seam.
+
 ### v0.15.14 — Retention: daily-login reward (+ a testable local-notification seam)
 
 The first slice of the "retention bundle" from the UI/UX research. There was no reason to open the app on a day you didn't feel like grinding; now an escalating daily-login streak gives one. (Scope was deliberately **daily-login only** — resetting daily *quests* are a separate follow-up; this kept the ship focused and fully CI-green.)

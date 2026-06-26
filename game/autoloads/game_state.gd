@@ -60,6 +60,21 @@ var tiers_rp_awarded: Array[int] = []
 ## (like achievements / tiers_rp_awarded) and MAX-merge on cloud conflict.
 var daily_login_last_day: int = 0
 var daily_login_streak: int = 0
+## v0.15.15 — daily-resetting quest set (managed by the DailyQuests autoload).
+## `daily_quests_reset_day` is the LOCAL day index of the current daily period;
+## `daily_quests_active` is the day's chosen quest ids; `daily_quest_baselines`
+## snapshots each tracked ledger counter at day-start (progress = current −
+## baseline); `daily_quests_done` is the set completed today; and
+## `daily_quests_bonus_claimed` gates the once-a-day complete-all RP bonus.
+## All survive prestige (the ledger they delta against does too).
+var daily_quests_reset_day: int = 0
+## Untyped Array (not Array[String]) so DailyQuestsSystem.pick_for_day()'s
+## generic Array result + test literals assign cleanly; elements are quest-id
+## strings, always read via String(x).
+var daily_quests_active: Array = []
+var daily_quest_baselines: Dictionary = {}
+var daily_quests_done: Dictionary = {}
+var daily_quests_bonus_claimed: bool = false
 var current_battle: Variant = null              # Dictionary or null
 var prestige_count: int = 0
 var recipes_crafted: Array[String] = []          # ids of recipes ever crafted (additive across prestiges)
@@ -110,6 +125,11 @@ func to_dict() -> Dictionary:
 		"tiers_rp_awarded": tiers_rp_awarded.duplicate(),
 		"daily_login_last_day": daily_login_last_day,
 		"daily_login_streak": daily_login_streak,
+		"daily_quests_reset_day": daily_quests_reset_day,
+		"daily_quests_active": daily_quests_active.duplicate(),
+		"daily_quest_baselines": daily_quest_baselines.duplicate(true),
+		"daily_quests_done": daily_quests_done.duplicate(true),
+		"daily_quests_bonus_claimed": daily_quests_bonus_claimed,
 		"current_battle": current_battle,
 		"prestige_count": prestige_count,
 		"recipes_crafted": recipes_crafted.duplicate(),
@@ -145,6 +165,11 @@ func from_dict(data: Dictionary) -> void:
 	tiers_rp_awarded = _to_int_array(data.get("tiers_rp_awarded", []))
 	daily_login_last_day = int(data.get("daily_login_last_day", 0))
 	daily_login_streak = int(data.get("daily_login_streak", 0))
+	daily_quests_reset_day = int(data.get("daily_quests_reset_day", 0))
+	daily_quests_active = _to_string_array(data.get("daily_quests_active", []))
+	daily_quest_baselines = (data.get("daily_quest_baselines", {}) as Dictionary).duplicate(true)
+	daily_quests_done = (data.get("daily_quests_done", {}) as Dictionary).duplicate(true)
+	daily_quests_bonus_claimed = bool(data.get("daily_quests_bonus_claimed", false))
 	current_battle = data.get("current_battle", null)
 	prestige_count = int(data.get("prestige_count", 0))
 	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
@@ -196,6 +221,11 @@ func _reset_to_defaults() -> void:
 	tiers_rp_awarded = []
 	daily_login_last_day = 0
 	daily_login_streak = 0
+	daily_quests_reset_day = 0
+	daily_quests_active = []
+	daily_quest_baselines = {}
+	daily_quests_done = {}
+	daily_quests_bonus_claimed = false
 	current_battle = null
 	prestige_count = 0
 	recipes_crafted = []
@@ -619,6 +649,13 @@ func perform_prestige() -> int:
 	# reset) must not break the player's login streak.
 	var keep_daily_login_last_day: int = daily_login_last_day
 	var keep_daily_login_streak: int = daily_login_streak
+	# v0.15.15 — daily quests delta against lifetime ledger counters (which
+	# survive prestige), so a mid-day prestige must not wipe daily progress.
+	var keep_dq_reset_day: int = daily_quests_reset_day
+	var keep_dq_active := daily_quests_active.duplicate()
+	var keep_dq_baselines := daily_quest_baselines.duplicate(true)
+	var keep_dq_done := daily_quests_done.duplicate(true)
+	var keep_dq_bonus: bool = daily_quests_bonus_claimed
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
@@ -637,6 +674,11 @@ func perform_prestige() -> int:
 	tiers_rp_awarded = _to_int_array(keep_tiers_rp_awarded)
 	daily_login_last_day = keep_daily_login_last_day
 	daily_login_streak = keep_daily_login_streak
+	daily_quests_reset_day = keep_dq_reset_day
+	daily_quests_active = _to_string_array(keep_dq_active)
+	daily_quest_baselines = keep_dq_baselines
+	daily_quests_done = keep_dq_done
+	daily_quests_bonus_claimed = keep_dq_bonus
 	# Carry over RP and add the freshly-earned ones.
 	currencies["rancher_points"] = keep_rp + rp_gain
 	# Increment prestige counters.

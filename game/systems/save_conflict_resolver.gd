@@ -80,8 +80,50 @@ static func resolve(local: Dictionary, remote: Dictionary) -> Dictionary:
 			int(local.get("daily_login_last_day", 0)), int(remote.get("daily_login_last_day", 0)))
 	result["daily_login_streak"] = max(
 			int(local.get("daily_login_streak", 0)), int(remote.get("daily_login_streak", 0)))
+	# v0.15.15 — daily-quest state. The {reset_day, active, baselines} are
+	# interdependent (active quests + their baselines belong to that exact day),
+	# so they must merge ATOMICALLY — never MAX reset_day on its own or it would
+	# pair today's day number with yesterday's quests/baselines.
+	_merge_daily_quests(result, local, remote)
 
 	return result
+
+
+## Merge the daily-quest block into `result` (already a copy of the newer save).
+static func _merge_daily_quests(result: Dictionary, local: Dictionary, remote: Dictionary) -> void:
+	var local_reset: int = int(local.get("daily_quests_reset_day", 0))
+	var remote_reset: int = int(remote.get("daily_quests_reset_day", 0))
+	if local_reset == remote_reset:
+		# Same daily period — keep the (matching) active set + baselines from the
+		# newer base, but UNION the completions and OR the bonus so a completion
+		# on either device isn't lost and the complete-all RP can't grant twice.
+		result["daily_quests_reset_day"] = local_reset
+		result["daily_quests_done"] = _union_set(
+				local.get("daily_quests_done", {}), remote.get("daily_quests_done", {}))
+		result["daily_quests_bonus_claimed"] = bool(local.get("daily_quests_bonus_claimed", false)) \
+				or bool(remote.get("daily_quests_bonus_claimed", false))
+	else:
+		# Different periods — take the whole block from the side with the most
+		# recent reset_day so the quests, baselines and completions stay
+		# internally consistent (the older day's state is stale).
+		var fresh: Dictionary = local if local_reset > remote_reset else remote
+		result["daily_quests_reset_day"] = int(fresh.get("daily_quests_reset_day", 0))
+		result["daily_quests_active"] = (fresh.get("daily_quests_active", []) as Array).duplicate()
+		result["daily_quest_baselines"] = (fresh.get("daily_quest_baselines", {}) as Dictionary).duplicate(true)
+		result["daily_quests_done"] = (fresh.get("daily_quests_done", {}) as Dictionary).duplicate(true)
+		result["daily_quests_bonus_claimed"] = bool(fresh.get("daily_quests_bonus_claimed", false))
+
+
+## Union two set-style dicts ({key: true}) into a fresh set dict.
+static func _union_set(a: Variant, b: Variant) -> Dictionary:
+	var out: Dictionary = {}
+	if a is Dictionary:
+		for k in (a as Dictionary).keys():
+			out[String(k)] = true
+	if b is Dictionary:
+		for k in (b as Dictionary).keys():
+			out[String(k)] = true
+	return out
 
 
 static func _union_strings(a: Variant, b: Variant) -> Array:

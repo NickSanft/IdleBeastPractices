@@ -81,6 +81,17 @@ extends Node
 @warning_ignore("unused_signal") signal quest_progress_changed(slot: int, current: int, target: int)
 # endregion
 
+# region — Daily quests (v0.15.15)
+## The DailyQuests autoload manages a daily-resetting set; the DailyQuestsView
+## listens to repaint. Progress is a per-day delta of a lifetime ledger counter.
+@warning_ignore("unused_signal") signal daily_quest_completed(quest_id: String)
+@warning_ignore("unused_signal") signal daily_quest_progress_changed(quest_id: String, current: int, target: int)
+## Fired when the daily set rolls over to a new local day (fresh quests, baselines reset).
+@warning_ignore("unused_signal") signal daily_quests_reset()
+## Fired once when all of the day's daily quests are done and the bonus is granted.
+@warning_ignore("unused_signal") signal daily_quests_all_completed(bonus_rp: int)
+# endregion
+
 # region — Achievements
 # Phase 12f — fired when a previously-locked achievement crosses its
 # trigger threshold. Receivers (celebration overlay, ledger view,

@@ -14,7 +14,12 @@
 class_name QuestResource
 extends Resource
 
-enum QuestTier { SHORT, MEDIUM, LONG }
+## SHORT/MEDIUM/LONG occupy the three persistent QuestStrip slots and are
+## driven by QuestLog. DAILY (v0.15.15) is a separate category: a daily-
+## resetting set tracked by the DailyQuests autoload as a per-day DELTA of a
+## lifetime ledger counter, surfaced in its own "Daily" view. No QuestLog slot
+## maps to DAILY, so DAILY quests are automatically excluded from the strip.
+enum QuestTier { SHORT, MEDIUM, LONG, DAILY }
 
 ## Same Source enum as AchievementResource, with one addition:
 ## RUN_GOLD_EARNED — total_gold_earned_this_run as a BigNumber (read
