@@ -104,6 +104,12 @@ static func _label_with_icon(tab_name: String) -> String:
 ## emphasis via the v0.8.3 mobile theme's pressed stylebox.
 var _nav_buttons: Dictionary = {}
 var _more_button: Button
+## v0.15.16 — daily-quest progress badge overlaid on the More button's
+## top-right corner (the Daily view lives in the More sheet). Shows "done/total"
+## while daily quests are incomplete; hidden once all are done. A label nested
+## in the badge panel; both ignore mouse so taps still reach the More button.
+var _daily_badge: PanelContainer
+var _daily_badge_label: Label
 ## v0.9.1 custom More sheet — built lazily on first open, reused
 ## thereafter. Replaces the v0.9.0 system PopupMenu.
 var _more_popup: PopupPanel
@@ -994,6 +1000,9 @@ func _build_nav_buttons() -> void:
 	_more_button.toggle_mode = true
 	_more_button.pressed.connect(_on_more_pressed)
 
+	# v0.15.16 — daily-quest progress badge overlaid on the More button.
+	_build_daily_badge()
+
 	# Phase 14f — apply the styles.css `.tabbar` per-state styleboxes.
 	# Each primary nav button gets a `normal` (bg-deep + ink_mute text)
 	# and a `pressed`/`hover` (gold inset top bar + card_2 gradient bg
@@ -1003,6 +1012,82 @@ func _build_nav_buttons() -> void:
 
 	# Initial selection: Catch (the home / main loop tab).
 	_set_active_nav("Catch")
+
+
+## v0.15.16 — daily-quest progress badge. A small "done/total" chip pinned to
+## the More button's top-right corner (the Daily view lives in the More sheet),
+## so daily progress is visible from any screen without opening it. Built once
+## with the More button (which is reused across orientation flips, so the badge
+## travels with it). Both the panel and its label ignore the mouse so taps pass
+## through to the button.
+func _build_daily_badge() -> void:
+	_daily_badge = PanelContainer.new()
+	_daily_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Pin to the top-right corner, growing left + down so it sizes to content.
+	_daily_badge.anchor_left = 1.0
+	_daily_badge.anchor_right = 1.0
+	_daily_badge.anchor_top = 0.0
+	_daily_badge.anchor_bottom = 0.0
+	_daily_badge.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_daily_badge.grow_vertical = Control.GROW_DIRECTION_END
+	# Zero-size anchor rect pinned 2 px in from the top-right corner; the grow
+	# directions above expand it left + down to the content's minimum size.
+	_daily_badge.offset_left = -2
+	_daily_badge.offset_right = -2
+	_daily_badge.offset_top = 1
+	_daily_badge.offset_bottom = 1
+	_daily_badge_label = Label.new()
+	_daily_badge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_daily_badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_daily_badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_daily_badge.add_child(_daily_badge_label)
+	_more_button.add_child(_daily_badge)
+	_restyle_daily_badge()
+
+	# Recount on any daily-quest change. game_loaded is deferred so it runs
+	# AFTER GameState.from_dict + DailyQuests._initialize (a same-day save load
+	# emits no completion/reset signal, so this is what paints the loaded count).
+	EventBus.daily_quest_completed.connect(_refresh_daily_badge.unbind(1))
+	EventBus.daily_quests_all_completed.connect(_refresh_daily_badge.unbind(1))
+	EventBus.daily_quests_reset.connect(_refresh_daily_badge)
+	EventBus.game_loaded.connect(_refresh_daily_badge, CONNECT_DEFERRED)
+	# Repaint colors on palette swap + rescale the badge font with the slider
+	# (the inline font-size override doesn't follow the theme on its own).
+	Settings.theme_changed.connect(_restyle_daily_badge)
+	Settings.accessibility_settings_changed.connect(_restyle_daily_badge)
+	_refresh_daily_badge()
+
+
+## (Re)apply the badge's palette colors + scaled font. Split out so theme /
+## font-scale changes can repaint it without rebuilding the node.
+func _restyle_daily_badge() -> void:
+	if _daily_badge == null:
+		return
+	var palette: Dictionary = PaletteDusk.active()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = palette["gold"]
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 4
+	sb.content_margin_right = 4
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	_daily_badge.add_theme_stylebox_override("panel", sb)
+	_daily_badge_label.add_theme_font_size_override("font_size", UiScale.size(8))
+	_daily_badge_label.add_theme_color_override("font_color", palette["bg_deep"])
+
+
+## Show "done/total" while daily quests are incomplete; hide once all are done
+## (clean nav when there's nothing left to do) or before the set is initialized.
+func _refresh_daily_badge() -> void:
+	if _daily_badge == null:
+		return
+	var total: int = DailyQuests.active_count()
+	var done: int = DailyQuests.completed_count()
+	if total <= 0 or done >= total:
+		_daily_badge.visible = false
+		return
+	_daily_badge_label.text = "%d/%d" % [done, total]
+	_daily_badge.visible = true
 
 
 ## Phase 14f — applies styles.css `.tabbar button` styleboxes to every

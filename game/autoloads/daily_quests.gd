@@ -198,3 +198,17 @@ func quest_state(qid: String) -> Dictionary:
 ## True once every daily quest is complete.
 func all_complete() -> bool:
 	return _all_done()
+
+
+## Number of today's daily quests completed so far (for the nav badge).
+func completed_count() -> int:
+	var n: int = 0
+	for qid_v in GameState.daily_quests_active:
+		if GameState.daily_quests_done.has(String(qid_v)):
+			n += 1
+	return n
+
+
+## Number of daily quests in today's set (0 before the first reset).
+func active_count() -> int:
+	return GameState.daily_quests_active.size()

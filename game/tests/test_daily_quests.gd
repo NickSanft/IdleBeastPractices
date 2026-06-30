@@ -9,6 +9,7 @@ extends GutTest
 ## Fixed future clock so day-boundary maths are deterministic and stay ahead of
 ## any on-disk last_saved_unix (no clock-backward warning).
 const _FIXED_NOW := 2_000_000_000
+const _MAIN_SCENE := preload("res://game/scenes/main.tscn")
 
 
 func before_each() -> void:
@@ -267,5 +268,104 @@ func test_resolver_different_day_takes_fresh_block_atomically() -> void:
 	assert_eq(int(m["daily_quest_baselines"]["f"]), 5, "baselines come from the same block")
 	assert_true(m["daily_quests_done"].has("x"))
 	assert_true(bool(m["daily_quests_bonus_claimed"]))
+
+# endregion
+
+
+# region — nav badge (v0.15.16)
+
+func test_count_helpers_report_done_and_total() -> void:
+	GameState.daily_quests_active = ["a", "b", "c"]
+	# 'z' is done but NOT in today's active set (stale from a prior day); it must
+	# not count. 'b' is active but not done. So completed_count == 2 (a + c only).
+	GameState.daily_quests_done = {"a": true, "c": true, "z": true}
+	assert_eq(DailyQuests.active_count(), 3)
+	assert_eq(DailyQuests.completed_count(), 2,
+			"counts only active ids in the done set (ignores undone 'b' + stale 'z')")
+
+
+func _main() -> Node:
+	var main: Node = _MAIN_SCENE.instantiate()
+	add_child_autofree(main)
+	await wait_frames(1)
+	return main
+
+
+func test_badge_shows_done_over_total_while_incomplete() -> void:
+	var main: Node = await _main()
+	GameState.daily_quests_active = ["daily_catch_30", "daily_tap_50", "daily_shiny_1"]
+	GameState.daily_quests_done = {"daily_catch_30": true}
+	main._refresh_daily_badge()
+	assert_true(main._daily_badge.visible, "badge shows while daily quests are incomplete")
+	assert_eq(main._daily_badge_label.text, "1/3")
+
+
+func test_badge_hidden_once_all_complete() -> void:
+	var main: Node = await _main()
+	GameState.daily_quests_active = ["a", "b"]
+	GameState.daily_quests_done = {"a": true, "b": true}
+	main._refresh_daily_badge()
+	assert_false(main._daily_badge.visible, "badge hides when every daily quest is done")
+
+
+func test_badge_hidden_when_no_daily_set() -> void:
+	var main: Node = await _main()
+	GameState.daily_quests_active = []
+	main._refresh_daily_badge()
+	assert_false(main._daily_badge.visible, "badge hides before the daily set is initialized")
+
+
+func test_badge_updates_live_when_a_quest_completes_via_signal() -> void:
+	# The real path: completing a daily quest fires daily_quest_completed, which
+	# the badge is subscribed to — so it must repaint WITHOUT a direct refresh.
+	var main: Node = await _main()
+	# Force a clean set regardless of what the boot save loaded.
+	GameState.daily_quests_reset_day = 0
+	DailyQuests._check_reset()
+	var total: int = DailyQuests.active_count()
+	main._refresh_daily_badge()
+	assert_eq(main._daily_badge_label.text, "0/%d" % total, "badge starts at 0 done")
+	# Complete one daily quest through the signal-driven evaluator.
+	var qid: String = String(GameState.daily_quests_active[0])
+	var q: QuestResource = ContentRegistry.quest(StringName(qid))
+	_bump(String(q.ledger_field), int(q.threshold))
+	EventBus.monster_caught.emit("x", 0, false, "tap")  # marks DailyQuests dirty
+	DailyQuests._process(0.0)  # drains → evaluate → completes → emits daily_quest_completed
+	assert_eq(main._daily_badge_label.text, "1/%d" % total,
+			"badge repainted live via the completion signal subscription")
+
+
+func test_badge_auto_sizes_to_content() -> void:
+	# The badge has no fixed size — its PanelContainer must size to the label
+	# content (so it actually renders, not collapse to a zero-size point).
+	var main: Node = await _main()
+	GameState.daily_quests_active = ["a", "b", "c"]
+	GameState.daily_quests_done = {"a": true}
+	main._refresh_daily_badge()
+	await wait_frames(2)  # let the layout pass settle
+	assert_true(main._daily_badge.visible)
+	assert_gt(main._daily_badge.size.x, 0.0, "badge auto-sizes to its content width")
+	assert_gt(main._daily_badge.size.y, 0.0, "badge auto-sizes to its content height")
+
+
+func test_game_loaded_refreshes_badge_deferred() -> void:
+	# On boot game_loaded fires BEFORE GameState.from_dict, so the badge's
+	# game_loaded refresh is CONNECT_DEFERRED — it must repaint on the NEXT idle
+	# frame (after load), not synchronously during the emit. (A same-day save
+	# load emits no reset/completion signal, so this is the only repaint path.)
+	var main: Node = await _main()
+	GameState.daily_quests_reset_day = _today()
+	GameState.daily_quests_active = ["a", "b", "c"]
+	GameState.daily_quests_done = {"a": true}
+	main._refresh_daily_badge()
+	assert_eq(main._daily_badge_label.text, "1/3")
+	# Mutate, then emit game_loaded: the deferred refresh must NOT run yet.
+	GameState.daily_quests_done = {"a": true, "b": true}
+	EventBus.game_loaded.emit()
+	assert_eq(main._daily_badge_label.text, "1/3",
+			"game_loaded refresh is deferred, not synchronous (would catch a dropped CONNECT_DEFERRED)")
+	await wait_frames(1)
+	assert_eq(main._daily_badge_label.text, "2/3",
+			"the deferred game_loaded refresh repaints on the next frame")
 
 # endregion

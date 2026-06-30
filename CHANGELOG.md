@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.16 — Daily-quest nav badge
+
+A small follow-up to v0.15.15: the daily quests live in the **Daily** view inside the More sheet, so their progress was invisible unless you went looking. Now a compact **"done/total" badge** sits on the top-right corner of the bottom-nav **More** button — visible from every screen — while daily quests are incomplete, and hides once you've finished them all (a clean nav when there's nothing left to do).
+
+- The badge is a content-sized `PanelContainer` pinned to the More button's corner (anchored + grow-to-content, mouse-pass-through so taps still reach the button). It's a child of the reused More button, so it survives orientation flips for free.
+- Live updates via the existing daily-quest signals (`daily_quest_completed` / `daily_quests_all_completed` / `daily_quests_reset`), plus a deferred `game_loaded` repaint that paints the loaded count on a same-day save load (which fires no reset/completion signal). It also repaints its palette + slider-scaled font on theme / accessibility changes.
+- New `DailyQuests.completed_count()` / `active_count()` helpers back the badge.
+
+**Adversarial review pass (14 agents) — 4 confirmed findings, 0 shipped bugs**
+
+The notable one was a genuine disagreement *between reviewers* over whether the corner badge would auto-size or collapse to zero. Settled it empirically with a test that asserts the badge's rendered width/height are non-zero — it auto-sizes correctly (a `PanelContainer` reports its min-size from content), so no fixed size was needed. Also added a test that pins the deferred `game_loaded` repaint (catches a dropped `CONNECT_DEFERRED`) and tightened the count-helper test to ignore stale/undone ids.
+
+**Tests — 671/671 passing (two clean runs)**
+
 ### v0.15.15 — Retention: resetting daily quests
 
 The second half of the "retention bundle" — a daily-resetting quest set, so there's a fresh short-term goal each day on top of the v0.15.14 login streak. (Player-chosen: 3 quests + a complete-all bonus, surfaced in a dedicated "Daily" view in the More menu.)
