@@ -9,9 +9,11 @@ on:
   pull_request:
 
 env:
-  GODOT_VERSION: "4.6.1"
-  GODOT_RELEASE: "4.6.1-stable"
-  GODOT_TEMPLATE_DIR: "4.6.1.stable"
+  # Keep in lockstep with build.yml / release.yml — 4.6.3 is the minimum
+  # engine for Google Play's target-API-36 deadline (2026-08-31).
+  GODOT_VERSION: "4.6.3"
+  GODOT_RELEASE: "4.6.3-stable"
+  GODOT_TEMPLATE_DIR: "4.6.3.stable"
 
 jobs:
   maestro:
@@ -33,7 +35,8 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;23.2.8568313"
+          # Match Godot 4.6.3's template config.gradle (see build.yml).
+          packages: "platform-tools platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865"
 
       - name: Cache Godot binary
         uses: actions/cache@v4

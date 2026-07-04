@@ -6,7 +6,7 @@ Most are Godot 4.6 / Android-export facts that outlive any single feature.
 
 ## Build & test
 
-- **Engine**: Godot 4.6.1-stable, **mono** build (GDScript only; no C#). Local path is in [CLAUDE.md](../CLAUDE.md); use the `_console.exe` variant so stdout is captured on Windows.
+- **Engine**: Godot 4.6, **mono** build (GDScript only; no C#). **CI pins 4.6.3**; the local editor is 4.6.1-stable mono (path in [CLAUDE.md](../CLAUDE.md); use the `_console.exe` variant so stdout is captured on Windows). The patch-version skew is deliberate — see "Target API 36" below. Upgrading the local editor to 4.6.3 mono is recommended but not required for tests.
 - **Import before testing** after adding/renaming resources: `godot --headless --path . --import`. New `.gd`/`.tscn`/`.tres` get `.uid` sidecars generated here — **commit those `.uid` files**.
 - **Run the suite**: `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://game/tests/ -ginclude_subdirs -gexit`.
 - **Reading results**: judge by GUT's `Passing Tests` / `Failing Tests` / `All tests passed` lines. Ignore exit-time `ObjectDB instances leaked`, `resources still in use`, and RID-leak errors — they're standard headless-shutdown noise and can force a non-zero exit even on a fully-passing run.
@@ -60,7 +60,29 @@ afterEvaluate {
 }
 ```
 
-### 5. Local Android export — JDK version
+### 5. Target API 36 (Google Play deadline 2026-08-31)
+Google Play requires new apps and updates to **target Android 16 (API 36) from
+Aug 31, 2026** (apps targeting lower become invisible to new users on newer
+devices). The project inherits its target SDK from the engine's android
+template (`export_presets.cfg` leaves `gradle_build/target_sdk` blank — do
+not pin it there; the engine's annual bump maintains it):
+
+- **Godot 4.6.1** templates target SDK **35** → not compliant after the deadline.
+- **Godot 4.6.3** (2026-05-20) targets SDK/compileSdk **36** *and* fixes
+  API-36 predictive-back handling (GH-117653) — without that fix, targeting 36
+  force-enables predictive back on Android 16 and the hardware Back gesture
+  bypasses `main._handle_go_back`'s back-stack entirely.
+- CI therefore pins **4.6.3** and its matching SDK packages
+  (`platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865`, from the
+  template's `config.gradle`). Keep the engine env vars and the packages line
+  in sync across all three workflows when bumping.
+- Both AAB-producing workflows **assert** the built manifest via
+  `bundletool dump manifest`: `targetSdkVersion >= 36` and
+  `resizeableActivity="false"` (proving the gradle `doLast` patch applied) —
+  a silent engine-default change or exporter reshape now fails CI instead of
+  shipping.
+
+### 6. Local Android export — JDK version
 Godot's `editor_settings-4.6.tres` has `export/android/java_sdk_path`, which **overrides** shell `JAVA_HOME` for Android exports. If it points at a JDK newer than gradle supports (e.g. JDK 25 vs. gradle 8.11.x capping at JDK 21) local exports fail with `Unsupported class file major version 69` even when `JAVA_HOME` is correct. Fix the editor setting, or rely on CI (`actions/setup-java@v4` pins a known-good version).
 
 ## Audio: looped `AudioStreamWAV` finishes in 0 frames

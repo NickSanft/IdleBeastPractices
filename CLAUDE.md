@@ -8,7 +8,10 @@ Version-by-version history is in [CHANGELOG.md](CHANGELOG.md).
 ## What this is
 
 An idle monster-catching game for **Android** (primary), Windows, and Web.
-**Godot 4.6.1-stable (mono build, GDScript only — no C#)**. Save format is
+**Godot 4.6 (mono build, GDScript only — no C#)** — **CI pins 4.6.3** (minimum
+for Google Play's target-API-36 deadline; see DEV_NOTES "Target API 36"), local
+editor is 4.6.1 mono (fine for tests; don't ship a local Android export — it
+would target SDK 35). Save format is
 versioned JSON with a migration chain. Tests: **GUT** (headless unit) + **Maestro**
 (Android-emulator UI flows).
 

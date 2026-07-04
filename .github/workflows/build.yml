@@ -6,11 +6,17 @@ on:
   pull_request:
 
 env:
-  GODOT_VERSION: "4.6.1"
-  GODOT_RELEASE: "4.6.1-stable"
+  # 4.6.3 is the minimum engine for Google Play's target-API-36 deadline
+  # (2026-08-31): its android template ships targetSdk/compileSdk 36 AND
+  # the API-36 predictive-back fix (GH-117653) that keeps the in-game
+  # Back stack working on Android 16. Bump all three values together,
+  # and keep the SDK packages below in sync with the template's
+  # config.gradle (buildTools / ndkVersion).
+  GODOT_VERSION: "4.6.3"
+  GODOT_RELEASE: "4.6.3-stable"
   # Godot installs templates under <version>.<channel> (with a dot), but
   # release URLs use <version>-<channel> (with a hyphen). Keep both.
-  GODOT_TEMPLATE_DIR: "4.6.1.stable"
+  GODOT_TEMPLATE_DIR: "4.6.3.stable"
 
 jobs:
   test:
@@ -171,7 +177,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-34 build-tools;34.0.0 ndk;23.2.8568313"
+          # Match Godot 4.6.3's platform/android/java/app/config.gradle:
+          # compileSdk 36, buildTools 36.1.0, ndkVersion 29.0.14206865.
+          # AGP can auto-download missing pieces, but pre-installing keeps
+          # the gradle step fast and the versions explicit.
+          packages: "platform-tools platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865"
 
       - name: Cache Godot binary
         uses: actions/cache@v4
@@ -273,6 +283,33 @@ jobs:
         run: |
           mkdir -p exports/android
           godot --headless --path . --export-debug "Android" exports/android/IdleBeastPractices-debug.aab
+
+      - name: Assert manifest targetSdk >= 36 + resizeableActivity=false
+        # Two silent-failure classes this pins:
+        # 1. targetSdkVersion — Play rejects updates targeting < 36 after
+        #    2026-08-31, and the value is inherited from the engine's
+        #    template default (export_presets.cfg leaves target_sdk blank),
+        #    so an engine downgrade would silently ship 35 again.
+        # 2. resizeableActivity="false" — applied by a gradle doLast hook
+        #    that rewrites the merged manifest (see the template-install
+        #    step); if Godot's exporter changes shape the hook stops
+        #    matching and only prints nothing. Assert the result instead.
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar -O bundletool.jar
+          MANIFEST=$(java -jar bundletool.jar dump manifest --bundle=exports/android/IdleBeastPractices-debug.aab)
+          # `|| true`: a no-match grep must fall through to the guard below
+          # (set -e would otherwise kill the step before the ::error line).
+          TARGET=$(echo "$MANIFEST" | grep -o 'targetSdkVersion="[0-9]*"' | head -1 | grep -o '[0-9]*' || true)
+          echo "targetSdkVersion=${TARGET:-<none>}"
+          if [ -z "$TARGET" ] || [ "$TARGET" -lt 36 ]; then
+            echo "::error::AAB targets SDK ${TARGET:-<none>}; Google Play requires >= 36 from 2026-08-31"
+            exit 1
+          fi
+          if ! echo "$MANIFEST" | grep -q 'resizeableActivity="false"'; then
+            echo "::error::resizeableActivity=false patch did not apply — large-screen orientation control is broken (see DEV_NOTES.md)"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:

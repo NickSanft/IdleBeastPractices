@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### CI — target API 36: Godot 4.6.3 pin + AAB manifest assertions (no game version)
+
+Google Play requires new apps and updates to **target Android 16 (API 36) from
+Aug 31, 2026**; Godot 4.6.1's android template targets 35, so the shipping AAB
+was on a countdown. Verified against engine source: 4.6.1 = targetSdk 35,
+**4.6.3** (2026-05-20) = targetSdk/compileSdk 36 **plus** the API-36
+predictive-back fix (GH-117653) — without which targeting 36 would let the
+Android 16 Back gesture bypass `main._handle_go_back`'s back-stack entirely.
+Bumping the preset's `target_sdk` alone on 4.6.1 was therefore rejected as an
+option; the engine pin is the fix.
+
+- All three workflows now pin **Godot 4.6.3** + the template's matching SDK
+  packages (`platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865`, read
+  from 4.6.3's `config.gradle`).
+- Both AAB-producing workflows gained an **assertion step** (`bundletool dump
+  manifest`): `targetSdkVersion >= 36` and `resizeableActivity="false"`. The
+  first pins the Play floor against silent engine-default drift; the second
+  finally *proves* the long-standing gradle `doLast` manifest patch applied
+  (previously it only printed, and nothing failed if Godot's exporter changed
+  shape).
+- `export_presets.cfg` deliberately keeps `gradle_build/target_sdk` blank —
+  the engine's annual bump maintains it and the CI assertion enforces the
+  floor. Local editor stays 4.6.1 mono (fine for tests); documented in
+  CLAUDE.md + DEV_NOTES that local Android exports would still target 35 and
+  must not ship.
+
 ### v0.15.16 — Daily-quest nav badge
 
 A small follow-up to v0.15.15: the daily quests live in the **Daily** view inside the More sheet, so their progress was invisible unless you went looking. Now a compact **"done/total" badge** sits on the top-right corner of the bottom-nav **More** button — visible from every screen — while daily quests are incomplete, and hides once you've finished them all (a clean nav when there's nothing left to do).
