@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CraftingRecipeResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/crafting_recipe_resource.gd" id="1_script"]
+[ext_resource type="Resource" path="res://game/data/equipment/rending_fang.tres" id="2_eq"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"recipe_rending_fang"
+display_name = "Whet Rending Fang"
+description = "A wraith-cured fang. +8 atk — upgrades a lesser trinket."
+inputs = [{"item_id": &"wraith_cinder", "amount": 30}]
+output_equipment = ExtResource("2_eq")
+output_amount = 1
+gold_cost = {"m": 6.0, "e": 5}
+tier_required = 4

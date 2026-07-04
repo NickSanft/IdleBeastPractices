@@ -165,3 +165,33 @@ func test_idle_after_post_tears_down_battle_map() -> void:
 	assert_null(view._battle_map, "_render_idle must clear _battle_map")
 	assert_eq(view._player_combatants.size(), 0)
 	assert_eq(view._enemy_combatants.size(), 0)
+
+
+# region — v0.15.19: doomed-replay skip gating + actionable loss copy
+
+func test_skip_hidden_when_stage_outcome_is_a_loss() -> void:
+	var view: PanelContainer = _BATTLE_VIEW.instantiate()
+	add_child_autofree(view)
+	view.size = Vector2(720, 1100)
+	await wait_frames(2)
+	# The outcome is known at simulation time — a doomed replay must not
+	# sell an ad-skip into "Stage failed" (zero rewards).
+	view._stage_log = {"winner": "enemy"}
+	view._update_skip_visibility()
+	assert_false(view._skip_button.visible, "no ad-skip into a known loss")
+	view._stage_log = {"winner": "player"}
+	view._update_skip_visibility()
+	assert_true(view._skip_button.visible, "winning replays keep the skip")
+
+
+func test_stage_failed_copy_points_at_crafting() -> void:
+	var view: PanelContainer = _BATTLE_VIEW.instantiate()
+	add_child_autofree(view)
+	view.size = Vector2(720, 1100)
+	await wait_frames(2)
+	view._stage_log = {"winner": "enemy", "rewards": {}, "seed": 1}
+	view._finish_stage()
+	assert_string_contains(view._status_label.text, "craft equipment",
+			"a loss must point at the gear fix, not dead-end")
+
+# endregion

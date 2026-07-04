@@ -545,9 +545,15 @@ func try_craft(recipe: CraftingRecipeResource) -> Dictionary:
 
 ## Phase 12e — auto-equip a freshly-crafted equipment item.
 ## Walks the player's pets in order, picks the first one with an
-## empty slot matching this item's slot, and equips it. Falls back
-## to adding to `owned_equipment` if all pets are full (so the item
-## isn't lost; future picker UI can re-equip from the stash).
+## empty slot matching this item's slot, and equips it.
+##
+## v0.15.19 — if every matching slot is occupied, the item now UPGRADES
+## the first occupant it strictly Pareto-dominates (>= every stat, > at
+## least one), stashing the displaced item in `owned_equipment`. Without
+## this, an early tier-1 craft locked the slot forever (there is no equip
+## picker yet), which would have made the new tier-5/6 battle stages
+## permanently unwinnable for players who crafted before tier 3.
+## Falls back to the stash if nothing is empty or upgradeable.
 func _grant_equipment(item: EquipmentResource) -> void:
 	var slot_key: String = _slot_key_for(item.slot)
 	for pet_id_str in pets_owned:
@@ -559,8 +565,33 @@ func _grant_equipment(item: EquipmentResource) -> void:
 			# pet_equipment dict is the source of truth for equipped
 			# items. owned_equipment is the unequipped stash only.
 			return
+	for pet_id_str in pets_owned:
+		var slots: Dictionary = pet_equipment.get(pet_id_str, {})
+		var occupant_id: String = String(slots.get(slot_key, ""))
+		if occupant_id == "" or occupant_id == String(item.id):
+			continue
+		var occupant: EquipmentResource = ContentRegistry.equipment(StringName(occupant_id))
+		if occupant != null and _pareto_dominates(item, occupant):
+			slots[slot_key] = String(item.id)
+			pet_equipment[pet_id_str] = slots
+			owned_equipment.append(occupant_id)
+			return
 	# Fallback: stash for later. Future picker can re-equip from here.
 	owned_equipment.append(String(item.id))
+
+
+## True iff `a` is at least as good as `b` in EVERY additive stat and
+## strictly better in at least one. Conservative on purpose: mixed
+## trade-offs (more atk, less def) never auto-replace — that judgment
+## belongs to a future equip picker, not an auto-rule.
+static func _pareto_dominates(a: EquipmentResource, b: EquipmentResource) -> bool:
+	if a.attack_add < b.attack_add or a.defense_add < b.defense_add \
+			or a.hp_add < b.hp_add \
+			or a.ability_cooldown_reduction < b.ability_cooldown_reduction:
+		return false
+	return a.attack_add > b.attack_add or a.defense_add > b.defense_add \
+			or a.hp_add > b.hp_add \
+			or a.ability_cooldown_reduction > b.ability_cooldown_reduction
 
 
 func _slot_key_for(slot: int) -> String:

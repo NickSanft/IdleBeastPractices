@@ -6,6 +6,66 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.19 — Battle content: 4 new stages (tiers 3–6) + the gear arc to climb them
+
+The battle roster had 60 monsters and **2 stages** (tiers 1–2). This triples
+usable battle content — with the shape of each stage measured, not guessed.
+
+**Simulation-derived stage band (new balance tool)**
+
+- `tools/simulate_stage_winrates.gd` runs `BattleSystem.simulate_stage`
+  headlessly per tier × wave-shape × loadout. Enemies scale with tier; the
+  3-pet roster is static — so the winnable band is narrow and shape-dependent:
+  **tier 3** carries the full solo/duo/trio, **tier 4** solo/duo, **tier 5**
+  solo/solo, **tier 6** solo, and **tier 7+ is unwinnable in any shape** until
+  a pet-progression system exists. `scripts/generate_battle_stages.py` emits
+  exactly that band (Hush Thicket / Wraith Slagfields / Golem Quarry / Surge
+  Shallows), `bonus_rp_on_clear = 0` (stage RP is per-clear, a flat bonus
+  would be farmable). With full tier-2 gear the band would stretch to tier 7 —
+  headroom deliberately kept in reserve for the pet-progression release.
+
+**The adversarial review earned its keep: the first band was tuned against
+gear that didn't exist.** The tier-2 equipment trio (seer_circlet,
+silver_collar, rending_fang) shipped in Phase 12e as data with **no recipes —
+no acquisition path at all**. A review verifier independently re-simulated
+with the best *obtainable* loadout and proved tiers 5–6 would have shipped
+0%-winnable — bricking the auto-picked battler for tier-5+ players. Fixed
+properly rather than shrinking the band:
+
+- **3 new recipes** give the orphaned tier-2 gear an acquisition path:
+  seer_circlet + silver_collar (tier 3, hush_pollen), rending_fang (tier 4,
+  wraith_cinder) — so the arc is: tier-1 gear → clear tiers 3–4 → farm their
+  drops → craft tier-2 gear → clear tiers 5–6.
+- **Pareto upgrade-on-craft** (`_grant_equipment`): if every matching slot is
+  occupied, a crafted item now replaces the first occupant it dominates
+  (≥ every stat, > at least one), stashing the old item. Without this, an
+  early tier-1 craft locked the slot **forever** (no equip picker exists) and
+  tier-5/6 would stay unwinnable for anyone who crafted before tier 3.
+  Trade-off items never auto-replace — that judgment waits for a real picker.
+- The winnability regression test now builds its loadout **through the real
+  grant path** (the first draft pinned the unobtainable dict — a test that
+  guarded nothing), plus an orphan-gear guard: every equipment id must have
+  a recipe.
+
+**Loss UX (review findings)**
+
+- "Stage failed" now says *why and what next*: "Your pets need better gear —
+  craft equipment in the Crafting tab."
+- The rewarded-video **Skip no longer shows on doomed replays** — the outcome
+  is decided at simulation time, and selling an ad-skip into a zero-reward
+  loss was a rip-off waiting to be noticed.
+
+**Documented, not fixed:** losing replays must still be watched or ad-skipped
+— er, watched (no free "concede" button; ~37 s worst case at 4× speed) —
+noted for a follow-up; win rates are ordering-sensitive in principle (pet
+catch order) but the shipped band holds at 100%/20 seeds for the loadout the
+grant path actually produces; the `-s` tool-script autoload-compile pitfall
+(dependencies of a SceneTree script can't reference autoload names at compile
+time) is documented in the tool — its first two runs silently idled for hours
+with the music autoload serenading nobody.
+
+**Tests — 706/706 passing (two clean runs, JUnit-XML count verified)**
+
 ### v0.15.18 — Daily-reward 2× ad doubler
 
 The fourth rewarded-video placement, and per the genre research the

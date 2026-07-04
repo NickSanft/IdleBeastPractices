@@ -236,12 +236,21 @@ func _start_stage() -> void:
 	_player_team_summary = _summarize_pets(pets)
 	_setup_battle_map_with_player_team()
 
-	if _skip_button != null:
-		_skip_button.visible = true
-		_skip_button.disabled = not AdsManager.is_available()
+	_update_skip_visibility()
 
 	_current_encounter_index = 0
 	_begin_encounter(0)
+
+
+## v0.15.19 — the stage outcome is predetermined the moment the StageLog is
+## simulated, so never sell an ad-skip into a loss: skipping a doomed replay
+## pays an ad to reach "Stage failed" with zero rewards. The skip exists to
+## fast-forward a WIN.
+func _update_skip_visibility() -> void:
+	if _skip_button == null:
+		return
+	_skip_button.visible = String(_stage_log.get("winner", "")) == "player"
+	_skip_button.disabled = not AdsManager.is_available()
 
 
 ## Begin playback of encounter `index` from the StageLog. Spawns the
@@ -554,7 +563,10 @@ func _finish_stage() -> void:
 		if _active_stage != null and _active_stage.narrator_stage_clear_id != &"" and Narrator.has_method("try_speak"):
 			Narrator.try_speak(_active_stage.narrator_stage_clear_id)
 	else:
-		_status_label.text = "Stage failed at encounter %d" % (_current_encounter_index + 1)
+		# v0.15.19 — actionable loss copy: stages are tuned so tier 3+
+		# requires crafted gear, so "get better gear" is nearly always
+		# the correct next step for a losing player.
+		_status_label.text = "Stage failed at encounter %d\nYour pets need better gear — craft equipment in the Crafting tab." % (_current_encounter_index + 1)
 	EventBus.battle_ended.emit(
 			str(_stage_log.get("seed", 0)),
 			winner == "player",

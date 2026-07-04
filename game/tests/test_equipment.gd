@@ -46,6 +46,43 @@ func test_grant_equipment_falls_back_to_owned_when_full() -> void:
 	assert_eq(GameState.owned_equipment[0], "brass_collar")
 
 
+# region — v0.15.19: Pareto upgrade-on-craft (unbricks pre-tier-3 craft
+# histories; without it an early tier-1 craft locked the slot forever)
+
+func test_grant_upgrades_dominated_gear_and_stashes_old() -> void:
+	GameState.add_pet(&"green_wisplet_pet", false)
+	GameState._grant_equipment(ContentRegistry.equipment(&"brass_collar"))
+	assert_eq(GameState.equipment_in_slot("green_wisplet_pet", "body"), "brass_collar")
+	# silver_collar Pareto-dominates brass_collar (>= every stat, > some).
+	GameState._grant_equipment(ContentRegistry.equipment(&"silver_collar"))
+	assert_eq(GameState.equipment_in_slot("green_wisplet_pet", "body"), "silver_collar",
+			"a dominating craft upgrades the occupied slot")
+	assert_true(GameState.owned_equipment.has("brass_collar"),
+			"displaced gear is stashed, not lost")
+
+
+func test_grant_never_downgrades_an_occupied_slot() -> void:
+	GameState.add_pet(&"green_wisplet_pet", false)
+	GameState._grant_equipment(ContentRegistry.equipment(&"silver_collar"))
+	# brass is dominated by silver — must NOT replace it.
+	GameState._grant_equipment(ContentRegistry.equipment(&"brass_collar"))
+	assert_eq(GameState.equipment_in_slot("green_wisplet_pet", "body"), "silver_collar")
+	assert_true(GameState.owned_equipment.has("brass_collar"),
+			"the weaker craft goes to the stash")
+
+
+func test_grant_prefers_empty_slot_over_upgrade() -> void:
+	GameState.add_pet(&"green_wisplet_pet", false)
+	GameState.add_pet(&"red_wisplet_pet", false)
+	GameState._grant_equipment(ContentRegistry.equipment(&"brass_collar"))
+	# Red's body slot is still EMPTY — fill it before upgrading green's.
+	GameState._grant_equipment(ContentRegistry.equipment(&"silver_collar"))
+	assert_eq(GameState.equipment_in_slot("red_wisplet_pet", "body"), "silver_collar")
+	assert_eq(GameState.equipment_in_slot("green_wisplet_pet", "body"), "brass_collar")
+
+# endregion
+
+
 func test_battle_combatant_applies_equipment_stats() -> void:
 	# Pre-equip brass collar (+2 def, +10 hp) on green wisplet.
 	GameState.add_pet(&"green_wisplet_pet", false)
