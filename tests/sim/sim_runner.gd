@@ -113,6 +113,12 @@ func _ready() -> void:
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = _seed
 
+	# v0.15.20 — pin the clock to a fixed WEDNESDAY. GameState.multiplier
+	# now composes weekend calendar boosts from the wall clock; without
+	# this, a balance run started on a real Saturday would report a 2×
+	# economy for all simulated hours and the numbers wouldn't reproduce.
+	TimeManager._test_now_override = 2_000_000_000
+
 	ContentRegistry.ensure_loaded()
 	_init_player_state()
 

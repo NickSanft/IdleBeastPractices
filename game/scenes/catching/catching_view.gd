@@ -31,6 +31,8 @@ var _drops_2x_button: Button   # rewarded-video bonus toggle
 # convention exists to coalesce.
 var _idle_rate_label: Label
 var _idle_rate_accumulator: float = 0.0
+# v0.15.20 — weekend boost-event banner, sharing the 1 s refresh cycle.
+var _event_banner: Label
 
 # Phase 12b — hold-to-tap state. While `_hold_active`, _process
 # accumulates time and fires synthetic tap-resolves at the rate set
@@ -69,6 +71,7 @@ func _ready() -> void:
 	_build_drops_2x_button()
 	_build_next_goal_chip()
 	_build_idle_rate_label()
+	_build_event_banner()
 	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
 	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
 	# Seed: if there's no active net, the catch screen still works (taps only).
@@ -588,6 +591,57 @@ func _handle_idle_rate_refresh(delta: float) -> void:
 		return
 	_idle_rate_accumulator = 0.0
 	_refresh_idle_rate()
+	_refresh_event_banner()
+
+
+## v0.15.20 — weekend boost banner, under the tier ribbon. Passive, like
+## the idle-rate readout; hidden entirely on weekdays.
+func _build_event_banner() -> void:
+	_event_banner = Label.new()
+	_event_banner.anchor_left = 0.0
+	_event_banner.anchor_top = 0.0
+	_event_banner.anchor_right = 1.0
+	_event_banner.anchor_bottom = 0.0
+	_event_banner.offset_left = 12
+	_event_banner.offset_top = 56
+	_event_banner.offset_right = -12
+	_event_banner.offset_bottom = 80
+	_event_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_event_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_event_banner.tooltip_text = "A weekend boost event is active"
+	_apply_event_banner_font()
+	add_child(_event_banner)
+	Settings.accessibility_settings_changed.connect(_apply_event_banner_font)
+	_refresh_event_banner()
+
+
+func _apply_event_banner_font() -> void:
+	if _event_banner == null:
+		return
+	_event_banner.add_theme_font_size_override("font_size", UiScale.size(12))
+
+
+func _refresh_event_banner() -> void:
+	if _event_banner == null:
+		return
+	var day: int = DailyLoginSystem.local_day_index(
+			TimeManager.now_unix(), TimeManager.tz_bias_minutes())
+	var ev: Dictionary = CalendarEventsSystem.active_event(day)
+	if ev.is_empty():
+		_event_banner.visible = false
+		return
+	var remaining: int = CalendarEventsSystem.seconds_until_event_end(
+			TimeManager.now_unix(), TimeManager.tz_bias_minutes())
+	var hours: int = int(remaining / 3600.0)
+	var ends: String = "ends in %dh" % hours if hours >= 1 else "ends soon"
+	_event_banner.visible = true
+	# Whole multipliers render as "2×", fractional ones as "1.5×" — don't
+	# let a future non-integer event truncate to a lie.
+	var mult: float = float(ev["multiplier"])
+	var mult_str: String = ("%d" % int(mult)) if is_equal_approx(mult, floorf(mult)) else ("%.1f" % mult)
+	_event_banner.text = "%s %s — %s× this weekend (%s)" % [
+		String(ev["icon"]), String(ev["display_name"]), mult_str, ends,
+	]
 
 
 func _refresh_idle_rate() -> void:

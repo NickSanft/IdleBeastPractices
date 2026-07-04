@@ -484,10 +484,41 @@ func try_purchase_upgrade(upgrade: UpgradeResource) -> Dictionary:
 
 
 func multiplier(effect_id: StringName) -> float:
-	return UpgradeEffectsSystem.get_multiplier(
+	var base: float = UpgradeEffectsSystem.get_multiplier(
 			effect_id,
 			upgrades_purchased,
 			ContentRegistry.upgrade_index())
+	# v0.15.20 — weekend calendar boosts compose multiplicatively with the
+	# player's upgrades. Fully derived from the clock (no save state, no
+	# server); effect ids outside CalendarEventsSystem.EVENTS get 1.0, so
+	# rp_mult / offline_cap / tap_speed are untouched. Every consumer of
+	# this method (live catching, offline progress, drops, shinies) sees
+	# the boost uniformly — an offline window claimed during an event is
+	# boosted whole; a by-design trade documented in the CHANGELOG.
+	return base * CalendarEventsSystem.event_multiplier(effect_id, _event_day_index())
+
+
+# multiplier() runs on hot paths (per-frame auto-catch, per-tap resolve),
+# and the OS timezone query behind local_day_index allocates — so the day
+# index is cached and only re-derived when the clock leaves the cached
+# local day (forwards OR backwards; tests jump both ways via
+# _test_now_override). Re-deriving at the boundary also re-reads the tz
+# bias, so a DST change heals at the next local midnight. Review-pass
+# bonus: one cached instant per call means a single catch can no longer
+# straddle midnight with a mixed multiplier set.
+var _event_day_cache: int = -1
+var _event_day_start_unix: int = 0
+var _event_day_end_unix: int = 0
+
+
+func _event_day_index() -> int:
+	var now: int = TimeManager.now_unix()
+	if _event_day_cache < 0 or now < _event_day_start_unix or now >= _event_day_end_unix:
+		var tz: int = TimeManager.tz_bias_minutes()
+		_event_day_cache = DailyLoginSystem.local_day_index(now, tz)
+		_event_day_start_unix = _event_day_cache * 86400 - tz * 60
+		_event_day_end_unix = _event_day_start_unix + 86400
+	return _event_day_cache
 
 
 # Crafting

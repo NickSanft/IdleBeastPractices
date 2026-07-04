@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.20 — Weekend boost events (server-less live-ops)
+
+A reason to come back *this weekend*, not eventually: every local
+Saturday+Sunday carries a boost, rotating weekly through **Gold Rush
+(2× gold) → Shiny Weekend (2× shiny rate) → Harvest Weekend (2× drops)**.
+Fully deterministic from the calendar — no server, no config fetch, works
+offline, zero live-ops labor, and (the part that matters for this repo's
+testing culture) reproducible under `TimeManager._test_now_override`.
+
+**CalendarEventsSystem (pure)**
+
+- Weekday math on `DailyLoginSystem.local_day_index` (unix day 0 was a
+  Thursday; `posmod(day+4, 7)`), local-midnight boundaries like every daily
+  system. Saturday and its Sunday share one event (Saturday-anchored
+  rotation), so a boost never swaps mid-weekend. **No save fields** — nothing
+  to migrate, prestige-proof and cloud-merge-proof by construction.
+- `GameState.multiplier()` composes the boost multiplicatively with upgrades,
+  whitelisted by effect id — `rp_mult` / `offline_cap` / `tap_speed` are
+  untouched. The local day index is **cached until the clock leaves the
+  cached day** (forwards or backwards), so the hot per-frame/per-tap paths
+  pay one cheap clock read instead of an OS timezone query, and a single
+  catch can never straddle midnight with a mixed multiplier set.
+- Catching screen gains a passive banner ("🪙 Gold Rush — 2× this weekend
+  (ends in 36h)"), sharing the idle-readout's 1 s refresh.
+
+**By-design trades (documented, not bugs)**
+
+- **Offline windows are boosted at claim time, whole** — idle all weekend
+  but claim Monday morning and the boost is missed; claim Sunday night and
+  the whole window is doubled. Accrual-time attribution would need
+  per-window bookkeeping for a ±2× swing on one claim; not worth it.
+- **DST mid-weekend** drifts the banner countdown by the DST delta until the
+  transition, then the 1 s refresh self-heals — display-only, whole-hour
+  granularity.
+- The device-clock-trust caveat from v0.15.14 applies unchanged: winding the
+  clock to a weekend self-serves a boost; same class, same acceptance.
+
+**Adversarial review pass (19 agents) — 16 findings, 0 critical/major**
+
+Acted on: the hot-path day-index cache (the reviewer measured the real cost
+— a per-frame OS tz query via auto-catch — then correctly downgraded its own
+severity; the cache also fixed the midnight-straddle wrinkle); pinned
+`tests/sim/sim_runner.gd`'s clock to a fixed Wednesday (a balance run
+started on a real Saturday would have reported a 2×-boosted economy);
+tz-bias coverage for the end-time countdown; deterministic banner-countdown
+assertions; a formatting guard so a future 1.5× event doesn't truncate to
+"1×"; and the lambda→named-method consistency nit. **Nice empirical bonus:**
+this shipped on an actual Saturday, so the full suite ran twice with a live
+event on every non-overridden clock path — 0 failures, confirming no
+existing test asserts exact values through the boosted paths.
+
+**Tests — 717/717 passing (two clean runs, JUnit-XML count verified)**
+
 ### v0.15.19 — Battle content: 4 new stages (tiers 3–6) + the gear arc to climb them
 
 The battle roster had 60 monsters and **2 stages** (tiers 1–2). This triples
