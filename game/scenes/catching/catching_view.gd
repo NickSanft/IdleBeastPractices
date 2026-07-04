@@ -24,6 +24,13 @@ var _auto_accumulator: float = 0.0
 var _instance_counter: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _drops_2x_button: Button   # rewarded-video bonus toggle
+# v0.15.17 — passive "Idle ≈ N gold/min" readout, bottom-left (opposite the
+# drops-2x button). Refreshed on a 1 s accumulator rather than by signal:
+# there is no net-equipped signal to hook, and a once-a-second walk of the
+# ≤60-monster pool is far cheaper than the per-signal work the dirty-flag
+# convention exists to coalesce.
+var _idle_rate_label: Label
+var _idle_rate_accumulator: float = 0.0
 
 # Phase 12b — hold-to-tap state. While `_hold_active`, _process
 # accumulates time and fires synthetic tap-resolves at the rate set
@@ -61,6 +68,7 @@ func _ready() -> void:
 	resized.connect(_on_resized)
 	_build_drops_2x_button()
 	_build_next_goal_chip()
+	_build_idle_rate_label()
 	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
 	AdsManager.rewarded_failed.connect(_on_rewarded_failed)
 	# Seed: if there's no active net, the catch screen still works (taps only).
@@ -95,6 +103,7 @@ func _process(delta: float) -> void:
 	_handle_spawning(delta)
 	_handle_auto_catch(delta)
 	_handle_hold_to_tap(delta)
+	_handle_idle_rate_refresh(delta)
 
 
 ## Phase 12b: while a hold is active, fire repeat taps at the rate
@@ -539,6 +548,73 @@ func _build_drops_2x_button() -> void:
 	_drops_2x_button.pressed.connect(_on_drops_2x_pressed)
 	add_child(_drops_2x_button)
 	_update_drops_2x_button()
+
+
+## v0.15.17 — bottom-left idle-income readout. Sits inside the 80 px band
+## _recompute_spawn_bounds already reserves at the bottom for widgets, so
+## it never overlaps spawned monsters. Non-interactive: mouse-filter IGNORE
+## so a mis-tap near it still falls through to _gui_input as a monster tap.
+func _build_idle_rate_label() -> void:
+	_idle_rate_label = Label.new()
+	_idle_rate_label.anchor_left = 0.0
+	_idle_rate_label.anchor_top = 1.0
+	_idle_rate_label.anchor_right = 0.0
+	_idle_rate_label.anchor_bottom = 1.0
+	_idle_rate_label.offset_left = 20
+	_idle_rate_label.offset_top = -48
+	_idle_rate_label.offset_right = 320
+	_idle_rate_label.offset_bottom = -20
+	_idle_rate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Screen-reader label (Phase 13g convention: tooltip_text doubles as
+	# the TalkBack name for informational surfaces).
+	_idle_rate_label.tooltip_text = "Estimated gold per minute from your net while idle or away"
+	_apply_idle_rate_font()
+	Settings.accessibility_settings_changed.connect(_apply_idle_rate_font)
+	add_child(_idle_rate_label)
+	_refresh_idle_rate()
+
+
+## Inline UiScale sizes are frozen at apply-time, so re-apply on the
+## accessibility slider (the v0.15.13 next_goal_chip badge pattern).
+func _apply_idle_rate_font() -> void:
+	if _idle_rate_label == null:
+		return
+	_idle_rate_label.add_theme_font_size_override("font_size", UiScale.size(12))
+
+
+func _handle_idle_rate_refresh(delta: float) -> void:
+	_idle_rate_accumulator += delta
+	if _idle_rate_accumulator < 1.0:
+		return
+	_idle_rate_accumulator = 0.0
+	_refresh_idle_rate()
+
+
+func _refresh_idle_rate() -> void:
+	if _idle_rate_label == null:
+		return
+	# Resolve via _active_net() (with its nets_owned[0] fallback), NOT
+	# GameState.active_net directly: a cloud merge can union nets_owned
+	# while taking active_net="" last-write-wins, and in that state the
+	# auto-catcher (which uses _active_net()) is visibly earning — the
+	# readout must agree with what the player watches, not with the
+	# offline path (whose no-fallback divergence predates this label and
+	# is noted for the cloud-merge hardening follow-up).
+	var net: NetResource = _active_net()
+	var rate: float = 0.0
+	if net != null:
+		rate = OfflineProgressSystem.idle_gold_per_second(
+				ContentRegistry.monsters(),
+				net,
+				GameState.current_max_tier,
+				GameState.multiplier(&"auto_speed"),
+				GameState.multiplier(&"gold_mult"))
+	if rate <= 0.0:
+		# Taps-only players (no net yet) get a clean screen, not a zero.
+		_idle_rate_label.visible = false
+		return
+	_idle_rate_label.visible = true
+	_idle_rate_label.text = "Idle ≈ %s gold/min" % BigNumber.from_float(rate * 60.0).format()
 
 
 func _update_drops_2x_button() -> void:

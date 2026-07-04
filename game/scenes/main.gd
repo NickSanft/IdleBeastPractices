@@ -1446,8 +1446,12 @@ func _apply_offline_progress(loaded: Dictionary) -> void:
 	if last_saved_unix <= 0:
 		return
 	var offline_cap_mult: float = GameState.multiplier(&"offline_cap")
-	var cap: float = OfflineProgressSystem.DEFAULT_CAP_SECONDS * offline_cap_mult
-	var elapsed: float = TimeManager.compute_offline_elapsed(last_saved_unix, cap)
+	# v0.15.17 — pass the UNCAPPED elapsed; OfflineProgressSystem.compute owns
+	# the clamp (single source of truth) and needs the raw value to set
+	# `capped`/`raw_seconds` truthfully. Pre-fix the cap was applied here
+	# first, so raw == cap inside compute and the welcome-back dialog's
+	# "(capped)" note was dead code that could never render.
+	var elapsed: float = TimeManager.compute_offline_elapsed(last_saved_unix, INF)
 	if elapsed <= 60.0:
 		return  # Don't pop the dialog for sub-minute trips.
 	var net_id_str: String = String(GameState.active_net)

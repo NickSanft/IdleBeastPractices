@@ -6,6 +6,72 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.17 — Earnings-rate readout + an offline cap you can actually see (and fix)
+
+The "make idle income legible" slice of the improvement audit. Two connected
+gaps: the game never told the player how fast they earn, and the offline-cap
+message was — it turns out — **dead code**.
+
+**Idle-rate readout (catching screen)**
+
+- A passive bottom-left label: "Idle ≈ N gold/min". Backed by a new pure
+  `OfflineProgressSystem.idle_gold_per_second()` that shares the exact
+  eligibility/weighting math with `compute()` (extracted `_eligible_weights()`
+  helper), so the live readout and the welcome-back projection **cannot
+  disagree** — pinned by a test integrating the rate over a window and
+  comparing against `compute()`'s gold.
+- Refreshes on a 1 s accumulator rather than signals — there is no
+  net-equipped signal to hook, and a once-a-second walk of ≤60 monsters is
+  cheaper than what the dirty-flag convention exists to coalesce. Hidden for
+  taps-only players (rate 0). Resolves the net via `_active_net()` (the
+  `nets_owned[0]` fallback) so the readout matches what the auto-catcher is
+  visibly doing — a review pass proved the "owned but unequipped" state is
+  reachable via a cloud merge (nets union + active_net last-write-wins).
+
+**The offline-cap fix — the "(capped)" note could never render**
+
+- `TimeManager.compute_offline_elapsed` clamped the elapsed to the cap
+  *before* `OfflineProgressSystem.compute` saw it, so compute's
+  `raw_elapsed > cap` check compared cap against cap: **`capped` was always
+  false** and the welcome-back "(capped at the offline limit)" note was
+  unreachable. Main now passes the uncapped elapsed (INF cap) and compute
+  owns the clamp — single source of truth, pinned by an end-to-end main
+  wiring regression test.
+- The summary gained `raw_seconds` (additive, safe default — old summaries
+  degrade to the single-window copy).
+- Capped welcome-backs now read "**Away for 9h 12m — earned for the first
+  4h 00m**" + an amber "Offline limit reached" note + an **Extend Away Time**
+  button that jumps to the Upgrades tab (via the existing
+  `tab_switch_requested` seam). Durations format as minutes / "9h 05m" /
+  "3d 4h" (raw is unbounded — a forward-jumped clock shouldn't render
+  "87600h"). Barely-capped trips (< 60 s over) keep the single-window
+  sentence so the copy never names two identical windows.
+
+**Adversarial review pass (17 agents) — 14 findings, all verified, 7 acted on**
+
+Acted on: the `_active_net()` fallback mismatch (above); a genuinely flaky
+new test (the live `_process` pre-loads the 1 s accumulator before the manual
+pumps — all three review dimensions independently caught it); the barely-capped
+copy degeneracy; the days unit; `@warning_ignore("integer_division")`
+convention; driving the extend test through the button instead of the private
+handler; and the missing end-to-end regression test for the dead-code fix
+itself. **Documented, not fixed:** (1) tapping Extend while a daily-reward
+modal is queued lands you on Upgrades with the daily modal on top — accepted,
+the modal must show sometime and dismissing it reveals the destination;
+(2) `main._apply_offline_progress` still lacks the `nets_owned[0]` fallback,
+so offline earnings are zero in the merge-edge state where live play earns —
+pre-existing divergence, folded into the cloud-merge hardening follow-up;
+(3) `BigNumber.from_float(INF)` would hang — latent, unreachable from this
+call site's float regime, noted for a future hardening pass.
+
+**Found in passing:** GUT **silently skips** test scripts that fail to parse
+(a helper-name collision with `GutTest._summary` skipped a whole new file
+while the suite printed "All tests passed"). Caught via the JUnit-XML export
+seam (`-gjunit_xml_file`) by comparing expected vs actual test counts —
+a future CI guard should assert the suite count doesn't silently drop.
+
+**Tests — 689/689 passing (two clean runs)**
+
 ### CI — target API 36: Godot 4.6.3 pin + AAB manifest assertions (no game version)
 
 Google Play requires new apps and updates to **target Android 16 (API 36) from

@@ -13,6 +13,7 @@ signal claimed(summary: Dictionary)
 var _summary: Dictionary
 var _body_label: RichTextLabel
 var _watch_ad_button: Button
+var _extend_cap_button: Button
 var _ad_in_flight: bool = false
 
 
@@ -37,6 +38,11 @@ func _ready() -> void:
 	# Custom action button — added before the OK button so it appears
 	# on the left. Drives the rewarded-video flow.
 	_watch_ad_button = add_button("Claim 2× (watch ad)", true, "watch_ad")
+	# v0.15.17 — capped-summary CTA: routes to the Upgrades tab where the
+	# two Away-Time upgrades live. Hidden unless the summary was capped
+	# (show_summary toggles it), so uncapped players see no extra chrome.
+	_extend_cap_button = add_button("Extend Away Time", true, "extend_cap")
+	_extend_cap_button.visible = false
 	custom_action.connect(_on_custom_action)
 
 	AdsManager.rewarded_completed.connect(_on_rewarded_completed)
@@ -49,17 +55,53 @@ func show_summary(summary: Dictionary) -> void:
 	_body_label.text = _format_summary(summary)
 	if _watch_ad_button != null:
 		_watch_ad_button.disabled = not AdsManager.is_available()
+	if _extend_cap_button != null:
+		_extend_cap_button.visible = bool(summary.get("capped", false))
 	popup_centered()
+
+
+## "3d 4h" past a day, "9h 05m" past the hour mark, "37 minutes" under it —
+## the welcome-back head reads as a sentence, so short trips keep the word
+## form. Days matter because raw_seconds is unbounded (a forward-jumped
+## clock can report years; "87600h" would read as a bug).
+static func _format_duration(seconds: float) -> String:
+	var total_minutes: int = int(seconds / 60.0)
+	@warning_ignore("integer_division")
+	var hours: int = total_minutes / 60
+	var minutes: int = total_minutes % 60
+	if hours >= 24:
+		@warning_ignore("integer_division")
+		var days: int = hours / 24
+		return "%dd %dh" % [days, hours % 24]
+	if hours > 0:
+		return "%dh %02dm" % [hours, minutes]
+	return "%d minute%s" % [total_minutes, "" if total_minutes == 1 else "s"]
 
 
 func _format_summary(summary: Dictionary) -> String:
 	var seconds: float = float(summary.get("seconds", 0))
-	var minutes: int = int(seconds / 60.0)
-	var head: String = "[b]Away for %d minute%s.[/b]" % [
-		minutes, "" if minutes == 1 else "s",
-	]
+	# raw_seconds is v0.15.17+; older summaries fall back to the credited
+	# window so the copy degrades to the uncapped form gracefully.
+	var raw_seconds: float = max(float(summary.get("raw_seconds", 0.0)), seconds)
+	var head: String
 	if bool(summary.get("capped", false)):
-		head += "  [color=#cc9966](capped at the offline limit)[/color]"
+		# v0.15.17 — actionable cap copy: name both windows so the player
+		# sees what the cap cost them, and point at the fix (the Extend
+		# Away Time button show_summary reveals alongside this text).
+		# The two-window sentence needs the windows to visibly DIFFER:
+		# for raw in [cap, cap+60s) both format identically ("Away for
+		# 1h 00m — earned for the first 1h 00m" reads as a bug), so a
+		# barely-capped trip keeps the single-window sentence. The amber
+		# note + Extend button still show — capped is capped.
+		if raw_seconds - seconds >= 60.0:
+			head = "[b]Away for %s — earned for the first %s.[/b]\n" % [
+				_format_duration(raw_seconds), _format_duration(seconds),
+			]
+		else:
+			head = "[b]Away for %s.[/b]\n" % _format_duration(seconds)
+		head += "[color=#cc9966]Offline limit reached. Extend it with the Away-Time upgrades.[/color]"
+	else:
+		head = "[b]Away for %s.[/b]" % _format_duration(seconds)
 	var gold: BigNumber = summary.get("gold_gained", BigNumber.zero())
 	var shinies: int = int(summary.get("shinies_caught", 0))
 	var lines: Array[String] = [head, ""]
@@ -88,6 +130,14 @@ func _on_confirmed() -> void:
 
 
 func _on_custom_action(action: StringName) -> void:
+	if String(action) == "extend_cap":
+		# v0.15.17 — jump to the Upgrades tab (offline_cap upgrades).
+		# tab_switch_requested is main's existing nav seam; the rewards
+		# were pre-applied before this dialog opened, so closing here
+		# loses nothing.
+		EventBus.tab_switch_requested.emit("Upgrades")
+		hide()
+		return
 	if String(action) != "watch_ad":
 		return
 	if _ad_in_flight:

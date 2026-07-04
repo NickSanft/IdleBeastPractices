@@ -7,13 +7,18 @@
 ##
 ## Returns a summary suitable for the welcome-back dialog:
 ##   {
-##     seconds:            float,
+##     seconds:            float,  # credited (cap-clamped) window
+##     raw_seconds:        float,  # actual elapsed, uncapped (v0.15.17)
 ##     catches_by_species: Dictionary[StringName -> {normal, shiny}],
 ##     items_gained:       Dictionary[StringName -> int],
 ##     gold_gained:        BigNumber,
 ##     shinies_caught:     int,
 ##     capped:             bool,  # true if input elapsed exceeded the cap
 ##   }
+##
+## NOTE (v0.15.17): callers must pass the UNCAPPED elapsed — this system
+## owns the clamp. Pre-clamping upstream makes `capped` always false and
+## `raw_seconds` meaningless (that was a live bug in main until v0.15.17).
 class_name OfflineProgressSystem
 extends RefCounted
 
@@ -33,6 +38,7 @@ static func compute(
 		shiny_rate_mult: float = 1.0) -> Dictionary:
 	var summary: Dictionary = {
 		"seconds": 0.0,
+		"raw_seconds": 0.0,
 		"catches_by_species": {},
 		"items_gained": {},
 		"gold_gained": BigNumber.zero(),
@@ -45,25 +51,17 @@ static func compute(
 	var raw_elapsed: float = elapsed_seconds
 	var elapsed: float = clampf(raw_elapsed, 0.0, cap)
 	summary["seconds"] = elapsed
+	summary["raw_seconds"] = raw_elapsed
 	summary["capped"] = raw_elapsed > cap
 	var per_second: float = net.catches_per_second * auto_speed_mult
 	if per_second <= 0.0:
 		return summary
 	var expected_catches: float = per_second * elapsed
 
-	# Filter eligible monsters (active tier × net targets) and total spawn weight.
-	var eligible: Array[MonsterResource] = []
-	var weights: Array[float] = []
-	var total_weight: float = 0.0
-	for m in spawnable_pool:
-		if m.tier > current_max_tier:
-			continue
-		if not net.targets_tiers.has(m.tier):
-			continue
-		var w: float = max(0.0001, m.spawn_weight) / float(max(1, m.tier))
-		eligible.append(m)
-		weights.append(w)
-		total_weight += w
+	var ew: Dictionary = _eligible_weights(spawnable_pool, net, current_max_tier)
+	var eligible: Array[MonsterResource] = ew["eligible"]
+	var weights: Array[float] = ew["weights"]
+	var total_weight: float = ew["total_weight"]
 	if eligible.is_empty() or total_weight <= 0.0:
 		return summary
 
@@ -103,3 +101,55 @@ static func compute(
 		summary["shinies_caught"] = int(summary["shinies_caught"]) + shinies
 
 	return summary
+
+
+## Shared eligibility/weighting: which monsters the given net can auto-catch
+## at the current tier, with their raw spawn weights. Extracted (v0.15.17) so
+## compute() and idle_gold_per_second() use the SAME math — the live rate
+## display and the offline projection can never disagree.
+static func _eligible_weights(
+		spawnable_pool: Array[MonsterResource],
+		net: NetResource,
+		current_max_tier: int) -> Dictionary:
+	var eligible: Array[MonsterResource] = []
+	var weights: Array[float] = []
+	var total_weight: float = 0.0
+	for m in spawnable_pool:
+		if m.tier > current_max_tier:
+			continue
+		if not net.targets_tiers.has(m.tier):
+			continue
+		var w: float = max(0.0001, m.spawn_weight) / float(max(1, m.tier))
+		eligible.append(m)
+		weights.append(w)
+		total_weight += w
+	return {"eligible": eligible, "weights": weights, "total_weight": total_weight}
+
+
+## v0.15.17 — expected idle gold/second for a loadout: net catch rate ×
+## spawn-weighted average gold per catch. This is the exact per-catch gold
+## expectation compute() integrates over an offline window, so a live
+## "Idle ≈ N/min" readout stays consistent with the welcome-back numbers.
+## Returns 0.0 when nothing is catchable (no net, zero rate, no eligible
+## species) — callers hide the readout in that case.
+static func idle_gold_per_second(
+		spawnable_pool: Array[MonsterResource],
+		net: NetResource,
+		current_max_tier: int,
+		auto_speed_mult: float = 1.0,
+		gold_mult: float = 1.0) -> float:
+	if net == null:
+		return 0.0
+	var per_second: float = net.catches_per_second * auto_speed_mult
+	if per_second <= 0.0:
+		return 0.0
+	var ew: Dictionary = _eligible_weights(spawnable_pool, net, current_max_tier)
+	var eligible: Array[MonsterResource] = ew["eligible"]
+	var weights: Array[float] = ew["weights"]
+	var total_weight: float = ew["total_weight"]
+	if eligible.is_empty() or total_weight <= 0.0:
+		return 0.0
+	var expected_gold_per_catch: float = 0.0
+	for i in eligible.size():
+		expected_gold_per_catch += (weights[i] / total_weight) * float(eligible[i].gold_base)
+	return per_second * expected_gold_per_catch * gold_mult

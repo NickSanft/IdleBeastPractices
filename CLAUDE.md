@@ -18,8 +18,13 @@ versioned JSON with a migration chain. Tests: **GUT** (headless unit) + **Maestr
 ## Build & test
 
 Local Godot lives at
-`C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64_console.exe`
-(use the `_console.exe` variant so stdout is captured).
+`C:/Users/nicho/OneDrive/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe`
+(Desktop is OneDrive-redirected — the bare `C:/Users/nicho/Desktop/` path does
+not exist). From an **interactive terminal** use the `_console.exe` variant so
+stdout shows; from **scripted/piped contexts** (agents, CI-style shells) invoke
+the **main exe directly** — the console shim deadlocks with 0 CPU when there is
+no console to attach to, which presents as an import/test run that hangs
+forever with no output.
 
 ```sh
 # Import once after adding/renaming resources, then run the full suite (this is

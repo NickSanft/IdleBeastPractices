@@ -112,3 +112,60 @@ func test_handles_null_net_gracefully():
 	var summary := OfflineProgressSystem.compute(monsters, null, 1, 60.0, rng)
 	assert_eq(summary["seconds"], 0.0)
 	assert_true(summary["catches_by_species"].is_empty())
+
+
+# --- v0.15.17: raw_seconds + idle_gold_per_second ---
+
+
+func test_raw_seconds_reports_uncapped_elapsed():
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0
+	var summary := OfflineProgressSystem.compute(monsters, net, 1, 7200.0, rng)
+	assert_eq(summary["raw_seconds"], 7200.0, "raw keeps the real away time")
+	assert_eq(summary["seconds"], 3600.0, "credited window is still capped")
+	assert_true(summary["capped"])
+
+
+func test_raw_seconds_equals_elapsed_when_uncapped():
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0
+	var summary := OfflineProgressSystem.compute(monsters, net, 1, 600.0, rng)
+	assert_eq(summary["raw_seconds"], 600.0)
+	assert_false(summary["capped"])
+
+
+func test_idle_gold_per_second_is_weighted_average_times_rate():
+	# a: gold 1, b: gold 2, equal spawn weight -> expected 1.5 gold/catch.
+	# Net catches 1/s -> 1.5 gold/s.
+	var rate := OfflineProgressSystem.idle_gold_per_second(monsters, net, 1)
+	assert_almost_eq(rate, 1.5, 0.0001)
+
+
+func test_idle_gold_per_second_applies_multipliers():
+	# auto_speed 2x, gold_mult 3x -> 1.5 * 6 = 9.0 gold/s.
+	var rate := OfflineProgressSystem.idle_gold_per_second(monsters, net, 1, 2.0, 3.0)
+	assert_almost_eq(rate, 9.0, 0.0001)
+
+
+func test_idle_gold_per_second_zero_when_nothing_catchable():
+	assert_eq(OfflineProgressSystem.idle_gold_per_second(monsters, null, 1), 0.0,
+			"null net -> 0")
+	assert_eq(OfflineProgressSystem.idle_gold_per_second(monsters, net, 0), 0.0,
+			"tier gate excludes the whole pool -> 0")
+	net.catches_per_second = 0.0
+	assert_eq(OfflineProgressSystem.idle_gold_per_second(monsters, net, 1), 0.0,
+			"zero catch rate -> 0")
+
+
+func test_idle_rate_agrees_with_offline_compute():
+	# The rate readout and the offline projection must be the same math:
+	# integrate the rate over the window and compare to compute()'s gold.
+	# Loose band: compute() rounds per-species catches to ints.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var summary := OfflineProgressSystem.compute(monsters, net, 1, 60.0, rng)
+	var rate := OfflineProgressSystem.idle_gold_per_second(monsters, net, 1)
+	var projected: float = rate * 60.0
+	var actual: float = (summary["gold_gained"] as BigNumber).to_float()
+	assert_almost_eq(actual, projected, 20.0,
+			"offline gold (%f) should track rate*window (%f)" % [actual, projected])
