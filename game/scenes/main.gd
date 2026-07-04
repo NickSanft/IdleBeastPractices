@@ -1575,7 +1575,18 @@ func _on_welcome_back_dismissed_show_daily() -> void:
 func _show_daily_reward(summary: Dictionary) -> void:
 	_daily_reward_dialog = _DAILY_REWARD_DIALOG.instantiate()
 	add_child(_daily_reward_dialog)
+	_daily_reward_dialog.doubled.connect(_on_daily_reward_doubled)
 	_daily_reward_dialog.show_reward(summary)
+
+
+## v0.15.18 — rewarded-ad daily doubler. The base reward was pre-applied in
+## _apply_daily_login; a granted ad applies the GOLD again (total 2×). RP is
+## deliberately NOT doubled (see DailyRewardDialog's doc comment). No second
+## EventBus.daily_reward_claimed emit — quest/achievement evaluators already
+## counted this claim once and must not double-count it.
+func _on_daily_reward_doubled(summary: Dictionary) -> void:
+	var gold: BigNumber = summary.get("gold", BigNumber.zero())
+	GameState.add_gold(gold)
 
 
 func _unhandled_input(event: InputEvent) -> void:

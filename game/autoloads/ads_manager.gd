@@ -12,6 +12,7 @@
 ##   REWARD_OFFLINE_2X            : 2× offline-progress reward on welcome-back
 ##   REWARD_BATTLE_INSTANT_FINISH : skip to end of current battle replay
 ##   REWARD_DROPS_2X_NEXT_10      : double item drops on the next 10 catches
+##   REWARD_DAILY_2X              : 2× the daily-login gold on the reward modal
 extends Node
 
 signal rewarded_completed(reward_id: String, granted: bool)
@@ -25,6 +26,7 @@ signal requested(reward_id: String)
 const REWARD_OFFLINE_2X := "offline_2x"
 const REWARD_BATTLE_INSTANT_FINISH := "battle_instant_finish"
 const REWARD_DROPS_2X_NEXT_10 := "drops_2x_next_10"
+const REWARD_DAILY_2X := "daily_login_2x"
 const DROPS_2X_CATCH_COUNT := 10
 
 var backend: AdsBackend

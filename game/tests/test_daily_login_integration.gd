@@ -158,4 +158,26 @@ func test_daily_modal_queues_behind_welcome_back() -> void:
 	assert_true(main._daily_reward_dialog.visible)
 	assert_true(main._pending_daily_summary.is_empty(), "the queue is drained")
 
+
+func test_doubled_signal_grants_the_gold_again_but_not_rp() -> void:
+	# v0.15.18 — the ad doubler applies another summary's worth of GOLD on
+	# top of the pre-applied base (total 2×); RP stays single by design.
+	var main: Node = await _fresh_main()
+	var summary := {
+		"cycle_day": 7, "streak": 7,
+		"gold": BigNumber.from_float(400.0),
+		"rp": 5, "missed": false,
+	}
+	main._show_daily_reward(summary)
+	await wait_frames(1)
+	var gold_before: BigNumber = GameState.current_gold()
+	var rp_before: int = GameState.current_rancher_points()
+	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, true)
+	await wait_frames(1)
+	var gained: float = GameState.current_gold().to_float() - gold_before.to_float()
+	assert_almost_eq(gained, 400.0, 0.01, "granted ad adds exactly the summary gold again")
+	assert_eq(GameState.current_rancher_points(), rp_before,
+			"the day-7 RP milestone is deliberately NOT doubled")
+	assert_false(main._daily_reward_dialog.visible, "modal closed after collecting 2×")
+
 # endregion

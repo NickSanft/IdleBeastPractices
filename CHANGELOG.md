@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.18 — Daily-reward 2× ad doubler
+
+The fourth rewarded-video placement, and per the genre research the
+highest-value daily one: **"Collect 2× (watch ad)"** on the daily-login
+reward modal. Reinforces the streak habit at the exact moment the player is
+being paid for it.
+
+- Mirrors the WelcomeBackDialog contract exactly: the base reward is
+  **pre-applied** before the modal opens (force-quit-safe), so a granted ad
+  emits `doubled(summary)` and main applies **another summary's worth of
+  gold** — total 2×. Cancel keeps the modal open with the button re-enabled;
+  foreign reward ids are ignored; new `AdsManager.REWARD_DAILY_2X`.
+- **Gold only, by design:** the day-7 RP milestone is *not* doubled — RP is
+  the scarce prestige currency and an ad-doubled weekly RP drip would distort
+  the prestige economy. Also deliberate: no second `daily_reward_claimed`
+  emit (quest/achievement evaluators already counted the claim once), and the
+  doubled gold *does* count toward `total_gold_earned_this_run` — it's real
+  earned gold, identical to how the welcome-back 2× flows through `add_gold`.
+- Both dialog paths get the wiring (direct show and the
+  queued-behind-welcome-back deferred path both go through
+  `_show_daily_reward`).
+
+**Review pass — multi-agent fan-out hit the session limit; deep inline review
+instead** (documented honestly: the three-dimension adversarial workflow
+errored on account limits mid-evening, so the lifecycle / economy /
+test-quality checklist it was given was executed inline). Verified:
+freed dialogs auto-disconnect from AdsManager (no mid-ad dangle); an
+empty-summary grant degrades to +0 gold; nothing watches this dialog's
+visibility (no queue interaction); evaluators derive from ledger state so one
+grant = one increment (no double-count); no new persistent fields (no
+save/merge surface). One accepted pattern-consistency exposure, shared with
+the existing welcome-back flow: a hypothetically duplicated backend
+completion signal would double-grant there too — not newly introduced here.
+
+**Tests — 694/694 passing (two clean runs, JUnit-XML count verified)**
+
+Dialog: button present/enabled, grant → `doubled` with the original summary +
+close, cancel → open + re-enabled + no signal, foreign ids ignored. Main
+wiring: granted ad adds exactly the summary gold again and the day-7 RP stays
+single.
+
 ### v0.15.17 — Earnings-rate readout + an offline cap you can actually see (and fix)
 
 The "make idle income legible" slice of the improvement audit. Two connected

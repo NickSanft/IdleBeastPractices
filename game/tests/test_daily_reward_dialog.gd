@@ -43,3 +43,55 @@ func test_missed_streak_shows_restart_note() -> void:
 	dlg.show_reward({"cycle_day": 1, "streak": 1, "gold": BigNumber.from_float(50.0), "rp": 0, "missed": true})
 	await wait_frames(1)
 	assert_string_contains(dlg._body_label.text, "restarted", "a broken streak is called out")
+
+
+# region — v0.15.18: "Collect 2× (watch ad)" doubler
+
+
+func _reward(gold: float) -> Dictionary:
+	return {"cycle_day": 2, "streak": 2, "gold": BigNumber.from_float(gold), "rp": 0, "missed": false}
+
+
+func test_ad_button_present_and_enabled_when_ads_available() -> void:
+	var dlg: AcceptDialog = await _make()
+	dlg.show_reward(_reward(100.0))
+	await wait_frames(1)
+	assert_not_null(dlg._watch_ad_button)
+	# Stub backend (editor/CI) always reports available.
+	assert_false(dlg._watch_ad_button.disabled)
+
+
+func test_granted_ad_emits_doubled_with_original_summary_and_hides() -> void:
+	var dlg: AcceptDialog = await _make()
+	var summary := _reward(250.0)
+	dlg.show_reward(summary)
+	await wait_frames(1)
+	watch_signals(dlg)
+	# Simulate the backend granting the reward (bypasses the stub's
+	# confirmation dialog, which would block a headless run).
+	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, true)
+	assert_signal_emitted_with_parameters(dlg, "doubled", [summary])
+	assert_false(dlg.visible, "granted ad collects and closes the modal")
+
+
+func test_canceled_ad_keeps_modal_open_no_double() -> void:
+	var dlg: AcceptDialog = await _make()
+	dlg.show_reward(_reward(250.0))
+	await wait_frames(1)
+	watch_signals(dlg)
+	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, false)
+	assert_signal_not_emitted(dlg, "doubled")
+	assert_true(dlg.visible, "cancel keeps the modal; Collect still works")
+	assert_false(dlg._watch_ad_button.disabled, "button re-enabled for retry")
+
+
+func test_other_reward_ids_are_ignored() -> void:
+	var dlg: AcceptDialog = await _make()
+	dlg.show_reward(_reward(250.0))
+	await wait_frames(1)
+	watch_signals(dlg)
+	AdsManager.rewarded_completed.emit(AdsManager.REWARD_OFFLINE_2X, true)
+	assert_signal_not_emitted(dlg, "doubled")
+	assert_true(dlg.visible)
+
+# endregion
