@@ -46,10 +46,10 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §3 for the canonical layou
 
 ```sh
 # Open in editor
-"C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" --path .
+"C:/Users/nicho/OneDrive/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" --path .
 
 # Run the full unit-test suite headlessly (same invocation as CI)
-"C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" \
+"C:/Users/nicho/OneDrive/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" \
     --headless --path . -s addons/gut/gut_cmdln.gd \
     -gdir=res://game/tests/ -ginclude_subdirs -gexit
 ```

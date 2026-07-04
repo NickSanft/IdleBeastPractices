@@ -19,7 +19,7 @@ Sequencing rule: phases execute in order, each one closes per the per-phase ship
 
 | Component | Status |
 |---|---|
-| Godot 4.6.1-stable mono | ✓ at `C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/` |
+| Godot 4.6.1-stable mono | ✓ at `C:/Users/nicho/OneDrive/Desktop/Godot_v4.6.1-stable_mono_win64/` |
 | Export templates `4.6.1.stable.mono` | ✓ |
 | JDK | Corretto 25 + 26 installed; **plan: try JDK 25 first**, install JDK 17 only if Godot's Gradle wrapper fails |
 | Android SDK | ✓ at `C:/Users/nicho/AppData/Local/Android/Sdk` — build-tools 34/35/36/36.1, platforms 34/35/36 |

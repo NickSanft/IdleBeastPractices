@@ -6,12 +6,12 @@ Most are Godot 4.6 / Android-export facts that outlive any single feature.
 
 ## Build & test
 
-- **Engine**: Godot 4.6, **mono** build (GDScript only; no C#). **CI pins 4.6.3**; the local editor is 4.6.1-stable mono (path in [CLAUDE.md](../CLAUDE.md); use the `_console.exe` variant so stdout is captured on Windows). The patch-version skew is deliberate — see "Target API 36" below. Upgrading the local editor to 4.6.3 mono is recommended but not required for tests.
+- **Engine**: Godot 4.6, **mono** build (GDScript only; no C#). **CI pins 4.6.3**; the local editor is 4.6.1-stable mono (path in [CLAUDE.md](../CLAUDE.md); invoke the main `.exe` — the `_console.exe` shim deadlocks with no output when launched from a piped/non-interactive shell, though stdout from the main exe pipes fine). The patch-version skew is deliberate — see "Target API 36" below. Upgrading the local editor to 4.6.3 mono is recommended but not required for tests.
 - **Import before testing** after adding/renaming resources: `godot --headless --path . --import`. New `.gd`/`.tscn`/`.tres` get `.uid` sidecars generated here — **commit those `.uid` files**.
 - **Run the suite**: `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://game/tests/ -ginclude_subdirs -gexit`.
 - **Reading results**: judge by GUT's `Passing Tests` / `Failing Tests` / `All tests passed` lines. Ignore exit-time `ObjectDB instances leaked`, `resources still in use`, and RID-leak errors — they're standard headless-shutdown noise and can force a non-zero exit even on a fully-passing run.
 - **Order-stability**: run the full suite **twice** before shipping. GUT runs all files in one process, and `GameState`, singleton autoloads, the on-disk save (some tests call `SaveManager.save`), and `TimeManager._test_now_override` all persist across files. A test that mutates shared state without resetting it in `after_each` causes an order-dependent flake. Reset what you touch.
-- **Hang / lock**: if a headless run sits for minutes with no output, an **orphaned Godot process is holding the project import lock**. `Get-Process Godot*` (look for one with minutes of run-time and ~0 CPU), kill it, re-run. This is an environment artifact, not a code bug.
+- **Hang / lock**: if a headless run sits for minutes with no output, an **orphaned Godot process is holding the project import lock**. `Get-Process Godot*` (look for one with minutes of run-time and ~0 CPU), kill it, re-run. This is an environment artifact, not a code bug. If there's **no** orphan process, check you didn't launch the `_console.exe` shim from a piped shell — identical symptom, different cause (see the Engine bullet above).
 
 ## CI (GitHub Actions)
 
