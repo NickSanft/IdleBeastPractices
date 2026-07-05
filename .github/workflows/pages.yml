@@ -75,6 +75,13 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # The repo predates this workflow with legacy branch-based Pages;
+          # enablement lets the action flip build_type to "workflow" so
+          # deploy-pages can create deployments. If the token can't (needs
+          # pages:write to update the existing site), fall back to the
+          # manual flip documented in the header comment.
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
