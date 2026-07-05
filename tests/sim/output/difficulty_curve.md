@@ -1,8 +1,8 @@
-# Difficulty curve simulation — seed 42
+# Difficulty curve simulation — seed 7
 
-Sim horizon: **336.0 hours** (14.0 days). Tick: 60 s. Total events: 699.
+Sim horizon: **336.0 hours** (14.0 days). Tick: 60 s. Total events: 1066.
 
-Final state: max tier **21**, prestige count **1**, total catches **31138**, RP **54598552**, gold **292Qi**.
+Final state: max tier **21**, prestige count **1**, total catches **57468**, RP **54598191**, gold **292Qi**.
 
 > **ENDGAME REACHED** — the player cleared tier 20 (the design cap) and prestiged at least once. The catching progression curve has no further wall; remaining gameplay is prestige-cycle RP grind.
 
@@ -11,38 +11,48 @@ Final state: max tier **21**, prestige count **1**, total catches **31138**, RP 
 | Tier | First completed at | Δ from prior tier | Note |
 |---|---|---|---|
 | Tier 1 | 0.05 h (0.00 d) | 0.05 h |  |
-| Tier 2 | 0.92 h (0.04 d) | 0.87 h | **WALL** (17.3× median) |
-| Tier 3 | 0.97 h (0.04 d) | 0.05 h |  |
-| Tier 4 | 1.02 h (0.04 d) | 0.05 h |  |
-| Tier 5 | 1.05 h (0.04 d) | 0.03 h |  |
-| Tier 6 | 1.10 h (0.05 d) | 0.05 h |  |
-| Tier 7 | 1.17 h (0.05 d) | 0.07 h |  |
+| Tier 2 | 5.23 h (0.22 d) | 5.18 h | **WALL** (103.7× median) |
+| Tier 3 | 7.73 h (0.32 d) | 2.50 h | **WALL** (50.0× median) |
+| Tier 4 | 7.78 h (0.32 d) | 0.05 h |  |
+| Tier 5 | 7.82 h (0.33 d) | 0.03 h |  |
+| Tier 6 | 7.87 h (0.33 d) | 0.05 h |  |
+| Tier 7 | 7.93 h (0.33 d) | 0.07 h |  |
 
 ## Prestige timeline
 
 | Prestige # | At | RP awarded | Max tier reached pre-prestige |
 |---|---|---|---|
-| 1 | 1.18 h | +267 | tier 1 |
-| 1 | 1.43 h | +465 | tier 1 |
-| 1 | 1.73 h | +1775 | tier 1 |
-| 1 | 2.03 h | +5939 | tier 1 |
-| 1 | 2.37 h | +17321 | tier 1 |
-| 1 | 2.73 h | +53670 | tier 1 |
-| 1 | 3.12 h | +260534 | tier 1 |
-| 1 | 3.52 h | +776821 | tier 1 |
-| 1 | 3.95 h | +2754904 | tier 1 |
-| 1 | 4.40 h | +11384849 | tier 1 |
-| 1 | 4.88 h | +39341722 | tier 1 |
+| 1 | 7.98 h | +20 | tier 1 |
+| 1 | 9.13 h | +20 | tier 1 |
+| 1 | 9.88 h | +20 | tier 1 |
+| 1 | 10.42 h | +22 | tier 1 |
+| 1 | 10.98 h | +38 | tier 1 |
+| 1 | 11.37 h | +38 | tier 1 |
+| 1 | 11.63 h | +41 | tier 1 |
+| 1 | 11.83 h | +50 | tier 1 |
+| 1 | 12.00 h | +63 | tier 1 |
+| 1 | 12.17 h | +79 | tier 1 |
+| 1 | 12.38 h | +242 | tier 1 |
+| 1 | 12.60 h | +574 | tier 1 |
+| 1 | 12.88 h | +1689 | tier 1 |
+| 1 | 13.18 h | +5939 | tier 1 |
+| 1 | 13.52 h | +17321 | tier 1 |
+| 1 | 13.88 h | +53670 | tier 1 |
+| 1 | 14.27 h | +260534 | tier 1 |
+| 1 | 14.67 h | +776821 | tier 1 |
+| 1 | 15.10 h | +2754904 | tier 1 |
+| 1 | 15.55 h | +11384849 | tier 1 |
+| 1 | 16.03 h | +39341722 | tier 1 |
 
 ## Net-acquisition timeline (first run)
 
 | Net | Acquired at |
 |---|---|
 | basic_net | 0.00 h |
-| tier2_net | 0.82 h |
-| tier3_net | 0.90 h |
-| wraith_net | 0.98 h |
-| hedgewright_net | 1.13 h |
+| tier2_net | 5.13 h |
+| tier3_net | 7.67 h |
+| wraith_net | 7.75 h |
+| hedgewright_net | 7.90 h |
 
 ## Methodology
 

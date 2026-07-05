@@ -130,3 +130,29 @@ on demand. If we want regression coverage, add a smoke variant
 3. Diff `tests/sim/output/difficulty_curve.md` against the prior commit's
    version. Walls that appear, sprints that disappear, and final-tier
    timing are the headline signals.
+
+## Pacing findings — 2026-07-05 (v0.15.20 content, seeds 42 & 7 identical)
+
+Run for the improvement-audit pacing check. Headlines:
+
+- **First prestige lands at 7.98 h** — inside the day-1–2 genre target.
+  No tuning needed on prestige timing. ✓
+- **The tier ladder collapses after tier 3.** Tiers 2 (5.2 h) and 3 (2.5 h)
+  are the only real gates; tiers 4–20 then complete in ~3 minutes EACH
+  (the tier3/wraith/hedgewright net chain outpaces every later tier's
+  requirements). Endgame (tier 20) at **16.5 h of pure idle** — the
+  "difficulty curve" is flat for the entire back half of the content.
+- **Post-endgame RP runaway:** 21 prestiges by hour 16, RP compounding
+  exponentially to ~54 M by day 14 (`rp_mult` upgrades × gold snowball).
+  Every RP-denominated reward (daily-quest bonus ~5–25, day-7 login
+  milestone, tier-completion bonuses) is designed around RP being scarce;
+  a runaway RP economy trivializes all of them.
+
+**Recommendation:** a "difficulty curve v2" ship of its own — late-tier
+gating (net `targets_tiers` spacing or per-tier catch thresholds) plus an
+RP-curve softener (e.g. diminishing `projected_rp_gain` growth). Not
+bundled into the current QoL batch; it moves every number in the economy.
+
+**Known report quirk** (harmless, worth fixing with the next sim change):
+the prestige-timeline table renders the prestige # column stuck at "1" and
+"max tier pre-prestige" as tier 1 for post-endgame cycles.
