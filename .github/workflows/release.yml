@@ -32,7 +32,33 @@ jobs:
           sudo mv "Godot_v${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
           sudo chmod +x /usr/local/bin/godot
       - run: godot --headless --path . --import 2>&1 | tail -10 || true
-      - run: godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://game/tests/ -ginclude_subdirs -gexit
+      - name: Run GUT
+        run: |
+          godot --headless --path . -s addons/gut/gut_cmdln.gd \
+            -gdir=res://game/tests/ -ginclude_subdirs -gexit \
+            -gjunit_xml_file=res://gut_results.xml 2>&1 | tee gut_output.log
+      - name: Assert suite integrity (no silent skips, no failures)
+        # Same three guards as build.yml (see the comment there): GUT can
+        # silently skip unparseable scripts and its exit code is noisy —
+        # this step is the authoritative pass/fail gate.
+        run: |
+          set -euo pipefail
+          if grep -E "Ignoring script|Failed to load script|Parse error" gut_output.log; then
+            echo "::error::GUT skipped or failed to load at least one test script"
+            exit 1
+          fi
+          FAILURES=$(grep -o 'failures="[0-9]*"' gut_results.xml | head -1 | grep -o '[0-9]*')
+          RUNTIME=$(grep -c "<testcase" gut_results.xml)
+          STATIC=$(grep -rhE "^func test_" game/tests --include="*.gd" | wc -l)
+          echo "failures=$FAILURES runtime_tests=$RUNTIME static_tests=$STATIC"
+          if [ "$FAILURES" != "0" ]; then
+            echo "::error::GUT reported $FAILURES failing test(s)"
+            exit 1
+          fi
+          if [ "$RUNTIME" -lt "$STATIC" ]; then
+            echo "::error::Only $RUNTIME tests ran but $STATIC are declared — a test script was silently skipped"
+            exit 1
+          fi
 
   build-android-release:
     name: Android signed AAB

@@ -48,9 +48,42 @@ jobs:
           godot --headless --path . --import 2>&1 | tail -20 || true
 
       - name: Run GUT
+        # The tee (no pipefail) deliberately masks GUT's exit code — it's
+        # noisy (benign headless-shutdown errors can force nonzero on a
+        # fully-passing run, see DEV_NOTES). The NEXT step is the gate,
+        # judging by parsed JUnit results instead.
         run: |
           godot --headless --path . -s addons/gut/gut_cmdln.gd \
-            -gdir=res://game/tests/ -ginclude_subdirs -gexit
+            -gdir=res://game/tests/ -ginclude_subdirs -gexit \
+            -gjunit_xml_file=res://gut_results.xml 2>&1 | tee gut_output.log
+
+      - name: Assert suite integrity (no silent skips, no failures)
+        # GUT SILENTLY SKIPS test scripts that fail to parse — it logs a
+        # warning and still prints "All tests passed" (bit us in v0.15.17:
+        # a helper-name collision with GutTest._summary skipped a whole
+        # file). Three independent guards:
+        #   1. no skip/parse-error lines in the run output;
+        #   2. JUnit XML reports failures="0";
+        #   3. the XML testcase count >= the static count of `func test_`
+        #      in game/tests — a skipped file makes runtime < static.
+        run: |
+          set -euo pipefail
+          if grep -E "Ignoring script|Failed to load script|Parse error" gut_output.log; then
+            echo "::error::GUT skipped or failed to load at least one test script (see lines above)"
+            exit 1
+          fi
+          FAILURES=$(grep -o 'failures="[0-9]*"' gut_results.xml | head -1 | grep -o '[0-9]*')
+          RUNTIME=$(grep -c "<testcase" gut_results.xml)
+          STATIC=$(grep -rhE "^func test_" game/tests --include="*.gd" | wc -l)
+          echo "failures=$FAILURES runtime_tests=$RUNTIME static_tests=$STATIC"
+          if [ "$FAILURES" != "0" ]; then
+            echo "::error::GUT reported $FAILURES failing test(s)"
+            exit 1
+          fi
+          if [ "$RUNTIME" -lt "$STATIC" ]; then
+            echo "::error::Only $RUNTIME tests ran but $STATIC are declared — a test script was silently skipped"
+            exit 1
+          fi
 
   build-windows:
     name: Windows export (debug)

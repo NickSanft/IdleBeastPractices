@@ -63,3 +63,7 @@ addons/admob/android/bin/meta/
 addons/admob/android/bin/vungle/
 addons/admob/android/bin/package.gd
 addons/admob/android/bin/package.gd.uid
+
+# CI-only GUT run byproducts (build.yml suite-integrity gate)
+gut_results.xml
+gut_output.log

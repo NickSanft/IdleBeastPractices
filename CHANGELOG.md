@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### CI — GUT suite-integrity gate (no game version)
+
+The CI test jobs now judge pass/fail by **parsed JUnit results, not GUT's
+exit code** — closing both halves of a hazard this project hit live during
+v0.15.17: (1) GUT **silently skips** test scripts that fail to parse while
+still printing "All tests passed" (a whole new file skipped over a
+helper-name collision with `GutTest._summary`); (2) the exit code is noisy
+in the other direction too (benign headless-shutdown errors can force
+nonzero on a fully-passing run — long documented in DEV_NOTES). Three
+guards: no skip/parse-error lines in the output; `failures="0"` in the
+JUnit XML; and runtime testcase count `>=` the static `func test_` count
+across `game/tests` (currently 717 == 717 — a silently-skipped file makes
+runtime fall short).
+
 ### CI — playable web demo on GitHub Pages (no game version)
 
 The Pages site now hosts a **playable demo at `/play/`** next to the docs —
