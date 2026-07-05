@@ -1,0 +1,84 @@
+name: Pages
+
+# Deploys the GitHub Pages site: the Jekyll docs at the root plus a
+# PLAYABLE DEMO of the latest release's web build at /play/.
+#
+# Two entry paths:
+#   - push to main touching docs/ (or this file) — redeploys the docs;
+#     the demo stays pinned to the latest release (re-downloaded).
+#   - workflow_call from release.yml, AFTER the GitHub release exists —
+#     the freshly-published web zip becomes the demo. (release.yml
+#     creates releases with GITHUB_TOKEN, and GITHUB_TOKEN-created
+#     events do not trigger other workflows — hence workflow_call
+#     rather than `on: release`.)
+#
+# The web export is single-threaded (variant/thread_support=false in
+# export_presets.cfg), so it needs NO COOP/COEP headers and runs on
+# plain GitHub Pages. If thread support is ever enabled this demo
+# breaks (SharedArrayBuffer needs cross-origin isolation) — you would
+# need a coi-serviceworker shim, or keep /play on a thread-less export.
+#
+# NOTE: the first successful actions/deploy-pages run switches the Pages
+# publishing source from the legacy docs/-branch build to GitHub Actions.
+# If the very first run fails with a Pages-configuration error, flip
+# Settings → Pages → Source → "GitHub Actions" once by hand and re-run.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; never cancel an in-flight production deploy.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build docs + demo, deploy Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Jekyll docs
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: docs
+          destination: _site
+
+      - name: Add playable demo at /play (latest release web build)
+        # The stable /releases/latest/download/ URL needs no token and
+        # avoids rebuilding the Godot export here (docs-only pushes stay
+        # fast). jekyll-build-pages runs in a container and leaves _site
+        # root-owned — hence sudo for the compose step.
+        run: |
+          set -euxo pipefail
+          curl -fsSL -o web.zip \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/IdleBeastPractices-web.zip"
+          sudo mkdir -p _site/play
+          sudo unzip -q web.zip -d _site/play
+          test -f _site/play/index.html
+          test -n "$(sudo find _site/play -name '*.wasm' -print -quit)"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

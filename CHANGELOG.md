@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### CI — playable web demo on GitHub Pages (no game version)
+
+The Pages site now hosts a **playable demo at `/play/`** next to the docs —
+a shareable no-install link (also handy for recruiting Play-closed-track
+testers). New `pages.yml`: Jekyll docs at the root + the latest release's
+web zip (stable `releases/latest/download/` URL — docs pushes never rebuild
+the Godot export) composed into one Pages deployment. `release.yml` calls it
+after publishing, so the demo tracks releases; `workflow_call` is used
+because GITHUB_TOKEN-created release events can't trigger workflows. Works
+on plain Pages only because the web export is single-threaded
+(`thread_support=false`) — the COOP/COEP constraint is documented in
+DEV_NOTES for whoever enables threads someday.
+
 ### v0.15.20 — Weekend boost events (server-less live-ops)
 
 A reason to come back *this weekend*, not eventually: every local

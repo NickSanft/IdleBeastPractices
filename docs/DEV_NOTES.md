@@ -19,8 +19,8 @@ Four workflows under `.github/workflows/`:
 
 - **`build.yml`** — the gate: headless GUT tests + a debug Android export smoke-build. Uses `barichello/godot-ci:4.6.1`-style setup / cached Godot binary.
 - **`maestro-emulator.yml`** — boots an Android emulator and runs the Maestro UI flows in `tests/maestro/`.
-- **`release.yml`** — on a `vX.Y.Z` tag: gradle-builds the AAB and publishes the release.
-- **Pages** — deploys the `docs/` Jekyll site.
+- **`release.yml`** — on a `vX.Y.Z` tag: gradle-builds the AAB, publishes the release, then calls `pages.yml` so the demo tracks the release.
+- **`pages.yml`** — deploys the Pages site: Jekyll `docs/` at the root + the **playable web demo** of the latest release at `/play/` (downloaded from the release's stable `releases/latest/download/` asset — no Godot rebuild). Triggers: docs pushes, releases (via `workflow_call` — GITHUB_TOKEN-created release events can't trigger workflows), manual dispatch. The demo works on plain Pages **only because the web export is single-threaded** (`variant/thread_support=false`); enabling threads would require COOP/COEP headers Pages doesn't serve (coi-serviceworker shim territory). The first Actions deploy switches the Pages source off the legacy branch build — if that first run fails on Pages configuration, flip Settings → Pages → Source → "GitHub Actions" once by hand.
 
 **Version is derived, not hand-edited.** `release.yml` sets the Android
 `version_code` from `git rev-list --count HEAD` and the `version_name` from the

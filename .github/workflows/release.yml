@@ -297,3 +297,16 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --notes "Automated release for ${GITHUB_REF_NAME}." \
             release-assets/*
+
+  # Refresh the Pages playable demo (/play) with this release's web build.
+  # Runs AFTER the GitHub release exists because pages.yml downloads the
+  # web zip from /releases/latest/download/ (workflow_call is used since
+  # GITHUB_TOKEN-created release events can't trigger other workflows).
+  deploy-pages-demo:
+    name: Deploy Pages demo
+    needs: github-release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
