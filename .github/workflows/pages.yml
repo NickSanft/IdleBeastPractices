@@ -18,10 +18,11 @@ name: Pages
 # breaks (SharedArrayBuffer needs cross-origin isolation) — you would
 # need a coi-serviceworker shim, or keep /play on a thread-less export.
 #
-# NOTE: the first successful actions/deploy-pages run switches the Pages
-# publishing source from the legacy docs/-branch build to GitHub Actions.
-# If the very first run fails with a Pages-configuration error, flip
-# Settings → Pages → Source → "GitHub Actions" once by hand and re-run.
+# NOTE: the Pages source must be "GitHub Actions" (Settings → Pages) —
+# flipped by hand once on 2026-07-05. deploy-pages CANNOT switch an
+# existing legacy branch-based site itself, and configure-pages
+# enablement:true only CREATES missing sites (updating build_type is a
+# repo-settings change beyond GITHUB_TOKEN).
 
 on:
   push:
