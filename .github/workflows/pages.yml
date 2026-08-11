@@ -23,6 +23,28 @@ name: Pages
 # existing legacy branch-based site itself, and configure-pages
 # enablement:true only CREATES missing sites (updating build_type is a
 # repo-settings change beyond GITHUB_TOKEN).
+#
+# NOTE 2 — the OTHER manual prerequisite, and the one that bites on every
+# release: the `github-pages` ENVIRONMENT restricts which refs may deploy
+# to it, defaulting to the default branch only. release.yml triggers on a
+# `v*` TAG, so the workflow_call path is rejected before any step runs:
+#
+#   Tag "v0.15.21" is not allowed to deploy to github-pages due to
+#   environment protection rules.
+#
+# The tell is a job that reports failure with an EMPTY steps list — it is
+# refused at job initiation, not during a build. This is NOT a permissions
+# bug: the `pages: write` / `id-token: write` grants at release.yml's
+# deploy-pages-demo job are already correct, and editing them fixes
+# nothing. Fix in repo settings: Settings → Environments → github-pages →
+# "Deployment branches and tags" → add a tag rule `v*`.
+#
+# First hit on v0.15.21 (2026-08-11), the first tagged release after this
+# workflow landed. The rest of release.yml is unaffected — the AAB,
+# Windows/Web zips and the GitHub Release all publish normally, and the
+# demo self-heals on the next docs push to main (or a manual dispatch),
+# because /play is pulled from the stable releases/latest/download/ URL
+# rather than from the tag being released.
 
 on:
   push:
