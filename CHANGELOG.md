@@ -6,6 +6,124 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.21 — Two quest slots were deadlocked from the first session
+
+An audit found the LONG quest slot had **never worked**. `QuestLog
+._pick_for_slot` sorts eligible ids alphabetically and takes the first, and
+a slot holds its pick until that quest completes — so one unsatisfiable
+quest pins its slot forever and starves every quest sorting after it. Two
+independent defects did exactly that.
+
+**Defect 1 — a threshold above the content supply.** `long_pets_10` asked
+for 10 pets. Pets come only from monsters carrying a `pet` reference, and
+exactly **3** monsters have one (`GameState.add_pet` keys `pets_owned` by
+id, so variants collapse into the same entry). It sorted first among the 8
+LONG quests and had no predecessor gate, so it was the opening pick on every
+save and never released. `med_pet_5` (threshold 5) did the same to MEDIUM
+one rung later.
+
+**Defect 2 — the counter itself never advanced.** `GameState.prestige_count`
+is declared in `_reset_to_defaults`, which doubles as the *post-prestige*
+reset. `perform_prestige` called it and *then* did `prestige_count += 1`, so
+the field was pinned at **1** for the life of the save while only
+`ledger["prestige_count"]` accumulated. Verified empirically: after 5 real
+prestiges the root field reads 1 and the ledger reads 5. This was hiding in
+plain sight — the committed sim report has always labelled every row of its
+prestige timeline "Prestige # 1".
+
+So fixing only the pet thresholds would have moved the deadlock two rungs
+along to `long_prestige_25` rather than removing it. Between them the two
+defects starved **12 of the 20** SHORT/MEDIUM/LONG quests.
+
+**Fixes**
+
+- `prestige_count` joins `perform_prestige`'s keep-list — step 5 of the
+  persistent-field checklist, the only step it was missing (it was already
+  declared, in `to_dict`/`from_dict`/`_reset_to_defaults` and MAX-merged in
+  `SaveConflictResolver`). This also repairs three consumers that were
+  silently broken: dialogue gated on `min_prestige_count >= 2` (never
+  fired), the Prestige view's "Prestiges so far" (always 1), and the
+  celebration banner's "Prestige #N" (always #1).
+- `from_dict` heals pre-fix saves by taking `max(prestige_count,
+  ledger["prestige_count"])` — monotonic, retroactive, a no-op afterwards.
+  Without it a 30-prestige veteran would restart the climb from 1.
+- `long_pets_10` threshold 10 → 3 ("Own every pet in the roster");
+  `med_pet_5` threshold 5 → 2, renamed "Second Companion". Retuned rather
+  than deleted so the files remain the marker to raise back when pet
+  progression grows the roster.
+- Rewards repriced after review: `long_pets_10` 100 → 25 RP (100 RP landed
+  ~3 minutes in, 5× the first prestige and 8 hours early); `med_pet_5`
+  30 → 10 RP (at threshold 2 it was paying double `med_pet_3`'s 15 RP for a
+  strictly easier goal that is always issued *after* it).
+- Corrected `quest_log.gd`'s header, which described the picker as "random
+  eligible, weighted by tier fit" — it is deterministic and alphabetical,
+  and that is precisely what makes the pinning failure possible.
+
+**New `test_content_integrity.gd` (15 tests)** — the first tests in the repo
+that interrogate *shipped content* rather than a hand-built fixture. Two
+axes, because the two defects were genuinely different: **supply** (a
+bounded-source threshold must be ≤ what content can supply) and **plumbing**
+(the counter a quest reads must actually advance in live play). Also:
+ledger-key existence (a typo'd key reads 0 forever and pins a slot exactly
+like an impossible threshold), on-disk id uniqueness, and a partition test
+forcing every `Source` enum value to be classified bounded-or-unbounded — a
+new bounded source would otherwise fall through and never be checked, which
+is exactly how `prestige_5`/`prestige_25` stayed hidden.
+
+Verified by reverting the fix and re-running: the suite names all 8 LONG
+quests and the MEDIUM tail, then goes green with it restored.
+
+**Adversarial review (21 agents) — 16 findings, 10 refuted**
+
+The review earned its keep twice. It found defect 2 by running its own
+scratch prestige test rather than reading code, and it proved the first
+draft of `test_every_long_quest_can_eventually_be_issued` was **vacuous** —
+it hand-wrote `quests_completed[qid] = true` to advance the picker, making
+it threshold-independent, and a skeptic confirmed it passed against the very
+data it claimed to guard. It now satisfies each quest through its own source
+via `evaluate_progress`. A reviewer also showed the id-uniqueness assertion
+could never fire, since `ContentRegistry` clobbers duplicate ids at load
+time; it now scans the directories directly.
+
+**By-design trades (documented, not bugs)**
+
+- **Existing saves get a one-time retroactive grant** on first launch: any
+  save past tier 1 already owns the roster, so `long_pets_10` fires
+  immediately, and the healed `prestige_count` may unlock `long_prestige_5`
+  / `long_prestige_25` and the `prestige_5` / `prestige_25` achievements at
+  once. Correctly de-duped and non-farmable (`quests_completed` survives
+  prestige; `_on_completed` marks completion before granting). This cuts
+  against the forward-looking precedent set for tier-completion payouts —
+  the difference is that those were *earned but unpaid*, whereas these were
+  *earned and impossible to claim*.
+- **`pet_10` (100 RP) stays unreachable**, on a documented exemption list
+  with a test guarding the list against going stale. Unlike a quest, an
+  unmet achievement blocks nothing — `Achievements` evaluates each entry
+  independently — so it is aspirational content that becomes earnable when
+  the roster grows.
+- **The ids now disagree with their thresholds** (`long_pets_10` means 3,
+  `med_pet_5` means 2). Deliberate: `quests_completed` keys on the id string
+  and survives prestige, so renaming would re-issue and re-pay the quest for
+  every existing save.
+- **`med_pet_5` completes instantly when issued**, since `med_pet_3`
+  (threshold 3) always precedes it. Cosmetic, and a property of roughly half
+  the MEDIUM ladder already; strictly better than the permanent brick it
+  replaces. With a 3-pet supply no threshold makes it a real rung — retiring
+  it is the cleaner end state once pet progression lands.
+- **Not fixed here, filed for its own pass:** `SaveConflictResolver` takes
+  `quests_completed` / `achievements_unlocked` / `active_quests` last-write-
+  wins while monotonically merging nearly every source they are evaluated
+  against, so a cloud merge can re-grant a quest's RP once. Pre-existing and
+  already affecting ~30 quests; note that unioning `quests_completed` alone
+  is insufficient, because `active_quests` is also last-write-wins and
+  `evaluate_progress` completes the slot's id without consulting it.
+- **`current_max_tier` is likewise absent from the prestige keep-list**, so
+  tier-sourced quests re-climb each cycle. Unlike `prestige_count` that is
+  reachable and appears intentional — noted so the asymmetry is a decision
+  on record rather than the same oversight twice.
+
+**Tests — 732/732 passing (two clean runs, JUnit-XML count verified)**
+
 ### CI — GUT suite-integrity gate (no game version)
 
 The CI test jobs now judge pass/fail by **parsed JUnit results, not GUT's

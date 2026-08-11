@@ -10,9 +10,13 @@
 ##   _on_completed:               apply reward, emit quest_completed,
 ##                                advance ladder OR pick next from pool
 ##
-## The picker is intentionally dumb (random eligible, weighted by tier
-## "fit"). Smarter picking can land in 12g-followups without changing
-## the persisted shape.
+## The picker is deterministic, NOT random: `_pick_for_slot` sorts the
+## eligible ids alphabetically and returns the first. The consequence is
+## load-bearing — a slot holds its pick until that quest completes, so an
+## unsatisfiable quest pins its slot forever and starves every quest that
+## sorts after it. (This shipped: `long_pets_10` asked for 10 pets against
+## a supply of 3 and bricked the LONG slot from the first fill.) Content is
+## guarded against a repeat by game/tests/test_content_integrity.gd.
 extends Node
 
 const SLOT_SHORT := 0

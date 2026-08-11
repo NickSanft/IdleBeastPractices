@@ -171,7 +171,16 @@ func from_dict(data: Dictionary) -> void:
 	daily_quests_done = (data.get("daily_quests_done", {}) as Dictionary).duplicate(true)
 	daily_quests_bonus_claimed = bool(data.get("daily_quests_bonus_claimed", false))
 	current_battle = data.get("current_battle", null)
-	prestige_count = int(data.get("prestige_count", 0))
+	# Heal saves written before prestige_count joined the prestige keep-list.
+	# Those saves have a root field pinned at 1 while ledger["prestige_count"]
+	# holds the true lifetime total, so take the max: monotonic (the ledger can
+	# only ever be >= the root field), retroactive for existing players, and a
+	# no-op for saves written after the fix. Read the ledger straight out of
+	# `data` — the `ledger` member is not assigned until below.
+	var saved_ledger: Dictionary = data.get("ledger", {})
+	prestige_count = maxi(
+		int(data.get("prestige_count", 0)),
+		int(saved_ledger.get("prestige_count", 0)))
 	recipes_crafted = _to_string_array(data.get("recipes_crafted", []))
 	ledger = data.get("ledger", ledger).duplicate(true)
 	narrator_state = data.get("narrator_state", narrator_state).duplicate(true)
@@ -718,9 +727,18 @@ func perform_prestige() -> int:
 	var keep_dq_baselines := daily_quest_baselines.duplicate(true)
 	var keep_dq_done := daily_quests_done.duplicate(true)
 	var keep_dq_bonus: bool = daily_quests_bonus_claimed
+	# prestige_count is a LIFETIME counter, not a per-run one. It lives in
+	# _reset_to_defaults (which doubles as the post-prestige reset), so
+	# without this keeper the `prestige_count += 1` below always ran against
+	# a freshly-zeroed field and the value was pinned at 1 forever — making
+	# every threshold above 1 permanently unreachable (long_prestige_5/25
+	# deadlocked the LONG quest slot; the prestige_5/25 achievements and any
+	# dialogue line gated on min_prestige_count >= 2 could never fire).
+	var keep_prestige_count: int = prestige_count
 
 	# Full reset, then re-apply keepers.
 	_reset_to_defaults()
+	prestige_count = keep_prestige_count
 	pets_owned = _to_string_array(keep_pets_owned)
 	pet_variants_owned = _to_string_array(keep_pet_variants)
 	monsters_caught = keep_monsters_caught
