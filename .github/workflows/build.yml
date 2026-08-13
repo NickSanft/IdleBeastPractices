@@ -88,16 +88,36 @@ jobs:
             # awk, not python: the godot-ci container is not guaranteed to
             # ship an interpreter. Rules run in order, so a <failure> on the
             # same line as its <testcase> still picks up the name first.
+            # The assertion text matters as much as the name — GUT's message
+            # usually says exactly what diverged. It lives in a CDATA block
+            # that spans lines, so accumulate to `]]>` and join with " | "
+            # (an annotation must be a single line).
             awk '
-              /<testcase/ {
-                if (match($0, /name="[^"]*"/)) tname=substr($0, RSTART+6, RLENGTH-7);
-                if (match($0, /classname="[^"]*"/)) tclass=substr($0, RSTART+11, RLENGTH-12);
+              function emit(   s) {
+                s = det
+                gsub(/[ \t]+/, " ", s)
+                sub(/^ /, "", s); sub(/ $/, "", s)
+                if (length(s) > 400) s = substr(s, 1, 400) "..."
+                printf "::error::FAILING TEST: %s :: %s — %s\n", tclass, tname, s
+                cap = 0; det = ""; tname = ""
               }
-              /<failure|<error/ {
-                if (tname != "") {
-                  printf "::error::FAILING TEST: %s :: %s\n", tclass, tname;
-                  tname="";
-                }
+              /<testcase/ {
+                if (match($0, /name="[^"]*"/)) tname = substr($0, RSTART+6, RLENGTH-7)
+                if (match($0, /classname="[^"]*"/)) tclass = substr($0, RSTART+11, RLENGTH-12)
+              }
+              /<failure|<error/ && cap == 0 {
+                if (tname == "") next
+                cap = 1; det = ""
+                line = $0
+                sub(/.*<!\[CDATA\[/, "", line)
+                if (line ~ /\]\]>/) { sub(/\]\]>.*/, "", line); det = line; emit() }
+                else det = line
+                next
+              }
+              cap == 1 {
+                line = $0
+                if (line ~ /\]\]>/) { sub(/\]\]>.*/, "", line); det = det " | " line; emit(); next }
+                det = det " | " line
               }
             ' gut_results.xml
             # Full blocks to the log for whoever can read it.
