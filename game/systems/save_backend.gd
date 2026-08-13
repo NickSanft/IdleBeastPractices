@@ -31,3 +31,13 @@ func exists() -> bool:
 func clear() -> bool:
 	push_error("SaveBackend.clear() not implemented")
 	return false
+
+
+## Move the persisted save aside so a file that exists but cannot be used
+## (corrupt, or written by a newer build) is preserved for recovery rather
+## than silently overwritten by the fresh state that replaces it. Returns the
+## new location, or "" when nothing was moved. Defaults to a no-op so backends
+## with no cheap "move aside" primitive simply opt out — SaveManager treats ""
+## as "not preserved" and still refuses to trust the unusable data.
+func quarantine() -> String:
+	return ""

@@ -114,9 +114,27 @@ func _on_download_complete(remote: Dictionary, success: bool, error: String) -> 
 	# Merge remote with local. Empty remote (fresh device) returns local
 	# unchanged via SaveConflictResolver's empty-input handling.
 	var local: Dictionary = GameState.to_dict()
+	if SaveManager.state_is_seeded and not remote.is_empty():
+		# This session was seeded from defaults (first launch, a quarantined
+		# save, or a wipe), so its last_saved_unix only records when the
+		# 10-second autosave first fired — it represents no history at all.
+		# The resolver picks its base purely on that timestamp, so left alone a
+		# minutes-old empty ranch would outrank a real snapshot and overwrite
+		# it: exactly backwards for "restore my progress on a new phone", and
+		# deterministic (not merely a race) because sign-in is a manual
+		# Settings action well past the first autosave.
+		#
+		# Zeroing the stamp hands the base to the remote while leaving every
+		# union/MAX rule intact, so nothing the seeded session did is dropped
+		# that the resolver would otherwise have merged. Guarded on a non-empty
+		# remote: with an empty one the resolver already returns local, and
+		# forcing it here would wipe a brand-new player's first session.
+		local = local.duplicate(true)
+		local["last_saved_unix"] = 0
 	var merged: Dictionary = SaveConflictResolver.resolve(local, remote)
 	GameState.from_dict(merged)
 	SaveManager.save(merged)
+	SaveManager.state_is_seeded = false
 	_initial_sync_done = true
 	last_error = ""
 	_set_status(STATUS_IDLE)

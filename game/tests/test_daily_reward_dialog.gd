@@ -68,7 +68,10 @@ func test_granted_ad_emits_doubled_with_original_summary_and_hides() -> void:
 	await wait_frames(1)
 	watch_signals(dlg)
 	# Simulate the backend granting the reward (bypasses the stub's
-	# confirmation dialog, which would block a headless run).
+	# confirmation dialog, which would block a headless run). Standing in for
+	# the button tap: the handler only claims a grant this instance started,
+	# so an ad must be in flight for the emit to belong to it.
+	dlg._ad_in_flight = true
 	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, true)
 	assert_signal_emitted_with_parameters(dlg, "doubled", [summary])
 	assert_false(dlg.visible, "granted ad collects and closes the modal")
@@ -79,6 +82,10 @@ func test_canceled_ad_keeps_modal_open_no_double() -> void:
 	dlg.show_reward(_reward(250.0))
 	await wait_frames(1)
 	watch_signals(dlg)
+	# Mirror a real tap so the cancel path genuinely exercises the re-enable
+	# below rather than passing because the button was never disabled.
+	dlg._ad_in_flight = true
+	dlg._watch_ad_button.disabled = true
 	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, false)
 	assert_signal_not_emitted(dlg, "doubled")
 	assert_true(dlg.visible, "cancel keeps the modal; Collect still works")

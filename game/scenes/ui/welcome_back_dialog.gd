@@ -151,6 +151,13 @@ func _on_custom_action(action: StringName) -> void:
 func _on_rewarded_completed(reward_id: String, granted: bool) -> void:
 	if reward_id != AdsManager.REWARD_OFFLINE_2X:
 		return
+	# Only the instance whose button actually started this ad may claim it.
+	# AdsManager.rewarded_completed is a global autoload signal connected in
+	# _ready and never disconnected, so filtering on reward_id alone lets
+	# EVERY live dialog claim on one grant — each emitting its own stale
+	# summary. Checked BEFORE the flag is cleared, or the guard is a no-op.
+	if not _ad_in_flight:
+		return
 	_ad_in_flight = false
 	if granted:
 		# v0.11.4 (Phase 11e fix for F48): the base summary was already

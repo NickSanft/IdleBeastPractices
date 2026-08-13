@@ -81,6 +81,10 @@ func _on_custom_action(action: StringName) -> void:
 func _on_rewarded_completed(reward_id: String, granted: bool) -> void:
 	if reward_id != AdsManager.REWARD_DAILY_2X:
 		return
+	# Only the instance whose button started this ad may claim it — see the
+	# matching guard in welcome_back_dialog.gd. Checked BEFORE clearing.
+	if not _ad_in_flight:
+		return
 	_ad_in_flight = false
 	if granted:
 		# Base reward was pre-applied by main._apply_daily_login; emitting

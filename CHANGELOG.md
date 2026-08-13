@@ -6,6 +6,118 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.22 — The persistence boundary: three ways to lose a save, all closed
+
+An audit found the only three code paths in the game that can destroy a
+player's account. None had a test. All are small.
+
+**1. The cloud merge picked the wrong base.** `SaveManager.save` stamped
+`last_saved_unix` into the *duplicated* dict it wrote to disk and never back
+onto `GameState`, so the in-memory field held whatever was loaded at boot —
+**0 on a fresh install**. `SaveConflictResolver` picks the merge base purely
+by that field and `CloudSyncManager` feeds it `GameState.to_dict()`, so a
+device that had just played for hours could lose to an older cloud snapshot.
+Fixed by stamping the autoload in the write-success branch. Deliberately
+`Time.get_unix_time_from_system()` and not `TimeManager.now_unix()` — tests
+set future clock overrides and this value goes to disk.
+
+**2. Writes and loads both failed OPEN.** `LocalFileBackend.write` did
+`store_string` + `close` with no error check, so a full disk produced a
+truncated `.tmp` that the rename then promoted over the good save — returning
+true and emitting `game_saved`. And `load_save` returned a bare `{}` for
+corrupt JSON, an empty read, *and* a too-new version alike, indistinguishable
+from a genuine first launch: the game seeded a new ranch and the 10-second
+autosave overwrote the original within seconds. Now: `flush()` + `get_error()`
++ a byte-count comparison before the rename, discarding the `.tmp` on any
+doubt; `read()`/`exists()` recover a lone `.tmp`; a new `quarantine()` moves an
+unusable save to `save.json.bak-<unix>`; and `load_failed` /
+`quarantined_path` let main tell the player instead of silently resetting them.
+`save()` now returns bool, and a failing write raises a toast once per failure
+streak rather than being swallowed.
+
+**3. Daily-login and offline credit ran only at boot.** Backgrounding across
+local midnight silently broke the login streak and dropped the offline window
+on every resume — punishing exactly the engaged players who leave the app
+resident. (`DailyQuests._check_reset` already handled this on the same
+notifications, so the asymmetry was the bug.) New `_resume_tick()`, gated on a
+`_boot_complete` flag, refusing to stack on a visible modal, and re-saving
+afterwards so the "last credited at" marker advances **on disk** — without
+that, a kill after a resume re-credits the same window, which would be a farm
+vector rather than a fix.
+
+**The review caught two regressions this change introduced. Both were real.**
+
+- **A rewarded-ad duplicator.** `_show_welcome_back` instantiated a fresh
+  dialog every call and never freed the old one. Harmless while it could only
+  run once from `_ready` — a currency duplicator once a resume could re-open
+  it, since every live instance stays connected to the global
+  `AdsManager.rewarded_completed` and `_on_rewarded_completed` filtered on
+  `reward_id` alone. A reviewer reproduced it: three resumes, one grant, gold
+  10.3K → 20.4K against a correct 2× of +3.39K. Fixed at both levels — the
+  dialogs are now reused single instances, and each ignores a grant it did not
+  start (checked *before* the flag is cleared, or the guard is a no-op). The
+  same shape existed in the daily dialog and was fixed too.
+- **A seeded session outranking real cloud history.** Because the timestamp is
+  now honest, the 10-second autosave stamps a defaults-only ranch with `now` —
+  so on a reinstall it would out-timestamp the Play Games snapshot it was about
+  to download and win the merge base, inverting "restore my progress on a new
+  phone". Deterministic, not merely a race: sign-in is a manual Settings action
+  well past the first autosave. New `SaveManager.state_is_seeded` (first
+  launch, quarantined save, or wipe) makes `CloudSyncManager` hand the base to
+  the remote, while leaving every union/MAX rule intact.
+
+**Adversarial review (21 agents) — 16 findings, 9 refuted**
+
+Beyond the two regressions it also proved my own tests were weaker than they
+looked: the flagship merge test was a **tautology** that stayed green with the
+fix reverted (the remote stamp was derived from the very field under test), and
+the "writes fail closed" region contained no test that made a write fail. Both
+fixed — the latter by occupying the `.tmp` path with a directory, which drives
+the real backend to failure and now also pins that a failed write neither
+advances the marker nor emits `game_saved`. Refuted claims included a proposed
+future-tolerance band on the merge (the only reference clock is the untrusted
+one being distrusted) and passing `{}` as local for the first merge (which
+would wipe every new player's first session when the remote is also empty).
+
+**By-design trades (documented, not bugs)**
+
+- **"Atomic" means atomic against process kill, not power loss** — Godot
+  exposes no fsync. And it is only a single step on POSIX/Android: Windows's
+  `DirAccessWindows::rename` removes the destination first, so a failed rename
+  there can leave `save.json` missing with the `.tmp` intact. That state now
+  self-heals (`read()`/`exists()` recover it, the next autosave commits), where
+  pre-change it lost the save permanently.
+- **The byte-count check is load-bearing on Android, not a nicety** —
+  FileAccessUnix's `flush()`/`close()` are a bare `fflush`/`fclose` and neither
+  folds into `last_error`, so a full disk often reports `get_error() == OK`.
+  Noted in the source so it is never optimised away.
+- **The resume tick's modal guard skips the offline credit rather than
+  deferring it**, and the autosave then restamps the marker, so that window is
+  gone. This matches pre-change behaviour (every resume lost its window) and is
+  bounded by the offline cap — a residual gap in the fix's coverage, not a new
+  defect. Crediting unconditionally instead would popup into an occupied
+  exclusive-child slot.
+- **`SaveConflictResolver` still trusts the device clock** with no tolerance
+  band. A guard was considered and rejected: the only reference clock available
+  is the same untrusted one, so it would fire on honest slow-clock devices and
+  not on tampering ones — the same accepted limitation `DailyLoginSystem`
+  already documents. Exposure is bounded to last-write-wins fields; all
+  monotonic state is unioned/MAXed.
+- **`quarantine()` removes a `.tmp` it never inspected.** An uncommitted `.tmp`
+  is never trustworthy — `write()` truncates it at open — and quarantine has no
+  parser to tell partial from whole.
+- **Not fixed here:** `SaveConflictResolver` still takes `quests_completed` /
+  `achievements_unlocked` / `active_quests` last-write-wins. Pre-existing, and
+  the obvious one-liner is insufficient because `active_quests` is copied from
+  the same base and `evaluate_progress` completes the slot's id without
+  consulting `quests_completed`.
+
+**Tests — 754/754 passing (two clean runs, JUnit-XML count verified)**
+
+New `test_save_robustness.gd` (22 tests). Each fix was verified by reverting it
+and confirming the suite goes red: the stacked-dialog test reports 3 where 1 is
+required, and the cross-claim test reports a claim that should not have fired.
+
 ### v0.15.21 — Two quest slots were deadlocked from the first session
 
 An audit found the LONG quest slot had **never worked**. `QuestLog

@@ -39,6 +39,12 @@ const _DUSK_DISPLAY_FONT := preload("res://assets/fonts/dusk/PressStart2P-Regula
 const _DUSK_UI_FONT := preload("res://assets/fonts/dusk/Silkscreen-Regular.ttf")
 const _DUSK_BODY_FONT := preload("res://assets/fonts/dusk/VT323-Regular.ttf")
 
+## Set at the end of _ready. Guards _resume_tick against focus notifications
+## that arrive before the save has been loaded.
+var _boot_complete: bool = false
+## Edge-trigger for the save-failure toast, so a persistently failing write
+## warns once rather than every 10-second autosave tick.
+var _save_write_failing: bool = false
 var _welcome_back_dialog: AcceptDialog
 ## v0.15.14 — daily-login reward modal + a one-slot queue so it's shown AFTER
 ## the welcome-back (offline) dialog when both are pending on the same launch.
@@ -147,12 +153,18 @@ func _ready() -> void:
 	EventBus.tab_switch_requested.connect(_navigate_to_tab)
 	var loaded: Dictionary = SaveManager.load_save()
 	GameState.from_dict(loaded)
+	if SaveManager.load_failed:
+		_notify_save_load_failed.call_deferred()
 	GameState.reconcile_pet_awards()
 	GameState.reconcile_total_gold_earned_this_run()
 	_apply_offline_progress(loaded)
 	_apply_daily_login()
 	_seed_default_net_if_needed()
 	_start_periodic_save()
+	# Gate for _resume_tick: focus notifications can arrive before _ready
+	# finishes, and crediting a daily login against un-loaded defaults would
+	# both mis-award and be clobbered by the load that follows.
+	_boot_complete = true
 
 	# Optional one-shot screenshot generator for Play Store listing.
 	# Activated via `godot --path . -- --screenshots`. Seeds GameState
@@ -175,6 +187,49 @@ func _ready() -> void:
 		return
 
 
+## Day rollover + offline credit on RESUME, not only at boot.
+##
+## Both `_apply_offline_progress` and `_apply_daily_login` used to run solely
+## in `_ready()`, so a player who leaves the app resident in the background
+## across local midnight had their login streak silently broken and lost the
+## offline window on every resume — the streak being punished for a bug rather
+## than for absence, and hitting hardest the engaged players who never fully
+## close the app. `DailyQuests` already handled exactly this on these same
+## three notifications (`daily_quests.gd`'s `_check_reset`), so the asymmetry
+## was the defect.
+##
+## Leans on SaveManager keeping `GameState.last_saved_unix` in step with disk:
+## that field is the "last credited at" marker, stamped when we saved on the
+## way out. Re-saving afterwards is not optional — it advances the marker ON
+## DISK, so a process kill after a resume cannot re-credit the same window at
+## the next boot. Without it this would be a farm vector, not just a fix.
+func _resume_tick() -> void:
+	if not _boot_complete:
+		return
+	# Never stack on a modal that is already up — boot dialogs, or the burst of
+	# two-to-three focus notifications a single Android resume can dispatch.
+	for d in [_welcome_back_dialog, _daily_reward_dialog]:
+		if d != null and is_instance_valid(d) and d.visible:
+			return
+	_apply_offline_progress({"last_saved_unix": GameState.last_saved_unix})
+	_apply_daily_login()
+	_save_now()
+
+
+## A save that EXISTS but cannot be used is not a first launch. SaveManager has
+## already moved the file aside; say so, rather than letting the player find an
+## empty ranch and assume the game ate it.
+func _notify_save_load_failed() -> void:
+	if _toast == null or not is_instance_valid(_toast):
+		return
+	# Don't promise a backup that isn't there — _fail_load leaves
+	# quarantined_path empty when the move itself failed.
+	if SaveManager.quarantined_path != "":
+		_toast.show_toast("Save couldn't be read — a backup was kept and a new ranch started.", 6.0)
+	else:
+		_toast.show_toast("Save couldn't be read or backed up — a new ranch was started.", 6.0)
+
+
 func _start_periodic_save() -> void:
 	# Auto-save every _PERIODIC_SAVE_SECONDS. Cheap on disk (a single small
 	# JSON write) and bounds worst-case progress loss when the OS kills the
@@ -188,7 +243,17 @@ func _start_periodic_save() -> void:
 
 
 func _save_now() -> void:
-	SaveManager.save(GameState.to_dict())
+	if SaveManager.save(GameState.to_dict()):
+		_save_write_failing = false
+		return
+	# A silently failing save costs the player more than anything downstream of
+	# it, so spend the notification here. Edge-triggered: the autosave retries
+	# every 10s and a toast per attempt would be its own problem.
+	if _save_write_failing:
+		return
+	_save_write_failing = true
+	if _toast != null and is_instance_valid(_toast):
+		_toast.show_toast("Couldn't save — check device storage. Progress is at risk.", 6.0)
 
 
 ## v0.15.14 — schedule the offline-cap-full notification for when the player's
@@ -241,6 +306,13 @@ func _notification(what: int) -> void:
 			# and re-arm the debounce for the next backgrounding.
 			_offline_cap_scheduled = false
 			LocalNotificationManager.cancel_offline_cap_warning()
+			# Only APP-level returns credit progress. Cancelling the nudge is
+			# harmless on any of the three, but WM_WINDOW_FOCUS_IN is
+			# window-level — it fires for desktop alt-tab and during startup,
+			# where crediting an offline window and popping a welcome-back
+			# modal would be plainly wrong.
+			if what != NOTIFICATION_WM_WINDOW_FOCUS_IN:
+				_resume_tick()
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			# v0.15.11 — Android hardware Back. On Android subwindows are
 			# embedded in the main window, so this notification reaches
@@ -1485,10 +1557,17 @@ func _apply_offline_progress(loaded: Dictionary) -> void:
 	_show_welcome_back(summary)
 
 
+## Reuses one instance. Pre-resume-tick this ran exactly once per process (from
+## _ready), so instantiating fresh each call leaked nothing. Now that a resume
+## can re-open it, a new instance per call would stack live dialogs that stay
+## connected to the global AdsManager signals — one granted ad would then be
+## claimed by every one of them. show_summary re-populates everything that
+## matters (_summary, _ad_in_flight, body text, button states) and re-popups.
 func _show_welcome_back(summary: Dictionary) -> void:
-	_welcome_back_dialog = _WELCOME_BACK_DIALOG.instantiate()
-	add_child(_welcome_back_dialog)
-	_welcome_back_dialog.claimed.connect(_on_welcome_back_claimed)
+	if _welcome_back_dialog == null or not is_instance_valid(_welcome_back_dialog):
+		_welcome_back_dialog = _WELCOME_BACK_DIALOG.instantiate()
+		add_child(_welcome_back_dialog)
+		_welcome_back_dialog.claimed.connect(_on_welcome_back_claimed)
 	_welcome_back_dialog.show_summary(summary)
 
 
@@ -1548,7 +1627,10 @@ func _apply_daily_login() -> void:
 	if _welcome_back_dialog != null and is_instance_valid(_welcome_back_dialog) \
 			and _welcome_back_dialog.visible:
 		_pending_daily_summary = summary
-		_welcome_back_dialog.visibility_changed.connect(_on_welcome_back_dismissed_show_daily)
+		# is_connected guard: the dialog is now a reused instance, so a second
+		# queued hand-off would otherwise stack a duplicate connection.
+		if not _welcome_back_dialog.visibility_changed.is_connected(_on_welcome_back_dismissed_show_daily):
+			_welcome_back_dialog.visibility_changed.connect(_on_welcome_back_dismissed_show_daily)
 	else:
 		_show_daily_reward(summary)
 
@@ -1572,10 +1654,14 @@ func _on_welcome_back_dismissed_show_daily() -> void:
 	_show_daily_reward.call_deferred(summary)
 
 
+## Same single-instance contract as _show_welcome_back. Bounded to roughly once
+## a day by _apply_daily_login's claimable check, but the shape is identical and
+## a shared rule is easier to keep true than a bounded exception.
 func _show_daily_reward(summary: Dictionary) -> void:
-	_daily_reward_dialog = _DAILY_REWARD_DIALOG.instantiate()
-	add_child(_daily_reward_dialog)
-	_daily_reward_dialog.doubled.connect(_on_daily_reward_doubled)
+	if _daily_reward_dialog == null or not is_instance_valid(_daily_reward_dialog):
+		_daily_reward_dialog = _DAILY_REWARD_DIALOG.instantiate()
+		add_child(_daily_reward_dialog)
+		_daily_reward_dialog.doubled.connect(_on_daily_reward_doubled)
 	_daily_reward_dialog.show_reward(summary)
 
 

@@ -172,6 +172,9 @@ func test_doubled_signal_grants_the_gold_again_but_not_rp() -> void:
 	await wait_frames(1)
 	var gold_before: BigNumber = GameState.current_gold()
 	var rp_before: int = GameState.current_rancher_points()
+	# Stands in for the button tap — the handler only claims a grant this
+	# instance started, so an ad must be in flight for the emit to belong to it.
+	main._daily_reward_dialog._ad_in_flight = true
 	AdsManager.rewarded_completed.emit(AdsManager.REWARD_DAILY_2X, true)
 	await wait_frames(1)
 	var gained: float = GameState.current_gold().to_float() - gold_before.to_float()
