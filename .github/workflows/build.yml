@@ -77,6 +77,32 @@ jobs:
           STATIC=$(grep -rhE "^func test_" game/tests --include="*.gd" | wc -l)
           echo "failures=$FAILURES runtime_tests=$RUNTIME static_tests=$STATIC"
           if [ "$FAILURES" != "0" ]; then
+            # NAME the failures as ::error:: annotations, not just the count.
+            # Job logs need repo auth to read, but annotations are public via
+            # the check-runs API — without this a CI-only failure (one that
+            # does not reproduce on a contributor's engine build) is a bare
+            # "1 failing test" with no way to find out which. Bit us on
+            # v0.15.22, where the suite was green locally on 4.6.1/4.7.x and
+            # red on CI's pinned 4.6.3.
+            #
+            # awk, not python: the godot-ci container is not guaranteed to
+            # ship an interpreter. Rules run in order, so a <failure> on the
+            # same line as its <testcase> still picks up the name first.
+            awk '
+              /<testcase/ {
+                if (match($0, /name="[^"]*"/)) tname=substr($0, RSTART+6, RLENGTH-7);
+                if (match($0, /classname="[^"]*"/)) tclass=substr($0, RSTART+11, RLENGTH-12);
+              }
+              /<failure|<error/ {
+                if (tname != "") {
+                  printf "::error::FAILING TEST: %s :: %s\n", tclass, tname;
+                  tname="";
+                }
+              }
+            ' gut_results.xml
+            # Full blocks to the log for whoever can read it.
+            echo "--- failing testcase detail ---"
+            grep -A6 "<failure" gut_results.xml || true
             echo "::error::GUT reported $FAILURES failing test(s)"
             exit 1
           fi

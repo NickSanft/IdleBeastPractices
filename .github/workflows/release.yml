@@ -52,6 +52,22 @@ jobs:
           STATIC=$(grep -rhE "^func test_" game/tests --include="*.gd" | wc -l)
           echo "failures=$FAILURES runtime_tests=$RUNTIME static_tests=$STATIC"
           if [ "$FAILURES" != "0" ]; then
+            # Name the failures as public ::error:: annotations — see the
+            # fuller rationale on the matching step in build.yml.
+            awk '
+              /<testcase/ {
+                if (match($0, /name="[^"]*"/)) tname=substr($0, RSTART+6, RLENGTH-7);
+                if (match($0, /classname="[^"]*"/)) tclass=substr($0, RSTART+11, RLENGTH-12);
+              }
+              /<failure|<error/ {
+                if (tname != "") {
+                  printf "::error::FAILING TEST: %s :: %s\n", tclass, tname;
+                  tname="";
+                }
+              }
+            ' gut_results.xml
+            echo "--- failing testcase detail ---"
+            grep -A6 "<failure" gut_results.xml || true
             echo "::error::GUT reported $FAILURES failing test(s)"
             exit 1
           fi

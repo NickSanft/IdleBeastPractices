@@ -250,6 +250,18 @@ JUnit XML; and runtime testcase count `>=` the static `func test_` count
 across `game/tests` (currently 717 == 717 — a silently-skipped file makes
 runtime fall short).
 
+**Follow-up — the gate now NAMES the failures.** It reported a count and
+nothing else, which is fine when the failure reproduces locally and useless
+when it does not. v0.15.22 hit exactly that: green on a contributor's engine
+build, `1 failing test` on CI's pinned 4.6.3, and no way to learn which one
+— job logs need repo auth, the JUnit XML is not uploaded as an artifact, and
+the check annotations carried only the count. The step now emits one
+`::error::FAILING TEST: <file> :: <name>` per failure (plus the failing
+blocks to the log), so the names surface in the **public** check annotations.
+Extracted with `awk` rather than an interpreter because the `godot-ci`
+container is not guaranteed to ship one; verified against real GUT XML for
+the one-failure, two-failure, and all-passing cases.
+
 ### CI — playable web demo on GitHub Pages (no game version)
 
 The Pages site now hosts a **playable demo at `/play/`** next to the docs —
