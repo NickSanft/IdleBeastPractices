@@ -306,12 +306,24 @@ func _notification(what: int) -> void:
 			# and re-arm the debounce for the next backgrounding.
 			_offline_cap_scheduled = false
 			LocalNotificationManager.cancel_offline_cap_warning()
-			# Only APP-level returns credit progress. Cancelling the nudge is
-			# harmless on any of the three, but WM_WINDOW_FOCUS_IN is
-			# window-level — it fires for desktop alt-tab and during startup,
-			# where crediting an offline window and popping a welcome-back
-			# modal would be plainly wrong.
-			if what != NOTIFICATION_WM_WINDOW_FOCUS_IN:
+			# Only a genuine Android RESUME credits progress. Cancelling the
+			# nudge above is idempotent and safe on all three, but the resume
+			# tick grants currency and pops a modal, so it needs the strictest
+			# signal available:
+			#   - WM_WINDOW_FOCUS_IN is window-level — desktop alt-tab, and it
+			#     fires during startup.
+			#   - APPLICATION_FOCUS_IN fires on a web tab-switch and, in
+			#     headless CI, unpredictably; v0.15.22 made
+			#     test_hud_fits_viewport_at_max_font_scale flaky, and credited
+			#     offline gold widening the currency bar is the best
+			#     explanation (unreproducible on Windows, which is why this is
+			#     reasoned rather than proven).
+			#   - APPLICATION_RESUMED is the Android lifecycle resume this
+			#     feature was written for, and is what actually fires there.
+			# Restricting degrades gracefully: a platform that never sends it
+			# simply credits at the next cold boot, which is exactly the
+			# pre-v0.15.22 behaviour. Over-firing does not degrade gracefully.
+			if what == NOTIFICATION_APPLICATION_RESUMED:
 				_resume_tick()
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			# v0.15.11 — Android hardware Back. On Android subwindows are

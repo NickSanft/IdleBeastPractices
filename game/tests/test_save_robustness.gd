@@ -300,12 +300,15 @@ func test_resume_across_local_midnight_rolls_the_daily_login() -> void:
 	assert_eq(GameState.daily_login_streak, 2, "consecutive days extend the streak")
 
 
-## WM_WINDOW_FOCUS_IN is window-level: it fires on desktop alt-tab and during
-## startup, so it deliberately does NOT drive the resume tick. Removing that
-## exclusion does fail the full suite today, but only incidentally — as
-## "Unexpected Errors" from another file's frame pumping. This asserts the
-## design decision semantically so it cannot quietly regress.
-func test_window_focus_alone_does_not_credit_a_resume() -> void:
+## NEITHER focus notification may drive the resume tick — it grants currency
+## and pops a modal, so it needs the strictest signal available.
+## WM_WINDOW_FOCUS_IN is window-level (desktop alt-tab, and it fires during
+## startup); APPLICATION_FOCUS_IN fires on a web tab-switch and unpredictably
+## in headless CI, where the credited gold widened the currency bar and made
+## test_hud_fits_viewport_at_max_font_scale flaky across v0.15.22. Only
+## APPLICATION_RESUMED — the Android lifecycle resume this was written for —
+## counts. Asserted semantically so the decision cannot quietly regress.
+func test_focus_notifications_alone_do_not_credit_a_resume() -> void:
 	TimeManager._test_now_override = _FIXED_NOW
 	var main: Node = _MAIN_SCENE.instantiate()
 	add_child_autofree(main)
@@ -316,13 +319,17 @@ func test_window_focus_alone_does_not_credit_a_resume() -> void:
 
 	TimeManager._test_now_override = _FIXED_NOW + 86_400
 	main._notification(NOTIFICATION_WM_WINDOW_FOCUS_IN)
-
+	main._notification(NOTIFICATION_APPLICATION_FOCUS_IN)
 	assert_eq(GameState.daily_login_last_day, day_before,
-			"a window-level focus must not roll the day — only app-level resumes do")
+			"focus alone must not roll the day — only APPLICATION_RESUMED does")
+
+	main._notification(NOTIFICATION_APPLICATION_RESUMED)
+	assert_ne(GameState.daily_login_last_day, day_before,
+			"...and a genuine resume still must, or the feature is dead")
 
 
-## The modal guard must swallow the burst of two-to-three focus notifications a
-## single Android resume can dispatch, so the day is claimed once.
+## Android can dispatch more than one RESUMED for a single return; the modal
+## guard plus the advanced credit marker must make the extras no-ops.
 func test_resume_notification_burst_claims_only_once() -> void:
 	TimeManager._test_now_override = _FIXED_NOW
 	var main: Node = _MAIN_SCENE.instantiate()
@@ -334,8 +341,8 @@ func test_resume_notification_burst_claims_only_once() -> void:
 	TimeManager._test_now_override = _FIXED_NOW + 86_400
 	main._notification(NOTIFICATION_APPLICATION_RESUMED)
 	var streak_after_first: int = GameState.daily_login_streak
-	main._notification(NOTIFICATION_APPLICATION_FOCUS_IN)
-	main._notification(NOTIFICATION_WM_WINDOW_FOCUS_IN)
+	main._notification(NOTIFICATION_APPLICATION_RESUMED)
+	main._notification(NOTIFICATION_APPLICATION_RESUMED)
 	assert_eq(GameState.daily_login_streak, streak_after_first,
 			"the same day must not be claimed three times")
 

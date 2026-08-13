@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.23 — The resume tick fires only on a real Android resume
+
+v0.15.22's resume tick ran on `APPLICATION_RESUMED`, `APPLICATION_FOCUS_IN`
+**and** — in its first draft — `WM_WINDOW_FOCUS_IN`. That was too eager for
+what it does: it grants currency and pops a modal, so it needs the strictest
+signal available, not the most forgiving. It now fires on
+**`APPLICATION_RESUMED` only**.
+
+Three reasons, in descending order of how well-evidenced they are:
+
+- **`WM_WINDOW_FOCUS_IN` is window-level** — desktop alt-tab, and it fires
+  during startup. This one was caught during development: it popped a
+  welcome-back modal into another test's frame pumping. Already excluded in
+  v0.15.22.
+- **`APPLICATION_FOCUS_IN` fires on a web tab-switch.** On the `/play` demo,
+  flipping to another tab for two minutes and back would credit an offline
+  window and open a modal. Wrong on its own terms, independent of any test.
+- **It is the best available explanation for a CI flake.** v0.15.22 made
+  `test_hud_fits_viewport_at_max_font_scale` intermittent — red, red, then
+  green with byte-identical game code. Credited offline gold widens the
+  currency bar, and that test asserts the HUD fits the viewport at 1.5× font
+  scale. **Stated as a hypothesis, not a finding:** it does not reproduce on
+  Windows, a probe measured zero resume-tick firings locally, and no 4.6.3
+  build is available here to confirm it. The change stands on the first two
+  reasons regardless.
+
+Restricting **degrades gracefully** — a platform that never sends
+`APPLICATION_RESUMED` (Web, desktop) credits at the next cold boot, which is
+exactly the pre-v0.15.22 behaviour. Over-firing does not degrade gracefully:
+it grants rewards nobody asked for. Android, the platform the feature was
+written for, does send it.
+
+Two tests pin the decision semantically rather than leaving it to be caught
+incidentally: both focus notifications must leave the login day untouched,
+and a genuine resume must still roll it (so a future "simplification" cannot
+disable the feature and stay green).
+
+**Note on v0.15.22:** its tag published **no artifacts** — the flake failed
+the test job, which gates every release job. v0.15.23 supersedes it and
+carries the whole persistence cluster.
+
+**Tests — 754/754 passing (two clean runs, JUnit-XML count verified)**
+
 ### v0.15.22 — The persistence boundary: three ways to lose a save, all closed
 
 An audit found the only three code paths in the game that can destroy a
