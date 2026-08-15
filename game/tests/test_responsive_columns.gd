@@ -13,6 +13,17 @@ const _NET_SHOP := preload("res://game/scenes/ui/net_shop.tscn")
 const _UPGRADE_TREE := preload("res://game/scenes/ui/upgrade_tree.tscn")
 
 
+func before_each() -> void:
+	# columns() scales its threshold by the accessibility font scale, so these
+	# assertions are only meaningful against a pinned scale. Another file
+	# leaving 1.5 behind would otherwise silently halve every expected count.
+	Settings.font_scale = 1.0
+
+
+func after_each() -> void:
+	Settings.font_scale = 1.0
+
+
 # region — UiScale.columns
 
 func test_columns_floors_width_over_min_card() -> void:
@@ -22,6 +33,24 @@ func test_columns_floors_width_over_min_card() -> void:
 	assert_eq(UiScale.columns(1280.0, 320.0), 4)
 	# 480 wide / 320 → 1 (480/320 = 1.5, floors to 1).
 	assert_eq(UiScale.columns(480.0, 320.0), 1)
+
+
+## The accessibility font scale must shrink the column count, because a card's
+## minimum width grows with its text. Pre-fix this returned the 1.0x count at
+## every scale, so at 1.5x the grid demanded more width than the viewport had
+## and the spill cascaded up to orientation_root (caught on CI as the Shop tab
+## measuring 1308 against a 1280 viewport).
+func test_columns_shrink_as_the_font_scale_grows() -> void:
+	Settings.font_scale = 1.0
+	var base: int = UiScale.columns(1280.0, 340.0)
+	assert_eq(base, 3, "1280 / 340 floors to 3 at normal scale")
+
+	Settings.font_scale = 1.5
+	var scaled: int = UiScale.columns(1280.0, 340.0)
+	assert_eq(scaled, 2, "1280 / (340 * 1.5) floors to 2 — cards need the extra room")
+	assert_lt(scaled, base, "a larger font must never keep the same column count")
+
+	Settings.font_scale = 1.0
 
 
 func test_columns_clamps_to_at_least_one() -> void:

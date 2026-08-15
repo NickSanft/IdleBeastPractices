@@ -6,6 +6,53 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.24 — Responsive grids ignored the accessibility font scale
+
+`UiScale.columns(view_width, min_card_width_dp)` divided the view width by a
+**constant** minimum card width. But a card's minimum width grows with its
+text, so at 1.5× font scale it kept packing the 1.0× column count: each card
+needed more room than its column had, the `GridContainer`'s own minimum width
+overran the viewport, and the spill cascaded up through the tab's
+`PanelContainer` (whose StyleBox margins added the last few px) to
+`orientation_root`. That is the v0.15.1.3 overflow-cascade bug class exactly —
+the one `test_hud_fits_viewport_at_max_font_scale` exists to catch.
+
+**Player impact:** anyone using the font-size accessibility slider had the
+**Shop, Crafting and Upgrades** grids overflowing horizontally — the
+population least able to absorb a broken layout. Live since v0.15.13, when
+font scaling stopped being a no-op.
+
+The threshold is now scaled by the font scale inside `columns()` itself, so
+all three grid views are fixed at once and a fourth caller cannot reintroduce
+it. At 1280 px with a 340 dp card: 3 columns at 1.0×, **2 at 1.5×**.
+
+**How it was found, and three wrong turns worth recording.** CI went red and
+would not reproduce locally. In order, the theories were: the v0.15.22 resume
+tick crediting offline gold and widening the currency bar (wrong — restricting
+it in v0.15.23 changed nothing); leaked `GameState` making the grid content
+wider (wrong — probed with an empty ranch and with every net owned plus
+9.87e15 gold, every tab measured 1280.0 flat); and a transient mid-layout
+frame (wrong — with polling added, the width settled at 1308 and stayed).
+
+What actually worked was instrumenting rather than reasoning. The CI
+suite-integrity gate learned to emit the failing test name, then its assertion
+text, and finally the test learned to name the **deepest** over-wide Control
+rather than the ancestor chain — at which point the answer arrived in one
+line: the Shop `PanelContainer` at min=1308 with no child over 1280, i.e. a
+child at the viewport width plus panel margins.
+
+**Why only CI:** Linux/4.6.3 font metrics are marginally wider than
+Windows/4.7.x, so the identical 3-column layout fit locally by a hair and
+overflowed there by 28 px. The same bug on both platforms; only one crossed
+the threshold. That is also the argument for keeping a CI-matching engine
+locally — this took seven round-trips that one local run would have answered.
+
+`test_responsive_columns.gd` now pins `Settings.font_scale`, since its
+assertions depend on it and another file leaving 1.5× behind would silently
+halve every expected count.
+
+**Tests — 755/755 passing (two clean runs, JUnit-XML count verified)**
+
 ### Tests — de-flake the max-font HUD check (no game version)
 
 `test_hud_fits_viewport_at_max_font_scale` measured `orientation_root.size.x`

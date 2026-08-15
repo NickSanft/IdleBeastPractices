@@ -80,12 +80,30 @@ static func tap_target() -> int:
 ## means callers don't need to compensate for the Phase-13c.2 left
 ## rail (which makes view width < viewport width in landscape).
 ##
+## `min_card_width_dp` is given at 1.0 font scale and is scaled here by the
+## accessibility font scale, because a card's minimum width grows with its
+## text. Without that, 1.5x font scale kept packing the 1.0x column count:
+## each card then needed more room than its column had, the GridContainer's
+## own minimum width overran the viewport, and the spill cascaded up through
+## the tab's PanelContainer (whose StyleBox margins added the last few px) to
+## orientation_root — the v0.15.1.3 overflow-cascade bug class exactly.
+##
+## Found via CI: test_hud_fits_viewport_at_max_font_scale measured the Shop
+## tab at 1308 vs a 1280 viewport on Linux/4.6.3 font metrics, while
+## Windows/4.7.x fonts were just narrow enough to fit and never reproduced it.
+## Scaling the threshold fixes all three grid views (net_shop, crafting_view,
+## upgrade_tree) at once, and is the safer place for it than three call sites
+## that each have to remember.
+##
 ## Usage:
 ##   _grid.columns = UiScale.columns(size.x, 320)
 static func columns(view_width: float, min_card_width_dp: float) -> int:
 	if min_card_width_dp <= 0.0 or view_width <= 0.0:
 		return 1
-	return max(1, int(view_width / min_card_width_dp))
+	var scaled_min: float = min_card_width_dp * _font_scale()
+	if scaled_min <= 0.0:
+		return 1
+	return max(1, int(view_width / scaled_min))
 
 
 # Settings is an autoload; access via the tree so unit tests don't
