@@ -8,19 +8,28 @@ Version-by-version history is in [CHANGELOG.md](CHANGELOG.md).
 ## What this is
 
 An idle monster-catching game for **Android** (primary), Windows, and Web.
-**Godot 4.6 (mono build, GDScript only — no C#)** — **CI pins 4.6.3** (minimum
-for Google Play's target-API-36 deadline; see DEV_NOTES "Target API 36"), local
-editor is 4.6.1 mono (fine for tests; don't ship a local Android export — it
-would target SDK 35). Save format is
-versioned JSON with a migration chain. Tests: **GUT** (headless unit) + **Maestro**
-(Android-emulator UI flows).
+**Godot 4.7.1 (standard build, GDScript only — no C#)** — **local and CI run the
+same version**, which is the point: a platform-sensitive bug that reproduces on
+one and not the other costs a CI round-trip per guess (see CHANGELOG v0.15.24,
+which took seven). Google Play's target-API-36 deadline sets a **4.6.3 floor**,
+not a ceiling — 4.7.1 clears it, and CI asserts `targetSdkVersion` on the real
+AAB rather than trusting the pin. Save format is versioned JSON with a
+migration chain. Tests: **GUT** (headless unit) + **Maestro** (Android-emulator
+UI flows).
+
+Note this project has never used the **mono** build anywhere that matters: CI
+has always downloaded `Godot_v<ver>_linux.x86_64.zip` (standard, not mono).
+Only the old local editor was mono, and `[dotnet]` in `project.godot` is
+vestigial — harmless, unused, no C# in the tree.
 
 ## Build & test
 
 Local Godot lives at
-`C:/Users/nicho/OneDrive/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe`
+`C:/Users/nicho/OneDrive/Desktop/Godot/Godot_v4.7.1-stable_win64.exe`
 (Desktop is OneDrive-redirected — the bare `C:/Users/nicho/Desktop/` path does
-not exist). From an **interactive terminal** use the `_console.exe` variant so
+not exist; and a directory listing there can miss files that `find` sees, due
+to OneDrive files-on-demand). From an **interactive terminal** use the
+`_console.exe` variant so
 stdout shows; from **scripted/piped contexts** (agents, CI-style shells) invoke
 the **main exe directly** — the console shim deadlocks with 0 CPU when there is
 no console to attach to, which presents as an import/test run that hangs

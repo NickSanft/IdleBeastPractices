@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Engine — Godot 4.6.3 → 4.7.1, local and CI on the same build (no game version)
+
+The local editor and CI have always run **different** engines: CI pinned
+4.6.3, the local editor was 4.6.1 mono. DEV_NOTES called the skew "deliberate".
+v0.15.24 is the bill for that: a genuine layout bug that crossed the overflow
+threshold on CI's font metrics and fit by a hair on Windows' took **seven CI
+round-trips** to diagnose, because every hypothesis needed a push to test. Both
+now run **4.7.1-stable**, so a green local run and a green CI run mean the same
+thing.
+
+**Verified before the bump rather than discovered after:**
+
+- `4.7.1-stable` publishes both assets CI fetches — `linux.x86_64.zip` and
+  `export_templates.tpz`.
+- Its `platform/android/java/app/config.gradle`, read at the release tag, is
+  **identical** to 4.6.3's on every value CI pins: `buildTools 36.1.0`,
+  `ndk 29.0.14206865`, `compileSdk`/`targetSdk 36`, `JavaVersion 17`. The SDK
+  packages line therefore needed no change — and the Play **target-API-36
+  floor still holds**, with both AAB workflows asserting `targetSdkVersion`
+  on the real bundle rather than trusting the pin.
+- `android/.build_version` is written from `$GODOT_TEMPLATE_DIR`, so it
+  followed the bump automatically.
+- Import under 4.7.1 rewrote no tracked files, and the suite is 755/755.
+
+**Two long-standing doc errors corrected in passing.** The project was
+documented as a **mono** build; CI has always downloaded the *standard*
+`Godot_v<ver>_linux.x86_64.zip`, so only the old local editor was ever mono and
+`[dotnet]` in `project.godot` is vestigial. And the README described CI as
+using a `barichello/godot-ci` container; it downloads the engine and templates
+from GitHub directly.
+
+**Not yet proven:** the Android AAB path on 4.7.1. The GDScript suite passing
+says nothing about the vendored AdMob / Play Games AARs or the gradle build,
+which is why this lands on `main` first — `build.yml` exercises a debug APK and
+Maestro runs the emulator flows before any tagged release builds a signed AAB.
+
 ### v0.15.24 — Responsive grids ignored the accessibility font scale
 
 `UiScale.columns(view_width, min_card_width_dp)` divided the view width by a

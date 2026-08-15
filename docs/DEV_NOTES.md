@@ -6,7 +6,7 @@ Most are Godot 4.6 / Android-export facts that outlive any single feature.
 
 ## Build & test
 
-- **Engine**: Godot 4.6, **mono** build (GDScript only; no C#). **CI pins 4.6.3**; the local editor is 4.6.1-stable mono (path in [CLAUDE.md](../CLAUDE.md); use the `_console.exe` variant so stdout is captured on Windows). The patch-version skew is deliberate — see "Target API 36" below. Upgrading the local editor to 4.6.3 mono is recommended but not required for tests.
+- **Engine**: Godot **4.7.1-stable**, standard build (GDScript only; no C#). **Local and CI run the same version** — path in [CLAUDE.md](../CLAUDE.md); use the `_console.exe` variant so stdout is captured on Windows. The previous deliberate local/CI skew is gone, and good riddance: it cost seven CI round-trips to diagnose a layout bug that only crossed the overflow threshold on CI's font metrics (CHANGELOG v0.15.24). The **mono** build was never used by CI — it downloads the standard `Godot_v<ver>_linux.x86_64.zip` — only the old local editor was mono; `[dotnet]` in `project.godot` is vestigial.
 - **Import before testing** after adding/renaming resources: `godot --headless --path . --import`. New `.gd`/`.tscn`/`.tres` get `.uid` sidecars generated here — **commit those `.uid` files**.
 - **Run the suite**: `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://game/tests/ -ginclude_subdirs -gexit`.
 - **Reading results**: judge by GUT's `Passing Tests` / `Failing Tests` / `All tests passed` lines. Ignore exit-time `ObjectDB instances leaked`, `resources still in use`, and RID-leak errors — they're standard headless-shutdown noise and can force a non-zero exit even on a fully-passing run.
@@ -17,7 +17,7 @@ Most are Godot 4.6 / Android-export facts that outlive any single feature.
 
 Four workflows under `.github/workflows/`:
 
-- **`build.yml`** — the gate: headless GUT tests + a debug Android export smoke-build. Uses `barichello/godot-ci:4.6.1`-style setup / cached Godot binary. The GUT step's pass/fail is judged by a **suite-integrity gate**, not the exit code: JUnit-XML `failures="0"`, runtime testcase count `>=` the static `func test_` count (GUT **silently skips** scripts that fail to parse while still printing "All tests passed" — bit us in v0.15.17), and no `Ignoring script`/`Parse error` lines in the output.
+- **`build.yml`** — the gate: headless GUT tests + a debug Android export smoke-build. Downloads the pinned Godot release + templates from GitHub (no container) into a cached binary. The GUT step's pass/fail is judged by a **suite-integrity gate**, not the exit code: JUnit-XML `failures="0"`, runtime testcase count `>=` the static `func test_` count (GUT **silently skips** scripts that fail to parse while still printing "All tests passed" — bit us in v0.15.17), and no `Ignoring script`/`Parse error` lines in the output.
 - **`maestro-emulator.yml`** — boots an Android emulator and runs the Maestro UI flows in `tests/maestro/`.
 - **`release.yml`** — on a `vX.Y.Z` tag: gradle-builds the AAB, publishes the release, then calls `pages.yml` so the demo tracks the release.
 - **`pages.yml`** — deploys the Pages site: Jekyll `docs/` at the root + the **playable web demo** of the latest release at `/play/` (downloaded from the release's stable `releases/latest/download/` asset — no Godot rebuild). Triggers: docs pushes, releases (via `workflow_call` — GITHUB_TOKEN-created release events can't trigger workflows), manual dispatch. The demo works on plain Pages **only because the web export is single-threaded** (`variant/thread_support=false`); enabling threads would require COOP/COEP headers Pages doesn't serve (coi-serviceworker shim territory). **One-time setup (done 2026-07-05):** the Pages source had to be flipped by hand — Settings → Pages → Source → "GitHub Actions". Neither `actions/deploy-pages` nor `configure-pages` `enablement: true` can switch an existing legacy branch-based site with the workflow's `GITHUB_TOKEN` (repo-settings change = admin); both first runs failed at `deploy-pages` until the manual flip. **Second one-time setup — the `github-pages` environment must allow `v*` tags:** the environment's "Deployment branches and tags" rule defaults to the default branch only, so the `workflow_call` from `release.yml` (which runs on a `v*` tag) is rejected at job initiation with `Tag "vX.Y.Z" is not allowed to deploy to github-pages due to environment protection rules`. The tell is a **failed job with an empty steps list**. It is *not* a permissions bug — the `pages: write` / `id-token: write` grants on `release.yml`'s `deploy-pages-demo` are already correct. Fix: Settings → Environments → `github-pages` → "Deployment branches and tags" → add tag rule `v*`. First hit on v0.15.21 (2026-08-11), the first tagged release after `pages.yml` landed; everything else in `release.yml` (AAB, zips, GitHub Release) is unaffected, and `/play` self-heals on the next docs push because it is pulled from `releases/latest/download/` rather than from the tag.
@@ -34,7 +34,7 @@ push tag. Tags are lightweight.
 When headless/CI Android export prints `Cannot export project with preset "Android" due to configuration errors:` with **no** error string after it, check `rendering/textures/vram_compression/import_etc2_astc=true` in `project.godot` **first** — before keystore/JDK/NDK/template diagnostics. GLES (the GL-Compatibility backend on Android) can't use S3TC/BPTC, so Godot needs ETC2/ASTC texture variants; without this flag the import pipeline never produces them and the exporter's preflight refuses to proceed. The specific error is suppressed in headless mode. *(Currently set correctly in `project.godot`.)*
 
 ### 2. Scripted gradle build → `.build_version` marker
-Automating an AAB/gradle build without the editor GUI: unzipping `android_source.zip` into `android/build/` is **not enough**. Godot's `Project → Install Android Build Template` also writes `android/.build_version` (the template version string, e.g. `4.6.1.stable` non-mono / `4.6.1.stable.mono` mono). Without it: `ERROR: Export: Trying to build from a gradle built template, but no version info for it exists.` CI does this correctly (`release.yml`):
+Automating an AAB/gradle build without the editor GUI: unzipping `android_source.zip` into `android/build/` is **not enough**. Godot's `Project → Install Android Build Template` also writes `android/.build_version` (the template version string, e.g. `4.7.1.stable` standard / `4.7.1.stable.mono` mono; CI writes `$GODOT_TEMPLATE_DIR`, so it follows the engine bump automatically). Without it: `ERROR: Export: Trying to build from a gradle built template, but no version info for it exists.` CI does this correctly (`release.yml`):
 ```bash
 mkdir -p android/build
 unzip -q "$TEMPLATES/${GODOT_TEMPLATE_DIR}/android_source.zip" -d android/build
@@ -71,11 +71,16 @@ not pin it there; the engine's annual bump maintains it):
 - **Godot 4.6.3** (2026-05-20) targets SDK/compileSdk **36** *and* fixes
   API-36 predictive-back handling (GH-117653) — without that fix, targeting 36
   force-enables predictive back on Android 16 and the hardware Back gesture
-  bypasses `main._handle_go_back`'s back-stack entirely.
-- CI therefore pins **4.6.3** and its matching SDK packages
-  (`platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865`, from the
-  template's `config.gradle`). Keep the engine env vars and the packages line
-  in sync across all three workflows when bumping.
+  bypasses `main._handle_go_back`'s back-stack entirely. This made 4.6.3 the
+  **floor**, not the pin.
+- CI and the local editor now both run **4.7.1**, which clears that floor.
+  Its `config.gradle` was checked against 4.6.3's before the bump and is
+  **identical** on every value CI depends on — `buildTools 36.1.0`,
+  `ndk 29.0.14206865`, `compileSdk/targetSdk 36`, `JavaVersion 17` — so the
+  SDK packages line needed no change. Re-check it the same way on the next
+  bump (read `platform/android/java/app/config.gradle` at the release tag);
+  keep the engine env vars and the packages line in sync across all three
+  workflows.
 - Both AAB-producing workflows **assert** the built manifest via
   `bundletool dump manifest`: `targetSdkVersion >= 36` and
   `resizeableActivity="false"` (proving the gradle `doLast` patch applied) —
@@ -83,7 +88,7 @@ not pin it there; the engine's annual bump maintains it):
   shipping.
 
 ### 6. Local Android export — JDK version
-Godot's `editor_settings-4.6.tres` has `export/android/java_sdk_path`, which **overrides** shell `JAVA_HOME` for Android exports. If it points at a JDK newer than gradle supports (e.g. JDK 25 vs. gradle 8.11.x capping at JDK 21) local exports fail with `Unsupported class file major version 69` even when `JAVA_HOME` is correct. Fix the editor setting, or rely on CI (`actions/setup-java@v4` pins a known-good version).
+Godot's `editor_settings-4.7.tres` has `export/android/java_sdk_path`, which **overrides** shell `JAVA_HOME` for Android exports. If it points at a JDK newer than gradle supports (e.g. JDK 25 vs. gradle 8.11.x capping at JDK 21) local exports fail with `Unsupported class file major version 69` even when `JAVA_HOME` is correct. Fix the editor setting, or rely on CI (`actions/setup-java@v4` pins a known-good version).
 
 ## Audio: looped `AudioStreamWAV` finishes in 0 frames
 Symptom: `AudioStreamPlayer.play()` reports `playing=true` immediately, then `playing=false` / `pos=0.00s` a half-second later, with `finished` firing unprompted. Cause: Godot 4.6's WAV importer caches an `AudioStreamWAV` with a degenerate `loop_end`; with `LOOP_FORWARD` the stream has "0 frames to play." Reproduces on long WAVs (a 175s track), not short SFX. Fix — always `duplicate()` and set the loop range explicitly:

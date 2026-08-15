@@ -6,17 +6,20 @@ on:
   pull_request:
 
 env:
-  # 4.6.3 is the minimum engine for Google Play's target-API-36 deadline
-  # (2026-08-31): its android template ships targetSdk/compileSdk 36 AND
-  # the API-36 predictive-back fix (GH-117653) that keeps the in-game
-  # Back stack working on Android 16. Bump all three values together,
-  # and keep the SDK packages below in sync with the template's
-  # config.gradle (buildTools / ndkVersion).
-  GODOT_VERSION: "4.6.3"
-  GODOT_RELEASE: "4.6.3-stable"
+  # Google Play's target-API-36 deadline (2026-08-31) set a 4.6.3 FLOOR: an
+  # android template shipping targetSdk/compileSdk 36 AND the API-36
+  # predictive-back fix (GH-117653) that keeps the in-game Back stack working
+  # on Android 16. 4.7.1 clears both, and the bundletool step asserts
+  # targetSdk on the real AAB rather than trusting this comment.
+  # Bump all three values together, and keep the SDK packages below in sync
+  # with the template's config.gradle (buildTools / ndkVersion) — verified
+  # identical between 4.6.3 and 4.7.1: buildTools 36.1.0, ndk 29.0.14206865,
+  # compile/target 36, Java 17.
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "4.7.1-stable"
   # Godot installs templates under <version>.<channel> (with a dot), but
   # release URLs use <version>-<channel> (with a hyphen). Keep both.
-  GODOT_TEMPLATE_DIR: "4.6.3.stable"
+  GODOT_TEMPLATE_DIR: "4.7.1.stable"
 
 jobs:
   test:
@@ -256,7 +259,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Match Godot 4.6.3's platform/android/java/app/config.gradle:
+          # Match Godot 4.7.1's platform/android/java/app/config.gradle:
           # compileSdk 36, buildTools 36.1.0, ndkVersion 29.0.14206865.
           # AGP can auto-download missing pieces, but pre-installing keeps
           # the gradle step fast and the versions explicit.

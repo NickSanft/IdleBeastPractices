@@ -31,12 +31,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version-by-version history.
 
 | Concern | Choice |
 |---|---|
-| Engine | **Godot 4.6.1-stable (mono)** — pinned in `project.godot`. Mono build runs the GDScript-only project; no C# is used. |
+| Engine | **Godot 4.7.1-stable** (standard build; no C# is used). The same version runs locally and in CI. |
 | Language | GDScript |
 | UI | Godot Control nodes + custom theme |
 | Testing | [GUT](https://github.com/bitwes/Gut) (unit tests, vendored in `addons/gut/`) + [Maestro](https://maestro.mobile.dev) (Android emulator UI flows in [`tests/maestro/`](tests/maestro/)) |
 | Save format | Versioned JSON with a migration chain |
-| CI/CD | GitHub Actions (`barichello/godot-ci:4.6.1` container) |
+| CI/CD | GitHub Actions — downloads the pinned Godot release + export templates directly (no container) |
 
 ## Repository layout
 
@@ -45,12 +45,15 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §3 for the canonical layou
 ## Local build / run
 
 ```sh
+# Godot 4.7.1-stable — the SAME version CI pins, so a green local run and a
+# green CI run mean the same thing. Adjust the path to your install.
+GODOT="C:/Users/nicho/OneDrive/Desktop/Godot/Godot_v4.7.1-stable_win64.exe"
+
 # Open in editor
-"C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" --path .
+"$GODOT" --path .
 
 # Run the full unit-test suite headlessly (same invocation as CI)
-"C:/Users/nicho/Desktop/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64/Godot_v4.6.1-stable_mono_win64.exe" \
-    --headless --path . -s addons/gut/gut_cmdln.gd \
+"$GODOT" --headless --path . -s addons/gut/gut_cmdln.gd \
     -gdir=res://game/tests/ -ginclude_subdirs -gexit
 ```
 

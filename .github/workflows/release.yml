@@ -11,11 +11,12 @@ permissions:
   contents: write
 
 env:
-  # Keep in lockstep with build.yml / maestro-emulator.yml — 4.6.3 is the
-  # minimum engine for Google Play's target-API-36 deadline (2026-08-31).
-  GODOT_VERSION: "4.6.3"
-  GODOT_RELEASE: "4.6.3-stable"
-  GODOT_TEMPLATE_DIR: "4.6.3.stable"
+  # Keep in lockstep with build.yml / maestro-emulator.yml. Google Play's
+  # target-API-36 deadline (2026-08-31) set a 4.6.3 FLOOR; 4.7.1 clears it,
+  # and the bundletool assertion below verifies targetSdk on the real AAB.
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "4.7.1-stable"
+  GODOT_TEMPLATE_DIR: "4.7.1.stable"
 
 jobs:
   test:
@@ -103,7 +104,7 @@ jobs:
         with: { distribution: temurin, java-version: "17" }
       - uses: android-actions/setup-android@v3
         with:
-          # Match Godot 4.6.3's template config.gradle (see build.yml).
+          # Match Godot 4.7.1's template config.gradle (see build.yml).
           packages: "platform-tools platforms;android-36 build-tools;36.1.0 ndk;29.0.14206865"
       - name: Install Godot + templates
         run: |
