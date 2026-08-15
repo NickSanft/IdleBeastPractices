@@ -199,10 +199,28 @@ func test_hud_fits_viewport_at_max_font_scale() -> void:
 	var offenders: Array[String] = []
 	for i in tabs.get_tab_count():
 		tabs.current_tab = i
-		await wait_frames(3)
-		if orientation_root.size.x > view_size.x + 1.0:
+		# Poll until the layout SETTLES rather than trusting a fixed frame
+		# count. Setting font_scale to 1.5 queues a theme rebuild that main
+		# coalesces into _process, and the tab's size flags resolve over
+		# further passes — so an intermediate frame can measure wider than the
+		# final one. Three frames was usually enough and sometimes wasn't:
+		# v0.15.23 went red on Build and green on Release's identical GUT job
+		# for the SAME commit, reporting Shop at 1308 vs a 1280 viewport, and
+		# never reproduced locally at any GameState richness (probed with an
+		# empty ranch and with every net owned + 9.87e15 gold: 1280.0 flat).
+		#
+		# This does not weaken the assertion — a genuine overflow is persistent
+		# and still fails after every attempt. Only a transient mid-layout
+		# frame is tolerated.
+		var width: float = 0.0
+		for _attempt in 10:
+			await wait_frames(3)
+			width = orientation_root.size.x
+			if width <= view_size.x + 1.0:
+				break
+		if width > view_size.x + 1.0:
 			offenders.append("  tab '%s': orientation_root.size.x=%.1f > viewport.x=%.1f" % [
-				tabs.get_tab_title(i), orientation_root.size.x, view_size.x,
+				tabs.get_tab_title(i), width, view_size.x,
 			])
 	assert_true(offenders.is_empty(),
 		"at font_scale 1.5 the HUD overflowed the viewport on:\n%s" % "\n".join(offenders))

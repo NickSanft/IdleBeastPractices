@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Tests — de-flake the max-font HUD check (no game version)
+
+`test_hud_fits_viewport_at_max_font_scale` measured `orientation_root.size.x`
+after a fixed `wait_frames(3)`. Setting `font_scale` to 1.5 queues a theme
+rebuild that main coalesces into `_process`, and the tab's size flags resolve
+over further passes — so an intermediate frame can measure wider than the
+final one. Three frames was usually enough and sometimes wasn't. It now polls
+until the layout settles (up to 10 × 3 frames) and only reports a width that
+is still over at the end.
+
+**Proof it is a flake and not a real overflow:** v0.15.23 went **red on Build
+and green on Release's identical GUT job for the same commit**, reporting Shop
+at 1308 vs a 1280 viewport. It never reproduced locally — probed with an empty
+ranch and with every net owned plus 9.87e15 gold, every tab measured 1280.0
+flat, so it is not content-driven either.
+
+**It does not weaken the assertion.** Verified by forcing a persistent
+overflow (viewport baseline dropped to 100 px): the settle loop still flags
+all eleven tabs. Only a transient mid-layout frame is tolerated.
+
+This is the failure that made v0.15.22 ship no artifacts, and it is worth
+recording that **v0.15.23's stated cause was wrong**: the resume tick was
+restricted to `APPLICATION_RESUMED` on the hypothesis that credited offline
+gold widened the currency bar, and the test failed again afterwards. That
+restriction stands on its own merits (a web tab-switch must not grant an
+offline window) but it was not this. The CI annotations added alongside are
+what made the difference diagnosable at all.
+
 ### v0.15.23 — The resume tick fires only on a real Android resume
 
 v0.15.22's resume tick ran on `APPLICATION_RESUMED`, `APPLICATION_FOCUS_IN`
