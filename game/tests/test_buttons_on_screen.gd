@@ -201,16 +201,48 @@ func _widest_offenders(root: Control, limit_x: float) -> String:
 			if c.is_visible_in_tree():
 				var mn: float = c.get_combined_minimum_size().x
 				if mn > limit_x + 1.0:
-					found.append({"path": String(root.get_path_to(c)), "min": mn, "size": c.size.x})
+					# Class + any text: on a Label or Button that is usually
+					# enough to identify the widget without a second round-trip.
+					var txt: String = ""
+					if c.has_method("get_text"):
+						txt = String(c.call("get_text"))
+					found.append({
+						"path": String(root.get_path_to(c)), "min": mn, "size": c.size.x,
+						"cls": c.get_class(), "txt": txt,
+					})
 		for child in n.get_children():
 			stack.append(child)
 	if found.is_empty():
 		return "no single Control has an over-wide minimum — the spill is from layout/margins, not a widget"
-	found.sort_custom(func(a, b): return float(a["min"]) > float(b["min"]))
+	# Keep only the LEAF-most offenders. Every ancestor inherits the same
+	# over-wide minimum, so ranking by width just names the chain from the root
+	# down (`.` -> TabContainer -> Shop) and stops before the widget actually
+	# responsible. Drop any offender that has an offending descendant.
+	var leaves: Array = []
+	for a in found:
+		var pa: String = String(a["path"])
+		var has_offending_child: bool = false
+		for b in found:
+			var pb: String = String(b["path"])
+			if pb == pa:
+				continue
+			# get_path_to returns "." for the root itself, which is an ancestor
+			# of everything else in the set.
+			if pa == "." or pb.begins_with(pa + "/"):
+				has_offending_child = true
+				break
+		if not has_offending_child:
+			leaves.append(a)
+	if leaves.is_empty():
+		leaves = found
+	leaves.sort_custom(func(a, b): return float(a["min"]) > float(b["min"]))
 	var parts: Array[String] = []
-	for i in mini(3, found.size()):
-		parts.append("%s min=%.0f size=%.0f" % [found[i]["path"], found[i]["min"], found[i]["size"]])
-	return "widest min-widths: " + "; ".join(parts)
+	for i in mini(2, leaves.size()):
+		parts.append("%s[%s] min=%.0f size=%.0f txt='%s'" % [
+			leaves[i]["path"], leaves[i]["cls"], leaves[i]["min"], leaves[i]["size"],
+			String(leaves[i]["txt"]).substr(0, 24),
+		])
+	return "deepest over-wide: " + "; ".join(parts)
 
 
 func test_hud_fits_viewport_at_max_font_scale() -> void:
