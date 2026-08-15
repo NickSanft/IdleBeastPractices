@@ -186,6 +186,33 @@ func test_orientation_root_fits_in_viewport_after_tab_switches() -> void:
 		"orientation_root spilled past viewport on these tabs:\n%s" % "\n".join(offenders))
 
 
+## Walks the subtree and reports the Controls whose combined MINIMUM width
+## exceeds the viewport — the minimum is what actually forces a parent wider,
+## so it points at the cause rather than at every container that inherited the
+## spill. Deepest-and-widest first, capped so the message survives a GitHub
+## annotation's length limit.
+func _widest_offenders(root: Control, limit_x: float) -> String:
+	var found: Array = []
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is Control:
+			var c: Control = n
+			if c.is_visible_in_tree():
+				var mn: float = c.get_combined_minimum_size().x
+				if mn > limit_x + 1.0:
+					found.append({"path": String(root.get_path_to(c)), "min": mn, "size": c.size.x})
+		for child in n.get_children():
+			stack.append(child)
+	if found.is_empty():
+		return "no single Control has an over-wide minimum — the spill is from layout/margins, not a widget"
+	found.sort_custom(func(a, b): return float(a["min"]) > float(b["min"]))
+	var parts: Array[String] = []
+	for i in mini(3, found.size()):
+		parts.append("%s min=%.0f size=%.0f" % [found[i]["path"], found[i]["min"], found[i]["size"]])
+	return "widest min-widths: " + "; ".join(parts)
+
+
 func test_hud_fits_viewport_at_max_font_scale() -> void:
 	# v0.15.13 — bumping the accessibility font slider now scales the
 	# theme's baked text (was a no-op). Verify the larger HUD/nav still
@@ -199,19 +226,12 @@ func test_hud_fits_viewport_at_max_font_scale() -> void:
 	var offenders: Array[String] = []
 	for i in tabs.get_tab_count():
 		tabs.current_tab = i
-		# Poll until the layout SETTLES rather than trusting a fixed frame
-		# count. Setting font_scale to 1.5 queues a theme rebuild that main
-		# coalesces into _process, and the tab's size flags resolve over
-		# further passes — so an intermediate frame can measure wider than the
-		# final one. Three frames was usually enough and sometimes wasn't:
-		# v0.15.23 went red on Build and green on Release's identical GUT job
-		# for the SAME commit, reporting Shop at 1308 vs a 1280 viewport, and
-		# never reproduced locally at any GameState richness (probed with an
-		# empty ranch and with every net owned + 9.87e15 gold: 1280.0 flat).
-		#
-		# This does not weaken the assertion — a genuine overflow is persistent
-		# and still fails after every attempt. Only a transient mid-layout
-		# frame is tolerated.
+		# Poll for the layout to settle rather than trusting a fixed frame
+		# count — a theme rebuild at 1.5x plus size-flag resolution can take
+		# more than three frames under load. Kept because it costs nothing,
+		# but note it did NOT fix the CI failure below: the width settles at
+		# 1308 and stays there, so the overflow is real, not a mid-layout
+		# artifact.
 		var width: float = 0.0
 		for _attempt in 10:
 			await wait_frames(3)
@@ -219,8 +239,13 @@ func test_hud_fits_viewport_at_max_font_scale() -> void:
 			if width <= view_size.x + 1.0:
 				break
 		if width > view_size.x + 1.0:
-			offenders.append("  tab '%s': orientation_root.size.x=%.1f > viewport.x=%.1f" % [
+			# Name the widget responsible. This overflow reproduces only on CI
+			# (Linux/4.6.3 font metrics) and never locally on Windows/4.7.x, so
+			# "which node is too wide" cannot be answered from a dev machine —
+			# it has to travel back in the failure message.
+			offenders.append("  tab '%s': orientation_root.size.x=%.1f > viewport.x=%.1f | %s" % [
 				tabs.get_tab_title(i), width, view_size.x,
+				_widest_offenders(orientation_root, view_size.x),
 			])
 	assert_true(offenders.is_empty(),
 		"at font_scale 1.5 the HUD overflowed the viewport on:\n%s" % "\n".join(offenders))
