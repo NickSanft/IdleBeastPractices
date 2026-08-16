@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"bramble_hush_pet"
+display_name = "Bramble Hush"
+source_monster_id = &"bramble_hush"
+sprite = ExtResource("2_sprite")
+tint = Color(1.4, 0.8, 0.4, 1)
+variant_rate = 0.02
+base_attack = 28.5
+base_defense = 10.4
+base_hp = 157.6
+ability_id = &"strike"

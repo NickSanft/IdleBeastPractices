@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"lore_muddler_pet"
+display_name = "Lore Muddler"
+source_monster_id = &"lore_muddler"
+sprite = ExtResource("2_sprite")
+tint = Color(0.29, 1.27, 1.12, 1)
+variant_rate = 0.02
+base_attack = 104.4
+base_defense = 31.7
+base_hp = 595.5
+ability_id = &"burst"

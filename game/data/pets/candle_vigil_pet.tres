@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"candle_vigil_pet"
+display_name = "Candle Vigil"
+source_monster_id = &"candle_vigil"
+sprite = ExtResource("2_sprite")
+tint = Color(0.15, 0.39, 1.39, 1)
+variant_rate = 0.02
+base_attack = 129.7
+base_defense = 38.8
+base_hp = 741.4
+ability_id = &"strike"

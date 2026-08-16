@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"swell_surge_pet"
+display_name = "Swell Surge"
+source_monster_id = &"swell_surge"
+sprite = ExtResource("2_sprite")
+tint = Color(1.39, 0.85, 0.41, 1)
+variant_rate = 0.02
+base_attack = 71.8
+base_defense = 11.7
+base_hp = 253.0
+ability_id = &"rend"

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="BattleStageResource" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://game/resources/battle_stage_resource.gd" id="1_stage"]
+[ext_resource type="Script" path="res://game/resources/encounter_resource.gd" id="2_enc"]
+
+[sub_resource type="Resource" id="enc_1"]
+script = ExtResource("2_enc")
+monster_ids = [&"brood_glimmer"]
+narrator_line_id = &""
+
+[sub_resource type="Resource" id="enc_2"]
+script = ExtResource("2_enc")
+monster_ids = [&"molt_glimmer", &"swarm_glimmer"]
+narrator_line_id = &""
+
+[sub_resource type="Resource" id="enc_3"]
+script = ExtResource("2_enc")
+monster_ids = [&"brood_glimmer", &"molt_glimmer", &"swarm_glimmer"]
+narrator_line_id = &""
+
+[resource]
+script = ExtResource("1_stage")
+id = &"glimmer_brood"
+display_name = "Glimmer Brood"
+tier = 7
+encounters = [SubResource("enc_1"), SubResource("enc_2"), SubResource("enc_3")]
+narrator_stage_clear_id = &"on_stage_cleared"
+bonus_rp_on_clear = 0

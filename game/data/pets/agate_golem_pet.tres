@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"agate_golem_pet"
+display_name = "Agate Golem"
+source_monster_id = &"agate_golem"
+sprite = ExtResource("2_sprite")
+tint = Color(1.34, 0.68, 0.43, 1)
+variant_rate = 0.02
+base_attack = 60.5
+base_defense = 10.1
+base_hp = 212.5
+ability_id = &"smite"

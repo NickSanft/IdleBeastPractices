@@ -6,6 +6,121 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### v0.15.25 — Phase 15a: pet progression, companions for all 20 tiers
+
+The game shipped **60 monsters across 20 tiers and three pets, all tier 1**.
+Every tier past the first awarded nothing, and because `BattleSystem` derives
+enemy stats from tier (`hp 20t+10`, `atk 4t+4`, `def 2t`) while damage is a
+flat `max(1, atk - def)`, a tier-1 pet (atk 9–16) cannot scratch a tier-20
+enemy (def 40). `scripts/generate_battle_stages.py` had already written the
+epitaph in its own header: *"tier 7+ is unwinnable in ANY shape — the band
+ends; more stages need pet progression first."* Battle content stopped at
+tier 6 of 20, and the quest ladder had been bent around the shortage
+(`long_pets_10` retuned to mean 3, `med_pet_5` to mean 2 and auto-complete
+on issue).
+
+**57 new pets — one per species, tiers 2–20.** Authored by a new
+`scripts/generate_pets.py`, which reads the monster `.tres` files as the
+source of truth rather than hardcoding names, then writes the pet and patches
+the `pet = ExtResource(...)` reference back into its source monster. Stats
+follow a curve fitted so every tier plays like tier 1 rather than drifting:
+
+    base_attack(t)  = 8.667t + 3.333    # ~3 hits to drop a same-tier enemy
+    base_defense(t) = 2.5t   + 3.5      # an incoming hit stays ~3% of pet HP
+    base_hp(t)      = 50t    + 12
+
+Each tier's three species take tier 1's role spread, keyed by `spawn_weight`
+descending — mid (1.0) / glass (0.85) / tank (0.70). The rotation is phased so
+that **t=1 reproduces the hand-authored tier-1 pets exactly** (heal / smite /
+shield), which is the check that the formula matches shipped content instead
+of quietly replacing it. Abilities rotate through the whole 8-entry
+`AbilityRegistry` pool, so `taunt`, `rend`, `cleanse` and `burst` see play for
+the first time — they had been implemented and unused.
+
+**The load-bearing half: `GameState.battle_team()`.** `BattleView` fielded
+`owned_pets().slice(0, 3)` — *acquisition order*. With three pets total that
+was the whole roster, so nobody noticed; with sixty it would have fielded the
+three tier-1 wisplets forever and made all 57 new pets dead content. The
+roster is now ranked by `pet_power()` (atk + def + hp×0.2; HP is scaled down
+because it is on a ~10× larger numeric scale and would otherwise be the only
+term that matters), ties broken on id so the fielded team — and therefore the
+seeded battle replay — stays deterministic. `BattleView`, the stage-balance
+tests and `tools/simulate_stage_winrates.gd` all call it, so the shipped fight
+and the simulated one cannot disagree. The roster note changes from "your
+first 3 pets" to "your strongest 3".
+
+**Pets carry a `tint`.** They are recolors of the same two base sprites their
+source monsters use, and `battle_view.gd` was passing a hardcoded
+`Color.WHITE` for pets while monsters got `m.tint` — so 57 new companions
+would have rendered as the same two sprites. Defaults to WHITE, so the
+tier-1 pets render exactly as before.
+
+**Content the shortage had been blocking, now unblocked:**
+
+- `pet_10` (100 RP) leaves the unreachable-achievement exemption list. Its
+  comment had said it "becomes earnable the moment a pet-progression system
+  grows the roster past 3" — supply is now 60, and
+  `test_exempt_achievements_are_still_actually_unreachable` is what caught
+  the staleness.
+- `long_pets_10` and `med_pet_5` are restored to the thresholds
+  `scripts/generate_quests.sh` still emitted (10 and 5, 100 and 30 RP) — the
+  data had been hand-downgraded in v0.15.21 while the generator was left
+  alone, so the two had been silently disagreeing. Ids are unchanged, so
+  `quests_completed` keys still match and no save is re-issued or re-paid.
+
+**Battle stages now run to the tier cap: 6 → 20.** With the roster scaling,
+`tools/simulate_stage_winrates.gd` reports **100% on the richest
+solo/duo/trio shape at every tier 1–20, bare and equipped**. The old SHAPES
+table thinned its waves (tier 4 solo/duo, 5 solo/solo, 6 solo) and then
+stopped — a difficulty ramp that was really just a static roster running out
+of road. Every tier now gets the full shape, and `default_stage_for_tier(20)`
+returns Nadir Spire instead of parking late players on tier 6's Surge
+Shallows. 14 new stages, generated into the names that had been sitting
+unused in `STAGE_NAMES` since v0.15.19.
+
+**The tier-3 equipment gate is gone, deliberately.**
+`test_tier_three_is_the_equipment_gate` pinned "a bare roster LOSES tier 3",
+which held only because the roster was frozen at three tier-1 pets while
+enemies scaled. A player arriving at tier 3 now fields tier-3 pets and clears
+it bare. Rather than fabricate a replacement gate, the test is retired and
+replaced by the contract that actually survived — *every stage is clearable
+bare by the roster its own tier hands you* — which is the one that matters,
+since `BattleView` auto-picks the highest unlocked stage with no picker and no
+gear check, so a stage demanding gear the player skipped would soft-lock the
+battler. Equipment is now a real upgrade rather than an entry toll.
+
+**Known consequence, not yet addressed:** battle difficulty is flat. Pets
+scale at parity with enemies by construction (the curve was fitted so tier 20
+plays like tier 1), so no tier is meaningfully harder than another and gear is
+optional everywhere. That is a strict improvement on "unwinnable from tier 7",
+but the honest next pass is a difficulty ramp — either richer wave shapes past
+the current solo/duo/trio ceiling, or a pet curve that deliberately lags the
+enemy curve so gear closes the gap. Both need their own simulator sweep and
+are out of scope here.
+
+**Also deferred:** pets reuse their source monster's sprite with a tint, so
+the 57 new companions are recolors of two base sprites — the same placeholder
+approach the monsters themselves ship with. Unique pet art remains an
+art-commission item.
+
+**Verified on 4.6.1, not 4.7.1.** Two clean 764/764 suite runs, but on the
+only engine actually installed on this machine — `Godot_v4.6.1-stable_mono`
+under `C:\Users\nicho\Desktop\`. CLAUDE.md points at a
+`4.7.1-stable_win64.exe` under a OneDrive-redirected Desktop path that does
+not exist, and states the bare `Desktop\` path does not exist when it is in
+fact the only one that does. So the previous entry's "local and CI on the
+same build" landed in CI but never locally, and the skew it was meant to kill
+is still there. This change is content and GDScript with no engine-version
+surface, so the risk is low — but CI on 4.7.1 is the real gate here, not the
+local run. Correcting CLAUDE.md is left to its own commit rather than
+smuggled into a gameplay change.
+
+**Test-tooling fix found along the way.** `simulate_stage_winrates.gd`
+assigned an untyped `Array` to `GameState.pets_owned` (`Array[String]`), which
+aborts `_initialize` — and because the tool's watchdog only exits on a
+deadline, that presents as a 30-minute hang with no output rather than a
+failure. Now uses `clear()`, with a comment saying why.
+
 ### Engine — Godot 4.6.3 → 4.7.1, local and CI on the same build (no game version)
 
 The local editor and CI have always run **different** engines: CI pinned

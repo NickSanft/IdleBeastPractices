@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"scoria_wraith_pet"
+display_name = "Scoria Wraith"
+source_monster_id = &"scoria_wraith"
+sprite = ExtResource("2_sprite")
+tint = Color(0.81, 0.55, 0.71, 1)
+variant_rate = 0.02
+base_attack = 27.7
+base_defense = 19.2
+base_hp = 257.8
+ability_id = &"taunt"

@@ -167,7 +167,7 @@ func _render_idle() -> void:
 	roster_heading.text = "Roster"
 	roster_heading.add_theme_font_size_override("font_size", UiScale.size(18))
 	_content_box.add_child(roster_heading)
-	for pet in pets.slice(0, _MAX_PETS_IN_FIGHT):
+	for pet in GameState.battle_team(_MAX_PETS_IN_FIGHT):
 		var row := Label.new()
 		row.text = "  %s  —  ATK %d / DEF %d / HP %d  (%s)" % [
 			pet.display_name,
@@ -180,7 +180,7 @@ func _render_idle() -> void:
 		_content_box.add_child(row)
 	if pets.size() > _MAX_PETS_IN_FIGHT:
 		var note := Label.new()
-		note.text = "  (Battle uses your first %d pets.)" % _MAX_PETS_IN_FIGHT
+		note.text = "  (Battle uses your strongest %d pets.)" % _MAX_PETS_IN_FIGHT
 		note.modulate = Color(0.7, 0.7, 0.7)
 		_content_box.add_child(note)
 	_action_button.text = "Fight"
@@ -221,7 +221,7 @@ func _update_action_button_text() -> void:
 ## Subsequent encounters are queued via _begin_encounter as the previous
 ## one's frames exhaust.
 func _start_stage() -> void:
-	var pets: Array[PetResource] = GameState.owned_pets().slice(0, _MAX_PETS_IN_FIGHT)
+	var pets: Array[PetResource] = GameState.battle_team(_MAX_PETS_IN_FIGHT)
 	if pets.is_empty():
 		return
 	if _active_stage == null:
@@ -306,7 +306,7 @@ func _summarize_pets(pets: Array[PetResource]) -> Array:
 			"id": String(p.id),
 			"display_name": p.display_name,
 			"sprite": tex,
-			"tint": Color.WHITE,
+			"tint": p.tint,
 			"max_hp": p.base_hp,
 		})
 	return out

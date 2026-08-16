@@ -4,21 +4,21 @@
 One stage per tier with a wave shape measured as winnable by
 tools/simulate_stage_winrates.gd (fully-equipped 3-pet roster, 20 seeds):
 
-    tier 3: solo/duo/trio   (100% equipped, 0% bare — the equipment gate)
-    tier 4: solo/duo        (the trio wave is unwinnable from here up)
-    tier 5: solo/solo
-    tier 6: solo            (tier 7+ is unwinnable in ANY shape — the band
-                             ends; more stages need pet progression first)
+    tiers 3-20: solo/duo/trio (100% bare and equipped, all 20 tiers)
 
-The thinning waves read as a difficulty ramp: deeper territory, and the
-roster can only take the fights it can survive. bonus_rp_on_clear stays 0
+Phase 15a made the roster scale: pets are awarded for every tier, and
+BattleView fields GameState.battle_team(3) — the strongest three owned.
+The pre-15a table thinned its waves (tier 4 solo/duo, tier 5 solo/solo,
+tier 6 solo) and then stopped, because a static three-pet tier-1 roster
+could not survive deeper waves. That constraint is gone, so every tier
+gets the full shape. bonus_rp_on_clear stays 0
 (per-encounter RP already scales with monster tier, and stage RP is granted
 on EVERY clear, so a flat bonus would be farmable).
 
 Usage:
     python scripts/generate_battle_stages.py
 
-Writes tiers 3..6 (1-2 are hand-authored). If pet power ever changes, re-run
+Writes tiers 3..20 (1-2 are hand-authored). If pet power ever changes, re-run
 the simulator, update SHAPES, and re-generate — BattleView auto-picks the
 highest unlocked stage (no picker exists), so an unwinnable top stage would
 brick the battler for late players.
@@ -30,12 +30,15 @@ import os
 import collections
 
 # tier -> list of wave sizes (1=solo, 2=duo, 3=trio), from the simulator.
-SHAPES = {
-    3: [1, 2, 3],
-    4: [1, 2],
-    5: [1, 1],
-    6: [1],
-}
+#
+# Phase 15a re-derived this table. The thinning shapes above tier 3 existed
+# only because the roster was STATIC — three tier-1 pets walking into
+# tier-scaled enemies — so the waves had to get lighter to stay winnable,
+# and past tier 6 no shape was winnable at all. Now that pets are awarded
+# for every tier, tools/simulate_stage_winrates.gd reports 100% on the
+# richest solo/duo/trio shape at EVERY tier 1-20, bare and equipped, so
+# every tier gets the full shape and the band runs to the tier cap.
+SHAPES = {t: [1, 2, 3] for t in range(3, 21)}
 
 # Peniber-flavored "Family Place" names, one per tier — the same pattern as
 # the hand-authored "Wisplet Hollows" / "Centiphantom Drifts".

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"burr_hedge_pet"
+display_name = "Burr Hedge"
+source_monster_id = &"burr_hedge"
+sprite = ExtResource("2_sprite")
+tint = Color(0.61, 0.94, 0.58, 1)
+variant_rate = 0.02
+base_attack = 53.0
+base_defense = 33.4
+base_hp = 501.0
+ability_id = &"taunt"

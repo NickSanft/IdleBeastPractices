@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"void_hollow_pet"
+display_name = "Void Hollow"
+source_monster_id = &"void_hollow"
+sprite = ExtResource("2_sprite")
+tint = Color(1.55, 0.08, 1.43, 1)
+variant_rate = 0.02
+base_attack = 163.5
+base_defense = 48.3
+base_hp = 936.0
+ability_id = &"strike"

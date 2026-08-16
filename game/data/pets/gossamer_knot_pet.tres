@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gossamer_knot_pet"
+display_name = "Gossamer Knot"
+source_monster_id = &"gossamer_knot"
+sprite = ExtResource("2_sprite")
+tint = Color(0.17, 0.67, 1.82, 1)
+variant_rate = 0.02
+base_attack = 91.0
+base_defense = 54.7
+base_hp = 865.8
+ability_id = &"taunt"

@@ -48,11 +48,14 @@ const _UNBOUNDED_ACHIEVEMENT_SOURCES: Array[int] = [
 ##
 ## Unlike a quest, an unmet achievement blocks nothing — `Achievements`
 ## evaluates every entry independently, so it simply stays locked rather
-## than pinning a slot. `pet_10` (100 RP) keeps its authored threshold as
-## aspirational content that becomes earnable the moment a pet-progression
-## system grows the roster past 3. Listed here so the exemption is explicit
-## and reviewed rather than silently tolerated.
-const _UNREACHABLE_ACHIEVEMENT_EXEMPTIONS: Array[StringName] = [&"pet_10"]
+## than pinning a slot.
+##
+## Empty since Phase 15a. The sole entry was `pet_10` (100 RP), held as
+## aspirational content "that becomes earnable the moment a pet-progression
+## system grows the roster past 3" — which it now is: pets exist for every
+## tier 1-20, so the supply is 60. `test_exempt_achievements_are_still_
+## actually_unreachable` is what caught the staleness.
+const _UNREACHABLE_ACHIEVEMENT_EXEMPTIONS: Array[StringName] = []
 
 ## Mirrors ContentRegistry's directory constants. Duplicated deliberately:
 ## the uniqueness test must observe ids BEFORE the registry indexes them
@@ -220,6 +223,13 @@ func test_every_achievement_with_a_bounded_source_is_reachable() -> void:
 ## Guards the exemption list against going stale: an entry that has BECOME
 ## reachable should be promoted back into the assertion above.
 func test_exempt_achievements_are_still_actually_unreachable() -> void:
+	# The list is empty as of Phase 15a. Assert that explicitly rather than
+	# letting the loop below no-op, which GUT reports as a Risky
+	# (assertion-free) test and which would hide a future entry being added
+	# and then silently skipped.
+	if _UNREACHABLE_ACHIEVEMENT_EXEMPTIONS.is_empty():
+		assert_true(true, "no achievements are exempt — every one is reachable")
+		return
 	for id in _UNREACHABLE_ACHIEVEMENT_EXEMPTIONS:
 		var a: AchievementResource = ContentRegistry.achievement(id)
 		assert_not_null(a, "exempt achievement '%s' no longer exists — drop it from the list" % String(id))

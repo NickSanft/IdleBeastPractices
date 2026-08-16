@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"dirge_refrain_pet"
+display_name = "Dirge Refrain"
+source_monster_id = &"dirge_refrain"
+sprite = ExtResource("2_sprite")
+tint = Color(0.34, 0.96, 1.11, 1)
+variant_rate = 0.02
+base_attack = 150.5
+base_defense = 22.8
+base_hp = 536.9
+ability_id = &"smite"

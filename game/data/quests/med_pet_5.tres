@@ -5,16 +5,16 @@
 [resource]
 script = ExtResource("1")
 id = &"med_pet_5"
-display_name = "Second Companion"
-description = "Own 2 different pets."
+display_name = "Five Companions"
+description = "Own 5 different pets."
 quest_tier = 1
 source = 2
 ledger_field = &""
-threshold = 2
+threshold = 5
 baseline = 0
 repeatable = false
 next_quest_id = &""
-rp_reward = 10
+rp_reward = 30
 gold_reward = {"m": 0.0, "e": 0}
 item_reward_id = &""
 item_reward_amount = 0

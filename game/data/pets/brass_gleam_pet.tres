@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"brass_gleam_pet"
+display_name = "Brass Gleam"
+source_monster_id = &"brass_gleam"
+sprite = ExtResource("2_sprite")
+tint = Color(0.65, 0.98, 0.34, 1)
+variant_rate = 0.02
+base_attack = 105.5
+base_defense = 16.4
+base_hp = 374.7
+ability_id = &"smite"

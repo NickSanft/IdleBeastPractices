@@ -423,6 +423,38 @@ func owned_pets() -> Array[PetResource]:
 	return out
 
 
+## Phase 15a: a pet's single-scalar battle strength, used only to rank the
+## roster. HP is scaled down because it is on a ~10x larger numeric scale
+## than atk/def and would otherwise be the only term that matters.
+static func pet_power(p: PetResource) -> float:
+	return p.base_attack + p.base_defense + p.base_hp * 0.2
+
+
+## The pets that actually fight, strongest first.
+##
+## Before Phase 15a there were only three pets total, so BattleView could
+## field `owned_pets().slice(0, 3)` — acquisition order — and always get
+## the whole roster. With pets for all 20 tiers that slice would field the
+## three tier-1 wisplets forever and every later pet would be dead content,
+## so the roster is ranked by pet_power() instead.
+##
+## Ties break on id so the fielded team (and therefore the seeded battle
+## replay) is deterministic — same discipline as the rest of BattleSystem.
+## BattleView and the stage-balance tests both call this, so the shipped
+## fight and the simulated one can never disagree.
+func battle_team(max_size: int = 3) -> Array[PetResource]:
+	var ranked: Array[PetResource] = owned_pets()
+	ranked.sort_custom(func(a: PetResource, b: PetResource) -> bool:
+		var pa: float = pet_power(a)
+		var pb: float = pet_power(b)
+		if pa == pb:
+			return String(a.id) < String(b.id)
+		return pa > pb)
+	if max_size >= 0 and ranked.size() > max_size:
+		ranked = ranked.slice(0, max_size)
+	return ranked
+
+
 ## Saves predating the Phase 3 v1→v2 migration (or pinched by an earlier code
 ## path that mutated currencies.gold without going through add_gold) can land
 ## with `total_gold_earned_this_run < currencies.gold`. That's impossible

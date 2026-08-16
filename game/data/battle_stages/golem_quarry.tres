@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BattleStageResource" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="BattleStageResource" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://game/resources/battle_stage_resource.gd" id="1_stage"]
 [ext_resource type="Script" path="res://game/resources/encounter_resource.gd" id="2_enc"]
@@ -10,7 +10,12 @@ narrator_line_id = &""
 
 [sub_resource type="Resource" id="enc_2"]
 script = ExtResource("2_enc")
-monster_ids = [&"geode_golem"]
+monster_ids = [&"geode_golem", &"gravel_golem"]
+narrator_line_id = &""
+
+[sub_resource type="Resource" id="enc_3"]
+script = ExtResource("2_enc")
+monster_ids = [&"agate_golem", &"geode_golem", &"gravel_golem"]
 narrator_line_id = &""
 
 [resource]
@@ -18,6 +23,6 @@ script = ExtResource("1_stage")
 id = &"golem_quarry"
 display_name = "Golem Quarry"
 tier = 5
-encounters = [SubResource("enc_1"), SubResource("enc_2")]
+encounters = [SubResource("enc_1"), SubResource("enc_2"), SubResource("enc_3")]
 narrator_stage_clear_id = &"on_stage_cleared"
 bonus_rp_on_clear = 0

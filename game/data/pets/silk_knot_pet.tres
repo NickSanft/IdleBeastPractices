@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"silk_knot_pet"
+display_name = "Silk Knot"
+source_monster_id = &"silk_knot"
+sprite = ExtResource("2_sprite")
+tint = Color(0.20, 0.79, 1.35, 1)
+variant_rate = 0.02
+base_attack = 121.3
+base_defense = 36.5
+base_hp = 692.8
+ability_id = &"cleanse"

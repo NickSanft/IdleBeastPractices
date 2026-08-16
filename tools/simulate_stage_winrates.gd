@@ -54,17 +54,28 @@ func _initialize() -> void:
 	for t in by_tier.keys():
 		(by_tier[t] as Array).sort_custom(func(a, b): return String(a) < String(b))
 
-	# Full-equip loadout: best-in-slot (the tier-2 trio) on every pet. This
-	# is ACHIEVABLE as of v0.15.19: all three have recipes (tier_required
-	# 3-4, materials from tier-3/4 drops) and _grant_equipment's Pareto
-	# upgrade rule replaces earlier tier-1 gear, so any craft history can
-	# reach this loadout. Banding must always use an obtainable loadout —
-	# the first draft of this tool used gear that had NO recipe, and the
-	# adversarial review caught tiers 5-6 shipping as unwinnable.
-	var equipped := {
-		"red_wisplet_pet": {"head": "seer_circlet", "body": "silver_collar", "trinket": "rending_fang"},
-		"green_wisplet_pet": {"head": "seer_circlet", "body": "silver_collar", "trinket": "rending_fang"},
-		"blue_wisplet_pet": {"head": "seer_circlet", "body": "silver_collar", "trinket": "rending_fang"},
+	# Phase 15a: pets exist for every tier, so the roster is no longer a
+	# constant. A player standing in front of a tier-N stage owns the pets
+	# from tiers 1..N and fields GameState.battle_team(3) of them — the
+	# same call BattleView makes, so the band this tool derives matches the
+	# fight that actually ships. Map each pet to the tier that awards it.
+	var pet_tier: Dictionary = {}
+	var mon_tier: Dictionary = {}
+	for m in ContentRegistry.monsters():
+		mon_tier[String(m.id)] = m.tier
+	for p in pets:
+		pet_tier[String(p.id)] = int(mon_tier.get(String(p.source_monster_id), 1))
+
+	# Full-equip loadout: best-in-slot (the tier-2 trio) on every FIELDED
+	# pet. This is ACHIEVABLE as of v0.15.19: all three have recipes
+	# (tier_required 3-4, materials from tier-3/4 drops) and
+	# _grant_equipment's Pareto upgrade rule replaces earlier tier-1 gear,
+	# so any craft history can reach this loadout. Banding must always use
+	# an obtainable loadout — the first draft of this tool used gear that
+	# had NO recipe, and the adversarial review caught tiers 5-6 shipping
+	# as unwinnable.
+	var best_in_slot := {
+		"head": "seer_circlet", "body": "silver_collar", "trinket": "rending_fang",
 	}
 
 	# Wave shapes, richest first. Per tier we report the equipped win% of
@@ -88,6 +99,18 @@ func _initialize() -> void:
 			print("%4d | (skipped — two consecutive all-zero tiers above)" % tier)
 			continue
 		var ids: Array = by_tier[tier]
+		# The roster a player arriving at this tier actually fields.
+		# clear(), not `= []`: pets_owned is Array[String] and assigning an
+		# untyped Array aborts _initialize, which leaves the SceneTree
+		# idling on the watchdog instead of failing loudly.
+		game_state.pets_owned.clear()
+		for p in pets:
+			if int(pet_tier.get(String(p.id), 1)) <= tier:
+				game_state.pets_owned.append(String(p.id))
+		var roster: Array[PetResource] = game_state.battle_team(3)
+		var equipped: Dictionary = {}
+		for p in roster:
+			equipped[String(p.id)] = best_in_slot.duplicate()
 		var best_equipped: float = 0.0
 		for shape_name in shapes.keys():
 			var waves: Array = (shapes[shape_name] as Callable).call(ids)
@@ -109,7 +132,7 @@ func _initialize() -> void:
 				game_state.pet_equipment = equipped.duplicate(true) if loadout else {}
 				var wins: int = 0
 				for s in SEEDS:
-					var log: Dictionary = battle_system.simulate_stage(1000 + s, pets, stage)
+					var log: Dictionary = battle_system.simulate_stage(1000 + s, roster, stage)
 					if String(log.get("winner", "")) == "player":
 						wins += 1
 				results.append(100.0 * wins / SEEDS)

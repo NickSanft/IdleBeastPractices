@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"scribe_muddler_pet"
+display_name = "Scribe Muddler"
+source_monster_id = &"scribe_muddler"
+sprite = ExtResource("2_sprite")
+tint = Color(0.25, 1.08, 1.52, 1)
+variant_rate = 0.02
+base_attack = 78.4
+base_defense = 47.6
+base_hp = 744.2
+ability_id = &"taunt"

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gravel_golem_pet"
+display_name = "Gravel Golem"
+source_monster_id = &"gravel_golem"
+sprite = ExtResource("2_sprite")
+tint = Color(0.99, 0.81, 0.50, 1)
+variant_rate = 0.02
+base_attack = 45.4
+base_defense = 15.2
+base_hp = 254.9
+ability_id = &"heal"

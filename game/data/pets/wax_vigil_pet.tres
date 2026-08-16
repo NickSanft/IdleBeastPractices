@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/centiphantom.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"wax_vigil_pet"
+display_name = "Wax Vigil"
+source_monster_id = &"wax_vigil"
+sprite = ExtResource("2_sprite")
+tint = Color(0.21, 0.33, 1.18, 1)
+variant_rate = 0.02
+base_attack = 172.9
+base_defense = 25.9
+base_hp = 618.0
+ability_id = &"burst"

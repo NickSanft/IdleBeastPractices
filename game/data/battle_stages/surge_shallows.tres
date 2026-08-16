@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BattleStageResource" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="BattleStageResource" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://game/resources/battle_stage_resource.gd" id="1_stage"]
 [ext_resource type="Script" path="res://game/resources/encounter_resource.gd" id="2_enc"]
@@ -8,11 +8,21 @@ script = ExtResource("2_enc")
 monster_ids = [&"ripple_surge"]
 narrator_line_id = &""
 
+[sub_resource type="Resource" id="enc_2"]
+script = ExtResource("2_enc")
+monster_ids = [&"swell_surge", &"tide_surge"]
+narrator_line_id = &""
+
+[sub_resource type="Resource" id="enc_3"]
+script = ExtResource("2_enc")
+monster_ids = [&"ripple_surge", &"swell_surge", &"tide_surge"]
+narrator_line_id = &""
+
 [resource]
 script = ExtResource("1_stage")
 id = &"surge_shallows"
 display_name = "Surge Shallows"
 tier = 6
-encounters = [SubResource("enc_1")]
+encounters = [SubResource("enc_1"), SubResource("enc_2"), SubResource("enc_3")]
 narrator_stage_clear_id = &"on_stage_cleared"
 bonus_rp_on_clear = 0

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PetResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/resources/pet_resource.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/wisplet.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"cipher_whisper_pet"
+display_name = "Cipher Whisper"
+source_monster_id = &"cipher_whisper"
+sprite = ExtResource("2_sprite")
+tint = Color(1.17, 0.08, 1.51, 1)
+variant_rate = 0.02
+base_attack = 155.0
+base_defense = 45.9
+base_hp = 887.4
+ability_id = &"cleanse"
